@@ -158,6 +158,12 @@ export interface Underlay {
   dy: Mm;
 }
 
+/** Названия приборов для строки «Замеры произведены…»; пусто — пустая строка для руки */
+export interface Instruments {
+  tape: string;
+  rangefinder: string;
+}
+
 export type Paper = 'A3' | 'A4';
 
 export interface SheetOptions {
@@ -173,9 +179,10 @@ export const FORMAT_ID = 'plan-editor';
  * История версий формата plan.json:
  * 1 — этап 1: модель в миллиметрах, стены-отрезки;
  * 2 — этап 2: формат листа (sheet.paper), убрана галочка sheet.showDims;
- * 3 — этап 5: предметы квартиры (кровать, диван, плита…), рисуется поворот предметов.
+ * 3 — этап 5: предметы квартиры (кровать, диван, плита…), рисуется поворот предметов;
+ * 4 — этап 6: названия приборов для замеров (instruments).
  */
-export const FORMAT_VERSION = 3;
+export const FORMAT_VERSION = 4;
 
 export interface Plan {
   format: typeof FORMAT_ID;
@@ -189,6 +196,7 @@ export interface Plan {
   stamp: Stamp;
   north: string;
   notes: string;
+  instruments: Instruments;
   underlay: Underlay;
   sheet: SheetOptions;
 }

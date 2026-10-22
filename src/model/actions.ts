@@ -2,7 +2,7 @@
 // так старые состояния можно хранить для отмены и повтора.
 // Неизменённые части переиспользуются (подложка-картинка не копируется).
 import type {
-  Callout, Dim, Item, ItemType, Marker, Mm, Plan, Point, SheetOptions, Stamp, Underlay, WallItem, WallItemType,
+  Callout, Dim, Item, ItemType, Marker, MeasureMethod, Mm, Plan, Point, SheetOptions, Stamp, Underlay, WallItem, WallItemType,
 } from './types';
 import { IT_SIZE } from './labels';
 import { findWall, rectSize, rectWalls, wallLength } from './room';
@@ -45,11 +45,11 @@ export function setRoomSize(p: Plan, size: { L?: Mm; W?: Mm; h?: Mm }): Plan {
 }
 
 /**
- * Отметить размер помещения замеренным или условным (временно, до полного ввода замеров на этапе 6).
- * Длина L — стены А и Б, ширина W — стены В и Г.
+ * Отметить размер помещения замеренным или условным. Длина L — стены А и Б, ширина W — стены В и Г.
+ * Способ не задан — прежний или рулетка.
  */
-export function setRoomDimStatus(p: Plan, which: 'L' | 'W' | 'h', isMeasured: boolean): Plan {
-  const mark = (d: Dim): Dim => (isMeasured ? { mm: d.mm, status: 'measured', method: d.method ?? 'tape' } : { mm: d.mm, status: 'conditional' });
+export function setRoomDimStatus(p: Plan, which: 'L' | 'W' | 'h', isMeasured: boolean, method?: MeasureMethod): Plan {
+  const mark = (d: Dim): Dim => (isMeasured ? { mm: d.mm, status: 'measured', method: method ?? d.method ?? 'tape' } : { mm: d.mm, status: 'conditional' });
   if (which === 'h') return { ...p, room: { ...p.room, height: mark(p.room.height) } };
   const ids = which === 'L' ? ['A', 'B'] : ['V', 'G'];
   return { ...p, room: { ...p.room, walls: p.room.walls.map(w => (ids.includes(w.id) ? { ...w, length: mark(w.length) } : w)) } };
@@ -64,6 +64,7 @@ export const setStamp = (p: Plan, o: Partial<Stamp>): Plan => ({ ...p, stamp: { 
 export const setUnderlay = (p: Plan, o: Partial<Underlay>): Plan => ({ ...p, underlay: { ...p.underlay, ...o } });
 export const setNorth = (p: Plan, north: string): Plan => ({ ...p, north });
 export const setNotes = (p: Plan, notes: string): Plan => ({ ...p, notes });
+export const setInstruments = (p: Plan, o: Partial<Plan['instruments']>): Plan => ({ ...p, instruments: { ...p.instruments, ...o } });
 
 /** Поменять поля одного объекта по id */
 export function patch<C extends Collection>(p: Plan, col: C, id: string, o: Partial<ElemOf<C>>): Plan {

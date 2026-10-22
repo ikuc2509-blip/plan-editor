@@ -6,6 +6,8 @@ import { drawSheet, sheetGeom, sheetLayout } from '../../render/sheet';
 import { segOf, wallDelta } from '../../geometry/unfold';
 import { angleFromHandle, snapAngle, snapMm } from '../../geometry/rotate';
 import { dispatch, endGesture, gridStep, plan, sel, tab, zoom, type TabKey } from '../store';
+import type { MeasureRef } from '../../model/measure';
+import { openMeasure } from '../common/MeasureDialog';
 
 const TAB_FOR: Record<SelKind, TabKey> = { wi: 'walls', it: 'items', mk: 'markers', co: 'callouts' };
 const COL = { wi: 'wallItems', it: 'items', mk: 'markers', co: 'callouts' } as const;
@@ -34,6 +36,14 @@ function findObj(s: Plan, kind: SelKind, id: string): Obj | undefined {
 }
 
 let dragN = 0;
+
+/** «room:L», «tie:<id>:x» — размер на листе, по которому щёлкнули */
+function parseMeasure(s: string): MeasureRef | null {
+  const [t, a, b] = s.split(':');
+  if (t === 'room' && (a === 'L' || a === 'W' || a === 'h')) return { t: 'room', key: a };
+  if (t === 'tie' && a && (b === 'x' || b === 'y')) return { t: 'tie', id: a, axis: b };
+  return null;
+}
 
 export function Sheet() {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -85,6 +95,10 @@ export function Sheet() {
     if (e.button !== 0) return;
     const target = e.target as Element;
     const start = svgPt(e), key = `drag:${++dragN}`;
+    // размер на листе — окно замера
+    const mEl = target.closest<SVGElement>('[data-measure]');
+    const mref = mEl && parseMeasure(mEl.dataset.measure!);
+    if (mref) { openMeasure(mref); return; }
     const handle = target.closest<SVGElement>('[data-handle]');
     const gEl = target.closest<SVGElement>('[data-kind]');
     if (handle) {
@@ -183,9 +197,9 @@ export function Sheet() {
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
-        dangerouslySetInnerHTML={{ __html: drawSheet(plan.value, { sel: sel.value, grid: gridStep.value }) }}
+        dangerouslySetInnerHTML={{ __html: drawSheet(plan.value, { sel: sel.value, grid: gridStep.value, screen: true }) }}
       />
-      <div class="legendline">Перетаскивайте предметы, метки, подписи и элементы стен мышью; Alt — без привязки к сетке. Синий кружок над предметом — поворот. Ctrl + колесо — масштаб, перетаскивание пустого места — сдвиг листа.</div>
+      <div class="legendline">Перетаскивайте предметы, метки, подписи и элементы стен мышью; Alt — без привязки к сетке. Синий кружок над предметом — поворот. Ctrl + колесо — масштаб, перетаскивание пустого места — сдвиг листа. Щелчок по размеру (L, W, h, расстояния от меток) — ввести замер.</div>
       <div class="legendline">{PRINT_HINT}</div>
     </div>
   );

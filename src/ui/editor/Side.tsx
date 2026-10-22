@@ -1,6 +1,9 @@
 // Боковая панель: вкладки Помещение / Стены / Мебель / Метки / Подложка / Штамп.
 import { useEffect, useState } from 'preact/hooks';
-import type { Callout, Item, ItemType, Marker, MarkerPlace, Mm, Plan, WallItem, WallItemType } from '../../model/types';
+import type { Callout, Dim, Item, ItemType, Marker, MarkerPlace, Mm, Plan, WallItem, WallItemType } from '../../model/types';
+import { measureList, type MeasureRef, type MeasureRow } from '../../model/measure';
+import { formatMeters } from '../../model/units';
+import { StatusChip, openMeasure } from '../common/MeasureDialog';
 import { IT_TYPES, WI_TYPES } from '../../model/labels';
 import { blank, example, uid } from '../../model/state';
 import { rectSize, wallsByLetter } from '../../model/room';
@@ -14,7 +17,7 @@ import { Check, Field, Len, Num, Select, Text, parseNum } from '../common/fields
 import { stopAutosave } from '../project';
 import { FilePanel } from './FilePanel';
 
-const TABS: [TabKey, string][] = [['room', 'Помещение'], ['walls', 'Стены'], ['items', 'Мебель'], ['markers', 'Метки'], ['callouts', 'Подписи'], ['under', 'Подложка'], ['stamp', 'Штамп'], ['file', 'Файл']];
+const TABS: [TabKey, string][] = [['room', 'Помещение'], ['walls', 'Стены'], ['items', 'Мебель'], ['markers', 'Метки'], ['callouts', 'Подписи'], ['measure', 'Замеры'], ['under', 'Подложка'], ['stamp', 'Штамп'], ['file', 'Файл']];
 
 /** Новый план вместо текущего: автосохранение выключаем, чтобы не записать пример поверх файла осмотра */
 async function newPlan(p: Plan, question: string, label: string) {
@@ -46,6 +49,7 @@ export function Side() {
         {tab.value === 'items' && <ItemsPanel />}
         {tab.value === 'markers' && <MarkersPanel />}
         {tab.value === 'callouts' && <CalloutsPanel />}
+        {tab.value === 'measure' && <MeasurePanel />}
         {tab.value === 'under' && <UnderlayPanel />}
         {tab.value === 'stamp' && <StampPanel />}
         {tab.value === 'file' && <FilePanel />}
@@ -53,6 +57,9 @@ export function Side() {
     </aside>
   );
 }
+
+/** отметка «замерено / условно» у поля; щелчок — окно замера */
+const chip = (d: Dim, mref: MeasureRef) => <StatusChip status={d.status} mref={mref} />;
 
 const cardClass = (id: string) => 'card' + (sel.value?.id === id ? ' sel' : '');
 
@@ -63,7 +70,6 @@ function RoomPanel() {
   const fits = !sc || fitsAt(st.room, lay.area, st.sheet.scale);
   const better = fits ? null : smallerScaleThatFits(st.room, lay.area, st.sheet.scale);
   const { L, W } = rectSize(st.room);
-  const isM = (d: { status: string }) => d.status === 'measured';
   return (
     <>
       <p class="hint">Пока замеров нет, оставьте «схематично»: незамеренные размеры на листе будут пустыми строками, впишете от руки. Длины ниже задают только пропорции.</p>
@@ -83,15 +89,11 @@ function RoomPanel() {
       )}
       <h3>{sc ? 'Размеры помещения, м' : 'Пропорции помещения (условно), м'}</h3>
       <div class="grid">
-        <Len label="Длина L" value={L.mm} positive onCommit onValue={mm => dispatch(p => A.setRoomSize(p, { L: mm }))} />
-        <Len label="Ширина W" value={W.mm} positive onCommit onValue={mm => dispatch(p => A.setRoomSize(p, { W: mm }))} />
-        <Len label="Высота h" value={st.room.height.mm} positive onCommit onValue={mm => dispatch(p => A.setRoomSize(p, { h: mm }))} />
-        {/* временно, до этапа 6 — там появится полный ввод замеров */}
-        <Check label="замерено" checked={isM(L)} onValue={v => dispatch(p => A.setRoomDimStatus(p, 'L', v))} />
-        <Check label="замерено" checked={isM(W)} onValue={v => dispatch(p => A.setRoomDimStatus(p, 'W', v))} />
-        <Check label="замерено" checked={isM(st.room.height)} onValue={v => dispatch(p => A.setRoomDimStatus(p, 'h', v))} />
+        <Len label="Длина L" value={L.mm} positive onCommit chip={chip(L, { t: 'room', key: 'L' })} onValue={mm => dispatch(p => A.setRoomSize(p, { L: mm }))} />
+        <Len label="Ширина W" value={W.mm} positive onCommit chip={chip(W, { t: 'room', key: 'W' })} onValue={mm => dispatch(p => A.setRoomSize(p, { W: mm }))} />
+        <Len label="Высота h" value={st.room.height.mm} positive onCommit chip={chip(st.room.height, { t: 'room', key: 'h' })} onValue={mm => dispatch(p => A.setRoomSize(p, { h: mm }))} />
       </div>
-      <p class="hint" style="margin-top:6px">Можно писать «12,5», «1250 см» или «12500 мм». Новый размер применяется, когда вы выходите из поля или нажимаете Enter. Условные окна, метки и мебель при этом сдвигаются пропорционально, замеренные остаются на месте. На листе замеренный размер подписывается числом, условный — пустой строкой.</p>
+      <p class="hint" style="margin-top:6px">Отметка над полем — «замерено» или «условно»; щёлкните её, чтобы записать замер и чем мерили. Можно писать «12,5», «1250 см» или «12500 мм». Новый размер применяется, когда вы выходите из поля или нажимаете Enter. Условные окна, метки и мебель при этом сдвигаются пропорционально, замеренные остаются на месте. На листе замеренный размер подписывается числом, условный — пустой строкой.</p>
       <h3>Отображение</h3>
       <Check label="Привязки меток к стенам" checked={st.sheet.showTies} onValue={v => dispatch(p => A.setSheet(p, { showTies: v }))} />
       <h3>Названия стен</h3>
@@ -139,6 +141,7 @@ type DimKeys<T> = { [K in keyof T]: T[K] extends { mm: Mm } ? K : never }[keyof 
 function WallItemCard({ it, walls }: { it: WallItem; walls: Record<string, string> }) {
   const set = (o: Partial<WallItem>) => dispatch(p => A.patch(p, 'wallItems', it.id, o));
   const len = (k: DimKeys<WallItem>) => (mm: Mm) => dispatch(p => A.patchDims(p, 'wallItems', it.id, { [k]: mm }), `wi:${it.id}:${k}`);
+  const wiRef = (key: 'off' | 'z' | 'w' | 'h'): MeasureRef => ({ t: 'obj', col: 'wallItems', id: it.id, key });
   return (
     <div class={cardClass(it.id)} data-card={it.id}>
       <div class="card-h">
@@ -148,10 +151,10 @@ function WallItemCard({ it, walls }: { it: WallItem; walls: Record<string, strin
       <div class="grid">
         <Select label="Стена" value={it.wallId} options={walls} onValue={v => set({ wallId: v })} />
         <Text label="Подпись" value={it.label} onValue={v => dispatch(p => A.patch(p, 'wallItems', it.id, { label: v }), `wi:${it.id}:label`)} />
-        <Len label="Отступ, м" value={it.off.mm} onValue={len('off')} />
-        <Len label="Ширина, м" value={it.w.mm} positive onValue={len('w')} />
-        <Len label="От пола, м" value={it.z.mm} onValue={len('z')} />
-        <Len label="Высота, м" value={it.h.mm} positive onValue={len('h')} />
+        <Len label="Отступ, м" value={it.off.mm} chip={chip(it.off, wiRef('off'))} onValue={len('off')} />
+        <Len label="Ширина, м" value={it.w.mm} positive chip={chip(it.w, wiRef('w'))} onValue={len('w')} />
+        <Len label="От пола, м" value={it.z.mm} chip={chip(it.z, wiRef('z'))} onValue={len('z')} />
+        <Len label="Высота, м" value={it.h.mm} positive chip={chip(it.h, wiRef('h'))} onValue={len('h')} />
       </div>
       {(it.type === 'door' || it.type === 'window') && (
         <div class="grid two" style="margin-top:6px">
@@ -172,6 +175,7 @@ function removeObj(col: 'wallItems' | 'items' | 'markers' | 'callouts', id: stri
 
 function ItemCard({ it }: { it: Item }) {
   const len = (k: DimKeys<Item>) => (mm: Mm) => dispatch(p => A.patchDims(p, 'items', it.id, { [k]: mm }), `it:${it.id}:${k}`);
+  const itRef = (key: 'x' | 'y' | 'w' | 'd'): MeasureRef => ({ t: 'obj', col: 'items', id: it.id, key });
   return (
     <div class={cardClass(it.id)} data-card={it.id}>
       <div class="card-h">
@@ -180,10 +184,10 @@ function ItemCard({ it }: { it: Item }) {
       </div>
       <div class="grid">
         <Text label="Подпись" value={it.label} onValue={v => dispatch(p => A.patch(p, 'items', it.id, { label: v }), `it:${it.id}:label`)} />
-        <Len label="X, м" value={it.x.mm} onValue={len('x')} />
-        <Len label="Y, м" value={it.y.mm} onValue={len('y')} />
-        <Len label="По X, м" value={it.w.mm} positive onValue={len('w')} />
-        <Len label="По Y, м" value={it.d.mm} positive onValue={len('d')} />
+        <Len label="X, м" value={it.x.mm} chip={chip(it.x, itRef('x'))} onValue={len('x')} />
+        <Len label="Y, м" value={it.y.mm} chip={chip(it.y, itRef('y'))} onValue={len('y')} />
+        <Len label="По X, м" value={it.w.mm} positive chip={chip(it.w, itRef('w'))} onValue={len('w')} />
+        <Len label="По Y, м" value={it.d.mm} positive chip={chip(it.d, itRef('d'))} onValue={len('d')} />
         <Num label="Поворот, °" value={it.angle} onValue={v => dispatch(p => A.setAngle(p, it.id, v), `it:${it.id}:angle`)} />
       </div>
     </div>
@@ -265,6 +269,7 @@ function MarkersPanel() {
       {st.markers.map(m => {
         const set = (o: Partial<Marker>, key?: string) => dispatch(p => A.patch(p, 'markers', m.id, o), key);
         const len = (k: DimKeys<Marker>) => (mm: Mm) => dispatch(p => A.patchDims(p, 'markers', m.id, { [k]: mm }), `mk:${m.id}:${k}`);
+        const mkRef = (key: 'x' | 'y' | 'off' | 'z'): MeasureRef => ({ t: 'obj', col: 'markers', id: m.id, key });
         return (
           <div key={m.id} class={cardClass(m.id)} data-card={m.id}>
             <div class="card-h">
@@ -277,14 +282,14 @@ function MarkersPanel() {
               <Select label="Где" value={m.place} options={PLACES} onValue={v => set({ place: v })} />
               {m.place === 'floor' ? (
                 <>
-                  <Len label="X, м" value={m.x.mm} onValue={len('x')} />
-                  <Len label="Y, м" value={m.y.mm} onValue={len('y')} />
+                  <Len label="X, м" value={m.x.mm} chip={chip(m.x, mkRef('x'))} onValue={len('x')} />
+                  <Len label="Y, м" value={m.y.mm} chip={chip(m.y, mkRef('y'))} onValue={len('y')} />
                 </>
               ) : (
                 <>
                   <Select label="Стена" value={m.wallId} options={walls} onValue={v => set({ wallId: v })} />
-                  <Len label="Отступ, м" value={m.off.mm} onValue={len('off')} />
-                  {m.place === 'wall' && <Len label="От пола, м" value={m.z.mm} onValue={len('z')} />}
+                  <Len label="Отступ, м" value={m.off.mm} chip={chip(m.off, mkRef('off'))} onValue={len('off')} />
+                  {m.place === 'wall' && <Len label="От пола, м" value={m.z.mm} chip={chip(m.z, mkRef('z'))} onValue={len('z')} />}
                 </>
               )}
               <Text label="Описание" value={m.desc} wide area onValue={v => set({ desc: v }, `mk:${m.id}:desc`)} />
@@ -319,6 +324,51 @@ function CalloutsPanel() {
       <p class="hint">Подпись со стрелкой к любому месту плана, в том числе к развёртке стен. На листе перетаскивайте текст, а кончик стрелки — за синий кружок.</p>
       <div class="row"><button onClick={add}>+ Подпись со стрелкой</button></div>
       {plan.value.callouts.map(c => <CalloutCard key={c.id} c={c} />)}
+    </>
+  );
+}
+
+function MeasureRowView({ r }: { r: MeasureRow }) {
+  const ok = r.dim.status === 'measured';
+  const open = () => { if (r.sel) sel.value = r.sel; openMeasure(r.ref); };
+  return (
+    <div class="mrow">
+      <span class="w">{r.title} — {r.what}</span>
+      <span class="v">{(ok ? '' : '≈ ') + formatMeters(r.mm) + ' м'}</span>
+      <button class={ok ? 'ghost' : ''} onClick={open}>{ok ? 'Изменить' : 'Ввести'}</button>
+    </div>
+  );
+}
+
+function MeasurePanel() {
+  const st = plan.value;
+  const [showAll, setShowAll] = useState(false);
+  const rows = measureList(st);
+  const done = rows.filter(r => r.dim.status === 'measured').length;
+  const shown = rows.filter(r => showAll || r.dim.status !== 'measured');
+  const groups = ['Помещение', 'Окна и двери', 'Метки'] as const;
+  return (
+    <>
+      <p class="hint">Что есть на плане, но ещё не замерено. «≈» — значение нанесено на глаз. На листе замеренное подписывается числом, условное — пустой строкой.</p>
+      <b style="font-size:13px">Замерено {done} из {rows.length}</b>
+      <div class="meter" role="progressbar" aria-valuemin={0} aria-valuemax={rows.length} aria-valuenow={done}><i style={{ width: (rows.length ? (100 * done) / rows.length : 0) + '%' }} /></div>
+      <Check label="Показать и замеренное" checked={showAll} onValue={setShowAll} />
+      {shown.length === 0 && <p class="hint">Всё замерено.</p>}
+      {groups.map(g => {
+        const list = shown.filter(r => r.group === g);
+        return list.length ? (
+          <div key={g}>
+            <h3>{g}</h3>
+            {list.map(r => <MeasureRowView key={JSON.stringify(r.ref)} r={r} />)}
+          </div>
+        ) : null;
+      })}
+      <h3>Приборы</h3>
+      <p class="hint">Для строки в примечаниях «Замеры произведены: …». Не вписано — на листе останется пустая строка.</p>
+      <div class="grid two">
+        <Text label="Рулетка — какая" value={st.instruments.tape} placeholder="измерительная 5 м" onValue={v => dispatch(p => A.setInstruments(p, { tape: v }), 'instr:tape')} />
+        <Text label="Лазерный дальномер — модель" value={st.instruments.rangefinder} placeholder="Bosch GLM 50-27" onValue={v => dispatch(p => A.setInstruments(p, { rangefinder: v }), 'instr:range')} />
+      </div>
     </>
   );
 }

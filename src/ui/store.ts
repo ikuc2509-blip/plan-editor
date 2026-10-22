@@ -10,7 +10,7 @@ import { snapshotDue } from '../storage/history';
 import { loadPref, savePref } from '../storage/prefs';
 import type { ProjectMeta } from '../storage/omp';
 
-export type TabKey = 'room' | 'walls' | 'items' | 'markers' | 'callouts' | 'under' | 'stamp' | 'file';
+export type TabKey = 'room' | 'walls' | 'items' | 'markers' | 'callouts' | 'measure' | 'under' | 'stamp' | 'file';
 
 export const freshMeta = (now = new Date()): ProjectMeta => ({ created: now.toISOString(), modified: now.toISOString(), saveNumber: 0 });
 
