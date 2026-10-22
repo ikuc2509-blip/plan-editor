@@ -1,7 +1,4 @@
-import type { ItemType, WallItemType, WallKey } from './types';
-
-export const WALLS: Record<WallKey, string> = { A: 'А', B: 'Б', V: 'В', G: 'Г' };
-export const WALL_KEYS: WallKey[] = ['A', 'B', 'V', 'G'];
+import type { ItemType, WallItemType } from './types';
 
 export const WI_TYPES: Record<WallItemType, string> = {
   window: 'Окно', door: 'Дверь', radiator: 'Радиатор', board: 'Доска', screen: 'Экран',

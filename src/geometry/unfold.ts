@@ -1,53 +1,96 @@
-// Геометрия развёртки: пол в центре, стены «откинуты» наружу.
-// Координаты листа — в миллиметрах (лист A3 420×297), длины помещения — в метрах.
-import type { Room, WallKey } from '../model/types';
+// Геометрия развёртки по списку стен-отрезков: пол в центре, каждая стена
+// «откинута» наружу от своего отрезка. Координаты листа — в мм листа (A3 420×297),
+// размеры помещения здесь — в метрах (из миллиметров модели).
+import type { Room, SheetOptions, Wall } from '../model/types';
+import { roomExtent } from '../model/room';
+import { toM } from '../model/units';
 
 export type Pt = [number, number];
 
+/** Стена для рисования: отрезок в метрах, направление и нормаль внутрь */
+export interface Seg {
+  wall: Wall;
+  ax: number;
+  ay: number;
+  len: number;
+  /** единичный вектор от начала к концу */
+  ux: number;
+  uy: number;
+  /** единичная нормаль внутрь помещения (справа от направления) */
+  nx: number;
+  ny: number;
+  /** с какой стороны пола лежит развёртка этой стены на листе */
+  side: 'top' | 'right' | 'bottom' | 'left';
+}
+
 export interface Geom {
+  /** габарит пола, м */
   L: number;
   W: number;
   h: number;
   /** мм листа на 1 м */
   s: number;
-  /** левый верхний угол пола на листе */
+  /** точка начала координат пола на листе */
   fx: number;
   fy: number;
   /** помещается ли развёртка в область чертежа */
   fits: boolean;
+  segs: Seg[];
 }
 
 /** Область чертежа на листе A3 (слева от колонки легенды) */
 export const AREA = { x: 24, y: 28, w: 264, h: 256 } as const;
 const PAD = 15;
 
-export function geom(room: Room): Geom {
-  const { L, W, h } = room;
+function sideOf(nx: number, ny: number): Seg['side'] {
+  // развёртка лежит снаружи, т. е. против нормали внутрь
+  if (Math.abs(ny) >= Math.abs(nx)) return ny > 0 ? 'top' : 'bottom';
+  return nx < 0 ? 'right' : 'left';
+}
+
+export function toSeg(w: Wall): Seg {
+  const ax = toM(w.a.x), ay = toM(w.a.y);
+  const dx = toM(w.b.x) - ax, dy = toM(w.b.y) - ay;
+  const len = Math.hypot(dx, dy);
+  const ux = len ? dx / len : 1, uy = len ? dy / len : 0;
+  // поворот на 90° «вправо» при оси Y вниз
+  const nx = -uy, ny = ux;
+  return { wall: w, ax, ay, len, ux, uy, nx, ny, side: sideOf(nx, ny) };
+}
+
+export function geom(room: Room, sheet: SheetOptions): Geom {
+  const segs = room.walls.map(toSeg);
+  const e = roomExtent(room);
+  const h = toM(room.height.mm);
+  // габарит развёртки: пол плюс высота стены во все стороны
+  const minX = toM(e.minX) - h, maxX = toM(e.maxX) + h, minY = toM(e.minY) - h, maxY = toM(e.maxY) + h;
+  const totW = maxX - minX, totH = maxY - minY;
   const area = AREA, pad = PAD;
-  const totW = L + 2 * h, totH = W + 2 * h;
-  const s = room.mode === 'scale' ? 1000 / room.scale : Math.min((area.w - 2 * pad) / totW, (area.h - 2 * pad) / totH);
+  const s = sheet.mode === 'scale' ? 1000 / sheet.scale : Math.min((area.w - 2 * pad) / totW, (area.h - 2 * pad) / totH);
   const fits = totW * s <= area.w - 2 * pad + 0.01 && totH * s <= area.h - 2 * pad + 0.01;
-  const fx = area.x + (area.w - totW * s) / 2 + h * s, fy = area.y + (area.h - totH * s) / 2 + h * s;
-  return { L, W, h, s, fx, fy, fits };
+  const fx = area.x + (area.w - totW * s) / 2 - minX * s, fy = area.y + (area.h - totH * s) / 2 - minY * s;
+  return { L: toM(e.maxX - e.minX), W: toM(e.maxY - e.minY), h, s, fx, fy, fits, segs };
 }
 
-export const wallLen = (g: Geom, w: WallKey): number => (w === 'A' || w === 'B') ? g.L : g.W;
-
-/** Точка на линии стены в плане пола, t — расстояние от начала стены, м */
-export function wallPt(g: Geom, w: WallKey, t: number): Pt {
-  const { fx, fy, s, L, W } = g;
-  return w === 'A' ? [fx + t * s, fy] : w === 'B' ? [fx + t * s, fy + W * s] : w === 'V' ? [fx, fy + t * s] : [fx + L * s, fy + t * s];
+export function segOf(g: Geom, wallId: string): Seg | undefined {
+  return g.segs.find(sg => sg.wall.id === wallId);
 }
 
-/** Направление внутрь помещения от стены */
-export const inward = (w: WallKey): Pt => w === 'A' ? [0, 1] : w === 'B' ? [0, -1] : w === 'V' ? [1, 0] : [-1, 0];
+/** Точка пола (м) → лист */
+export const floorPt = (g: Geom, x: number, y: number): Pt => [g.fx + x * g.s, g.fy + y * g.s];
 
-export const outward = (w: WallKey): Pt => { const i = inward(w); return [-i[0], -i[1]]; };
+/** Точка на линии стены в плане пола, t — от начала стены, м */
+export function wallPt(g: Geom, sg: Seg, t: number): Pt {
+  return floorPt(g, sg.ax + sg.ux * t, sg.ay + sg.uy * t);
+}
 
-/** Точка на развёртке стены: off — вдоль стены, z — высота от пола, м */
-export function unf(g: Geom, w: WallKey, off: number, z: number): Pt {
-  const { fx, fy, s, L, W } = g;
-  return w === 'A' ? [fx + off * s, fy - z * s] : w === 'B' ? [fx + off * s, fy + W * s + z * s] : w === 'V' ? [fx - z * s, fy + off * s] : [fx + L * s + z * s, fy + off * s];
+export const inward = (sg: Seg): Pt => [sg.nx, sg.ny];
+export const outward = (sg: Seg): Pt => [-sg.nx, -sg.ny];
+
+/** Точка на развёртке стены: off — вдоль стены от её начала, z — от пола, м */
+export function unf(g: Geom, sg: Seg, off: number, z: number): Pt {
+  const p = wallPt(g, sg, off);
+  return [p[0] - sg.nx * z * g.s, p[1] - sg.ny * z * g.s];
 }
 
 export interface Rect {
@@ -57,12 +100,17 @@ export interface Rect {
   h: number;
 }
 
-export function unfRect(g: Geom, w: WallKey, off: number, z: number, len: number, eh: number): Rect {
-  const a = unf(g, w, off, z), b = unf(g, w, off + len, z + eh);
+export function unfRect(g: Geom, sg: Seg, off: number, z: number, len: number, eh: number): Rect {
+  const a = unf(g, sg, off, z), b = unf(g, sg, off + len, z + eh);
   return { x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), w: Math.abs(a[0] - b[0]), h: Math.abs(a[1] - b[1]) };
 }
 
-/** Сдвиг мыши на листе (мм) → сдвиг вдоль стены и по высоте (м) */
-export function wallDelta(w: WallKey, dx: number, dy: number, s: number): Pt {
-  return w === 'A' ? [dx / s, -dy / s] : w === 'B' ? [dx / s, dy / s] : w === 'V' ? [dy / s, -dx / s] : [dy / s, dx / s];
+/** Сдвиг мыши на листе (мм листа) → сдвиг вдоль стены и вверх по стене (м) */
+export function wallDelta(sg: Seg, dx: number, dy: number, s: number): Pt {
+  return [(dx * sg.ux + dy * sg.uy) / s, -(dx * sg.nx + dy * sg.ny) / s];
+}
+
+/** Поворот подписи на развёртке, чтобы текст читался (не вверх ногами) */
+export function textRot(sg: Seg): number {
+  return sg.side === 'left' ? -90 : sg.side === 'right' ? 90 : 0;
 }
