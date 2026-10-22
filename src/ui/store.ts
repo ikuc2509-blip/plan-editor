@@ -47,8 +47,13 @@ export const canRedo = computed(() => future.value.length > 0);
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 export function persistWork(now = false): void {
   clearTimeout(saveTimer);
-  const run = () => void saveWork({ plan: plan.value, meta: meta.value, dirtySince: dirtySince.value, fileSavedAt: fileSavedAt.value, protect: protect.value });
-  if (now) run(); else saveTimer = setTimeout(run, 300);
+  if (now) void flushWork(); else saveTimer = setTimeout(() => void flushWork(), 300);
+}
+
+/** Записать рабочую копию сейчас и дождаться записи (перед обновлением приложения) */
+export function flushWork(): Promise<void> {
+  clearTimeout(saveTimer);
+  return saveWork({ plan: plan.value, meta: meta.value, dirtySince: dirtySince.value, fileSavedAt: fileSavedAt.value, protect: protect.value });
 }
 
 let changedSinceSnap = false;

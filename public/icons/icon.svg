@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Значок «План ОМП»: план комнаты с дверью и окном, жёлтая метка № 1 -->
+  <rect width="512" height="512" rx="96" fill="#1D262B"/>
+  <g fill="none" stroke="#F5F7F3" stroke-linecap="square">
+    <path d="M196 392H120V120H392V392H276" stroke-width="20"/>
+    <path d="M196 392V312" stroke-width="8"/>
+    <path d="M196 312A80 80 0 0 1 276 392" stroke-width="6" stroke-dasharray="10 10"/>
+    <path d="M190 120H322" stroke="#1D262B" stroke-width="22"/>
+    <path d="M190 112H322M190 128H322" stroke-width="6"/>
+  </g>
+  <circle cx="306" cy="232" r="56" fill="#E2B007" stroke="#1D262B" stroke-width="10"/>
+  <path d="M290 214L310 200V266" fill="none" stroke="#2A2200" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

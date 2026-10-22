@@ -72,6 +72,8 @@ dialog.pw{border:1px solid var(--line);border-radius:10px;background:var(--panel
 dialog.pw::backdrop{background:rgba(10,15,18,.45)}
 dialog.pw h3{margin:0 0 10px}
 .err-line{color:var(--danger);font-size:12.5px;margin:8px 0 0}
+header .update{flex-basis:100%;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:color-mix(in srgb,var(--accent) 28%,transparent);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:6px 10px;font-size:13px}
+header .update span{flex:1;min-width:200px}
 #toast{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:8px 14px;border-radius:6px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.on{opacity:1}
 @media (max-width:860px){main{grid-template-columns:1fr;grid-template-rows:auto 1fr}aside{max-height:46vh;border-right:0;border-bottom:1px solid var(--line)}}
