@@ -6,7 +6,7 @@ import { PASSWORD_WARNING } from '../common/PasswordDialog';
 import { Check } from '../common/fields';
 import { autosave, changePassword, openFile, resumeAutosave, saveToFile, setProtect, stopAutosave } from '../project';
 import { meta, persisted, protect, replacePlan, snapshots } from '../store';
-import { APP_VERSION, install, installPrompt, offlineReady, standalone } from '../../pwa/register';
+import { APP_VERSION, checkState, checkUpdates, install, installPrompt, offlineReady, standalone, updateVersion } from '../../pwa/register';
 
 const time = (ms: number) => new Date(ms).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
@@ -76,6 +76,15 @@ export function FilePanel() {
         {offlineReady.value ? 'Работает без интернета: файлы приложения сохранены в браузере.' : 'Без интернета заработает после первого полного открытия сайта.'}
         {' '}Новая версия включается только кнопкой «Обновить» в шапке.
       </p>
+      <div class="row">
+        <button disabled={checkState.value === 'checking'} onClick={() => void checkUpdates()}>
+          {checkState.value === 'checking' ? 'Проверяю…' : 'Проверить обновления'}
+        </button>
+      </div>
+      {checkState.value === 'latest' && <p class="hint">Установлена последняя версия.</p>}
+      {checkState.value === 'found' && <p class="hint">Новая версия {updateVersion.value} скачана — нажмите «Обновить» в жёлтой полосе вверху.</p>}
+      {checkState.value === 'failed' && <p class="hint">Не удалось проверить: нет интернета. Попробуйте, когда сеть появится.</p>}
+      {checkState.value === 'unavailable' && <p class="hint">Проверка работает только в опубликованном приложении после первого полного открытия.</p>}
       {standalone.value && <p class="hint">Открыто как установленное приложение.</p>}
       {!standalone.value && installPrompt.value && <div class="row"><button onClick={() => void install()}>Установить приложение</button></div>}
       {!standalone.value && (

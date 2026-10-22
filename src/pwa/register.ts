@@ -20,6 +20,15 @@ export const standalone = signal(false);
 export let reloadingForUpdate = false;
 
 const CHECK_EVERY = 30 * 60_000;
+/** при возврате в приложение — не чаще раза в минуту */
+const CHECK_ON_RETURN = 60_000;
+
+/** итог последней проверки — для кнопки «Проверить обновления» */
+export type CheckState = 'idle' | 'checking' | 'latest' | 'found' | 'failed' | 'unavailable';
+export const checkState = signal<CheckState>('idle');
+
+let lastCheck = 0;
+let running: Promise<boolean> | null = null;
 
 function ask(type: 'check' | 'apply'): Promise<SwReply> {
   return new Promise((resolve, reject) => {
@@ -34,14 +43,34 @@ function ask(type: 'check' | 'apply'): Promise<SwReply> {
   });
 }
 
-async function check(): Promise<void> {
-  try {
-    const r = await ask('check');
-    offlineReady.value = true;
-    updateVersion.value = r.pending ?? null;
-  } catch {
-    // нет сети или помощник ещё не готов — проверим позже
+/** Спросить помощника, нет ли новой версии; новая скачивается в фоне. false — не вышло (нет сети) */
+function check(): Promise<boolean> {
+  running ??= (async () => {
+    lastCheck = Date.now();
+    try {
+      const r = await ask('check');
+      offlineReady.value = true;
+      updateVersion.value = r.pending ?? null;
+      return true;
+    } catch {
+      // нет сети или помощник ещё не готов — проверим позже
+      return false;
+    } finally {
+      running = null;
+    }
+  })();
+  return running;
+}
+
+/** Кнопка «Проверить обновления» на вкладке «Файл» */
+export async function checkUpdates(): Promise<void> {
+  if (!import.meta.env.PROD || !('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
+    checkState.value = 'unavailable';
+    return;
   }
+  checkState.value = 'checking';
+  const ok = await check();
+  checkState.value = !ok ? 'failed' : updateVersion.value ? 'found' : 'latest';
 }
 
 export function initOffline(): void {
@@ -60,6 +89,10 @@ export function initOffline(): void {
     if (sw.controller) void check();
     setInterval(() => void check(), CHECK_EVERY);
     addEventListener('online', () => void check());
+    // телефон часто не перезапускает приложение, а возвращает его из фона — проверяем и тогда
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && sw.controller && Date.now() - lastCheck > CHECK_ON_RETURN) void check();
+    });
   }, () => { /* без помощника приложение работает как обычный сайт */ });
 }
 
