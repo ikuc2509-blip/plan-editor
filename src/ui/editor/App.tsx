@@ -1,10 +1,13 @@
 // Режим «Чистовик» (пока — интерфейс прототипа).
-import { loadPlan } from '../../model/migrate';
+import { useEffect, useState } from 'preact/hooks';
 import { vectorPdf } from '../../export/pdf';
 import { sheetPng, sheetSvgFile } from '../../export/image';
-import { pickFile, readText, saveFile } from '../../storage/files';
-import { plan, replacePlan, toast, zoom } from '../store';
+import { saveFile } from '../../storage/files';
+import { saveStatusText } from '../../storage/history';
+import { dirtySince, fileSavedAt, plan, tab, toast, zoom } from '../store';
+import { autosave, openFile, saveToFile } from '../project';
 import { Toast } from '../common/Toast';
+import { PasswordDialog } from '../common/PasswordDialog';
 import { Side } from './Side';
 import { PRINT_HINT, Sheet } from './Sheet';
 
@@ -12,28 +15,6 @@ const fname = (ext: string): string => {
   const d = (plan.value.stamp.date || '').replace(/[^\d.]/g, '');
   return `plan${d ? '_' + d : ''}.${ext}`;
 };
-
-async function openProject() {
-  const f = await pickFile('.json,application/json');
-  if (!f) return;
-  let raw: unknown;
-  try {
-    raw = JSON.parse(await readText(f));
-  } catch {
-    toast('Это не файл проекта плана (.json)');
-    return;
-  }
-  const r = loadPlan(raw);
-  if (!r.ok) { toast(r.error); return; }
-  replacePlan(r.plan);
-  toast(r.migratedFrom ? 'Проект открыт и переведён в новый формат' : 'Проект открыт');
-}
-
-function saveProject() {
-  const name = fname('json');
-  saveFile(name, JSON.stringify(plan.value, null, 1), 'application/json');
-  toast('Файл сохранён: ' + name);
-}
 
 /** Экспорт листа: файл готовится, затем отдаётся пользователю */
 async function exportSheet(ext: 'pdf' | 'png' | 'svg') {
@@ -49,17 +30,32 @@ async function exportSheet(ext: 'pdf' | 'png' | 'svg') {
   }
 }
 
+/** Индикатор в шапке: «Не сохранено в файл 12 мин»; щелчок — вкладка «Файл» */
+function SaveStatus() {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
+  const dirty = dirtySince.value !== null;
+  const auto = autosave.value;
+  const text = auto?.state === 'on' && !dirty ? 'Автосохранение в файл' : saveStatusText(dirtySince.value, fileSavedAt.value, Math.max(now, dirtySince.value ?? 0));
+  return (
+    <button class={'status' + (dirty ? ' dirty' : '')} title="Вкладка «Файл»" onClick={() => { tab.value = 'file'; }}>
+      {text}{auto && auto.state !== 'on' ? ' · автосохранение приостановлено' : ''}
+    </button>
+  );
+}
+
 export function App() {
   return (
     <div class="app">
       <header>
         <h1><span class="dot">1</span>План места происшествия</h1>
+        <SaveStatus />
         <span class="grow" />
         <button class="ghost" title="Уменьшить" onClick={() => { zoom.value = Math.max(0.4, zoom.value / 1.25); }}>−</button>
         <button class="ghost" onClick={() => { zoom.value = 1; }}>По размеру</button>
         <button class="ghost" title="Увеличить" onClick={() => { zoom.value = Math.min(4, zoom.value * 1.25); }}>+</button>
-        <button onClick={openProject}>Открыть проект</button>
-        <button onClick={saveProject}>Сохранить проект</button>
+        <button onClick={openFile}>Открыть файл</button>
+        <button onClick={saveToFile}>Сохранить в файл</button>
         <button onClick={() => exportSheet('svg')} title="Лист в SVG (векторная картинка)">SVG</button>
         <button onClick={() => exportSheet('png')} title="Лист картинкой для вставки в Word">PNG</button>
         <button class="primary" onClick={() => exportSheet('pdf')}>Скачать PDF {plan.value.sheet.paper}</button>
@@ -69,6 +65,7 @@ export function App() {
         <Sheet />
       </main>
       <Toast />
+      <PasswordDialog />
     </div>
   );
 }

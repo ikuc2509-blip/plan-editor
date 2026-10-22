@@ -163,7 +163,16 @@ interface CheckProps {
 export function Check({ label, checked, onValue, style }: CheckProps) {
   return (
     <label class="chk" style={style}>
-      <input type="checkbox" checked={checked} onChange={e => onValue(e.currentTarget.checked)} />
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={e => {
+          // галочка показывает состояние плана, а не щелчок: если действие отменили (не задали пароль) — не ставится
+          const v = e.currentTarget.checked;
+          e.currentTarget.checked = checked;
+          onValue(v);
+        }}
+      />
       {label}
     </label>
   );
