@@ -7,6 +7,8 @@ dist/
 *.omp
 photos/
 фото/
+# …кроме папки с кодом модуля снимков
+!src/photos/
 *.jpg
 *.jpeg
 *.png
