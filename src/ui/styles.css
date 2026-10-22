@@ -1,4 +1,6 @@
-/* Стили интерфейса из прототипа. Шрифт пока системный (Google Fonts убраны — без сети). */
+/* Стили интерфейса из прототипа. Шрифт интерфейса системный; шрифт листа — PT Sans из приложения. */
+@font-face{font-family:"PT Sans";font-weight:400;font-display:swap;src:url("../assets/fonts/PTSans-Regular.ttf") format("truetype")}
+@font-face{font-family:"PT Sans";font-weight:700;font-display:swap;src:url("../assets/fonts/PTSans-Bold.ttf") format("truetype")}
 :root{
   --bg:#E4E9E6; --panel:#F5F7F3; --ink:#1D262B; --muted:#5B686D; --line:#C6CFCB;
   --field:#FFFFFF; --accent:#E2B007; --accent-ink:#2A2200; --focus:#2F6FB3; --danger:#B3402F;
@@ -39,6 +41,7 @@ aside{border-right:1px solid var(--line);background:var(--panel);display:flex;fl
 .tabs button[aria-selected="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
 .side{overflow:auto;padding:12px;flex:1}
 .hint{color:var(--muted);font-size:12.5px;margin:0 0 10px}
+.warn button.inline{display:block;margin-top:6px;padding:3px 9px;font-size:12.5px}
 .warn{background:color-mix(in srgb,var(--accent) 22%,transparent);border-left:3px solid var(--accent);padding:6px 9px;font-size:12.5px;margin:0 0 10px;border-radius:0 4px 4px 0}
 .card{border:1px solid var(--line);border-radius:8px;padding:9px;margin:0 0 9px;background:var(--field)}
 .card.sel{border-color:var(--focus);box-shadow:0 0 0 2px color-mix(in srgb,var(--focus) 30%,transparent)}

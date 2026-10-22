@@ -1,6 +1,6 @@
 {
  "format": "plan-editor",
- "version": 1,
+ "version": 2,
  "room": {
   "walls": [
    {
@@ -1402,9 +1402,9 @@
   "dy": 0
  },
  "sheet": {
+  "paper": "A3",
   "mode": "schematic",
   "scale": 100,
-  "showDims": true,
   "showTies": true
  }
 }

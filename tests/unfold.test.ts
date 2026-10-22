@@ -1,14 +1,16 @@
 // Помещение из отрезков и координаты развёртки на простом помещении 10 × 6 × 3 м.
 import { describe, expect, test } from 'vitest';
 import { createRectRoom, rectSize, wallLength } from '../src/model/room';
-import { geom, segOf, unf, unfRect, wallDelta, wallPt, type Geom, type Seg } from '../src/geometry/unfold';
+import { fitsAt, geom, segOf, smallerScaleThatFits, unf, unfRect, wallDelta, wallPt, type Geom, type Seg } from '../src/geometry/unfold';
+import { layoutFor } from '../src/render/layout';
 import type { SheetOptions } from '../src/model/types';
 
 const room = createRectRoom(10_000, 6_000, 3_000);
-const sheet = (o: Partial<SheetOptions> = {}): SheetOptions => ({ mode: 'scale', scale: 100, showDims: true, showTies: true, ...o });
+const sheet = (o: Partial<SheetOptions> = {}): SheetOptions => ({ paper: 'A3', mode: 'scale', scale: 100, showTies: true, ...o });
+const A3 = layoutFor('A3').area, A4 = layoutFor('A4').area;
 
 // Масштаб 1:100 → 10 мм листа на 1 м; пол 100×60 мм, развёртка 160×120 мм в центре области 264×256
-const g: Geom = geom(room, sheet());
+const g: Geom = geom(room, sheet(), A3);
 const sg = (id: string): Seg => segOf(g, id)!;
 const { fx, fy } = g;
 
@@ -45,13 +47,34 @@ describe('geom', () => {
   });
 
   test('не помещается в 1:50', () => {
-    expect(geom(room, sheet({ scale: 50 })).fits).toBe(false);
+    expect(geom(room, sheet({ scale: 50 }), A3).fits).toBe(false);
   });
 
   test('схематично — развёртка вписана в область', () => {
-    const sgm = geom(room, sheet({ mode: 'schematic' }));
+    const sgm = geom(room, sheet({ mode: 'schematic' }), A3);
     expect(sgm.s).toBeCloseTo(Math.min(234 / 16, 226 / 12), 10);
     expect(sgm.fits).toBe(true);
+  });
+});
+
+describe('подбор масштаба', () => {
+  // развёртка 16 × 12 м; область A3 264×256, A4 176×169, по 15 мм отступа с каждой стороны
+  test('A3: 1:100 помещается, 1:50 — нет', () => {
+    expect(fitsAt(room, A3, 100)).toBe(true);
+    expect(fitsAt(room, A3, 50)).toBe(false);
+  });
+
+  test('A4: 1:100 не помещается (160 мм > 146 мм), предлагается 1:200', () => {
+    expect(fitsAt(room, A4, 100)).toBe(false);
+    expect(smallerScaleThatFits(room, A4, 100)).toBe(200);
+  });
+
+  test('из 1:50 на A3 предлагается ближайший подходящий — 1:100', () => {
+    expect(smallerScaleThatFits(room, A3, 50)).toBe(100);
+  });
+
+  test('огромное помещение не помещается ни в каком масштабе', () => {
+    expect(smallerScaleThatFits(createRectRoom(60_000, 40_000, 3_000), A4, 100)).toBeNull();
   });
 });
 

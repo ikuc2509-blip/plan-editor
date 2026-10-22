@@ -1,14 +1,16 @@
 // Открытие старых файлов: прототип → формат версии 1.
 import { describe, expect, test } from 'vitest';
-import { fromPrototype, loadPlan } from '../src/model/migrate';
+import { fromPrototype, loadPlan, v1to2, type PlanV1 } from '../src/model/migrate';
 import type { ProtoPlan } from '../src/model/prototype';
 import type { Plan } from '../src/model/types';
 import proto from '../examples/auditorium.prototype.json';
+import v1file from '../examples/old/auditorium.v1.json';
 
 const old = proto as unknown as ProtoPlan;
+const v1 = v1file as unknown as PlanV1;
 
-/** Пример в новом формате получается переводом файла прототипа и лежит в examples/ */
-test('пример аудитории в формате 1 — это переведённый файл прототипа', async () => {
+/** Пример в текущем формате получается переводом файла прототипа и лежит в examples/ */
+test('пример аудитории в текущем формате — это переведённый файл прототипа', async () => {
   const r = loadPlan(structuredClone(old));
   expect(r.ok).toBe(true);
   await expect(JSON.stringify((r as { plan: Plan }).plan, null, 1) + '\n').toMatchFileSnapshot('../examples/auditorium.plan.json');
@@ -76,10 +78,34 @@ describe('перевод из прототипа', () => {
   });
 });
 
-describe('loadPlan', () => {
-  const p = fromPrototype(structuredClone(old));
+describe('файл версии 1 (этап 1)', () => {
+  const r = loadPlan(structuredClone(v1));
 
-  test('файл версии 1 открывается как есть', () => {
+  test('открывается и переводится в текущую версию', () => {
+    expect(r.ok && r.migratedFrom).toBe('v1');
+    expect(r.ok && r.plan.version).toBe(2);
+  });
+
+  test('лист — A3, как было; галочки showDims больше нет', () => {
+    const sheet = r.ok ? r.plan.sheet : null;
+    expect(sheet).toEqual({ paper: 'A3', mode: 'schematic', scale: 100, showTies: true });
+  });
+
+  test('остальное без изменений', () => {
+    const { version: _a, sheet: _b, ...rest1 } = v1;
+    const { version: _c, sheet: _d, ...rest2 } = (r as { plan: Plan }).plan;
+    expect(rest2).toEqual(rest1);
+  });
+
+  test('прототип переводится через версию 1', () => {
+    expect(loadPlan(structuredClone(old))).toEqual({ ok: true, plan: v1to2(fromPrototype(structuredClone(old))), migratedFrom: 'prototype' });
+  });
+});
+
+describe('loadPlan', () => {
+  const p = v1to2(fromPrototype(structuredClone(old)));
+
+  test('файл текущей версии открывается как есть', () => {
     const r = loadPlan(JSON.parse(JSON.stringify(p)));
     expect(r).toEqual({ ok: true, plan: p });
   });

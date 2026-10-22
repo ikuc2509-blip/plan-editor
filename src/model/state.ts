@@ -14,7 +14,7 @@ export function blank(): Plan {
     stamp: { name: 'План-схема места происшествия', object: '', protocol: '', date: '', author: '', members: '' },
     north: '', notes: '',
     underlay: { src: '', show: true, opacity: 0.45, scale: 100, dx: 0, dy: 0 },
-    sheet: { mode: 'schematic', scale: 100, showDims: true, showTies: true },
+    sheet: { paper: 'A3', mode: 'schematic', scale: 100, showTies: true },
   };
 }
 

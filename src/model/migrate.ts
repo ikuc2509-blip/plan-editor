@@ -9,32 +9,53 @@ import { cond, toMm } from './units';
 
 export type LoadResult = { ok: true; plan: Plan; migratedFrom?: string } | { ok: false; error: string };
 
+/** Формат версии 1 (этап 1): без формата листа, с галочкой showDims */
+export type PlanV1 = Omit<Plan, 'version' | 'sheet'> & {
+  version: 1;
+  sheet: { mode: 'schematic' | 'scale'; scale: number; showDims: boolean; showTies: boolean };
+};
+
 const NOT_A_PLAN = 'Это не файл проекта плана';
+
+/** Переводы на одну версию вперёд: ключ — версия, из которой переводим */
+const UPGRADES: Record<number, (o: Record<string, unknown>) => Record<string, unknown>> = {
+  1: o => v1to2(o as unknown as PlanV1) as unknown as Record<string, unknown>,
+};
 
 /** Распознать сохранённый план и привести к текущей версии формата */
 export function loadPlan(raw: unknown): LoadResult {
   if (!raw || typeof raw !== 'object') return { ok: false, error: NOT_A_PLAN };
-  const o = raw as Record<string, unknown>;
-  if (o.format === FORMAT_ID) {
-    const v = o.version;
-    if (typeof v !== 'number') return { ok: false, error: NOT_A_PLAN };
-    if (v > FORMAT_VERSION) return { ok: false, error: 'Файл сохранён более новой версией приложения. Обновите приложение.' };
-    // версия 1 — текущая; переводы 1 → 2 и дальше добавятся здесь
-    if (!checkV1(o)) return { ok: false, error: 'Файл проекта повреждён' };
-    return { ok: true, plan: o as unknown as Plan };
-  }
+  let o = raw as Record<string, unknown>;
+  let migratedFrom: string | undefined;
   // прототип: номера версии нет, но есть помещение и элементы стен
-  if (o.room && typeof o.room === 'object' && Array.isArray(o.wallItems)) {
+  if (o.format === undefined && o.room && typeof o.room === 'object' && Array.isArray(o.wallItems)) {
     try {
-      return { ok: true, plan: fromPrototype(raw as ProtoPlan), migratedFrom: 'prototype' };
+      o = fromPrototype(raw as ProtoPlan) as unknown as Record<string, unknown>;
+      migratedFrom = 'prototype';
     } catch {
       return { ok: false, error: 'Файл прототипа повреждён' };
     }
   }
-  return { ok: false, error: NOT_A_PLAN };
+  if (o.format !== FORMAT_ID || typeof o.version !== 'number') return { ok: false, error: NOT_A_PLAN };
+  if (o.version > FORMAT_VERSION) return { ok: false, error: 'Файл сохранён более новой версией приложения. Обновите приложение.' };
+  if (!checkShape(o)) return { ok: false, error: 'Файл проекта повреждён' };
+  while ((o.version as number) < FORMAT_VERSION) {
+    const v = o.version as number;
+    const up = UPGRADES[v];
+    if (!up) return { ok: false, error: NOT_A_PLAN };
+    o = up(o);
+    migratedFrom ??= 'v' + v;
+  }
+  return migratedFrom ? { ok: true, plan: o as unknown as Plan, migratedFrom } : { ok: true, plan: o as unknown as Plan };
 }
 
-function checkV1(o: Record<string, unknown>): boolean {
+/** 1 → 2: лист A3 (другого раньше не было); галочка «Подписывать размеры» больше не нужна */
+export function v1to2(p: PlanV1): Plan {
+  const { showDims: _, ...sheet } = p.sheet;
+  return { ...p, version: 2, sheet: { paper: 'A3', ...sheet } };
+}
+
+function checkShape(o: Record<string, unknown>): boolean {
   const room = o.room as { walls?: unknown; height?: unknown } | undefined;
   return !!room && Array.isArray(room.walls) && room.walls.length >= 3 && !!room.height &&
     ['wallItems', 'items', 'markers'].every(k => Array.isArray(o[k])) && !!o.stamp && !!o.sheet;
@@ -45,7 +66,7 @@ function checkV1(o: Record<string, unknown>): boolean {
  * В прототипе отступ на стенах Б и В считался с другого конца — пересчитываем
  * от левого угла (стоя лицом к стене), петли меняем местами.
  */
-export function fromPrototype(p: ProtoPlan): Plan {
+export function fromPrototype(p: ProtoPlan): PlanV1 {
   const L = toMm(p.room.L), W = toMm(p.room.W), h = toMm(p.room.h);
   const names = p.wallNames ?? { A: '', B: '', V: '', G: '' };
   const walls = rectWalls(cond(L), cond(W), names);
@@ -57,7 +78,7 @@ export function fromPrototype(p: ProtoPlan): Plan {
 
   return {
     format: FORMAT_ID,
-    version: FORMAT_VERSION,
+    version: 1,
     room: { walls, height: cond(h) },
     wallItems: p.wallItems.map(it => ({
       id: it.id, wallId: it.wall, type: it.type as WallItemType, label: it.label ?? '',
