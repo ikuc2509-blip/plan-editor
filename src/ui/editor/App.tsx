@@ -11,6 +11,10 @@ import { Toast } from '../common/Toast';
 import { PasswordDialog } from '../common/PasswordDialog';
 import { UpdateBar } from '../common/UpdateBar';
 import { MeasureDialog } from '../common/MeasureDialog';
+import { CameraDialog } from '../common/CameraDialog';
+import { PhotoViewer } from './PhotosPanel';
+import { BIG_PROJECT, formatSize } from '../../photos/meta';
+import { photosBytes } from '../photos';
 import { Side } from './Side';
 import { PRINT_HINT, Sheet, ZOOM_MAX, ZOOM_MIN } from './Sheet';
 
@@ -80,6 +84,11 @@ export function App() {
       <header>
         <h1><span class="dot">1</span>План места происшествия</h1>
         <SaveStatus />
+        {plan.value.photos.length > 0 && (
+          <span class={'weight' + (photosBytes.value > BIG_PROJECT ? ' big' : '')} title="Снимки проекта; больше 500 МБ — файл переносить и сохранять медленно">
+            Проект: {formatSize(photosBytes.value)}
+          </span>
+        )}
         <span class="grow" />
         <button class="ghost" title="Отменить (Ctrl+Z)" aria-label="Отменить" disabled={!canUndo.value} onClick={undo}>↶</button>
         <button class="ghost" title="Повторить (Ctrl+Y)" aria-label="Повторить" disabled={!canRedo.value} onClick={redo}>↷</button>
@@ -105,6 +114,8 @@ export function App() {
       <Toast />
       <PasswordDialog />
       <MeasureDialog />
+      <CameraDialog />
+      <PhotoViewer />
     </div>
   );
 }

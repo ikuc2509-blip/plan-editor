@@ -1,17 +1,19 @@
 // Открытие старых файлов: прототип → формат версии 1.
 import { describe, expect, test } from 'vitest';
-import { fromPrototype, loadPlan, v1to2, v2to3, v3to4, type PlanV1, type PlanV2, type PlanV3 } from '../src/model/migrate';
+import { fromPrototype, loadPlan, v1to2, v2to3, v3to4, v4to5, type PlanV1, type PlanV2, type PlanV3, type PlanV4 } from '../src/model/migrate';
 import type { ProtoPlan } from '../src/model/prototype';
 import type { Plan } from '../src/model/types';
 import proto from '../examples/auditorium.prototype.json';
 import v1file from '../examples/old/auditorium.v1.json';
 import v2file from '../examples/old/auditorium.v2.json';
 import v3file from '../examples/old/auditorium.v3.json';
+import v4file from '../examples/old/auditorium.v4.json';
 
 const old = proto as unknown as ProtoPlan;
 const v1 = v1file as unknown as PlanV1;
 const v2 = v2file as unknown as PlanV2;
 const v3 = v3file as unknown as PlanV3;
+const v4 = v4file as unknown as PlanV4;
 
 /** Пример в текущем формате получается переводом файла прототипа и лежит в examples/ */
 test('пример аудитории в текущем формате — это переведённый файл прототипа', async () => {
@@ -87,7 +89,7 @@ describe('файл версии 1 (этап 1)', () => {
 
   test('открывается и переводится в текущую версию', () => {
     expect(r.ok && r.migratedFrom).toBe('v1');
-    expect(r.ok && r.plan.version).toBe(4);
+    expect(r.ok && r.plan.version).toBe(5);
   });
 
   test('лист — A3, как было; галочки showDims больше нет', () => {
@@ -102,7 +104,7 @@ describe('файл версии 1 (этап 1)', () => {
   });
 
   test('прототип переводится через версию 1', () => {
-    expect(loadPlan(structuredClone(old))).toEqual({ ok: true, plan: v3to4(v2to3(v1to2(fromPrototype(structuredClone(old))))), migratedFrom: 'prototype' });
+    expect(loadPlan(structuredClone(old))).toEqual({ ok: true, plan: v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old)))))), migratedFrom: 'prototype' });
   });
 });
 
@@ -111,7 +113,7 @@ describe('файл версии 2 (этапы 2–4)', () => {
 
   test('открывается и переводится в текущую версию', () => {
     expect(r.ok && r.migratedFrom).toBe('v2');
-    expect(r.ok && r.plan.version).toBe(4);
+    expect(r.ok && r.plan.version).toBe(5);
   });
 
   test('всё остальное без изменений: предметы, углы, штамп, лист', () => {
@@ -121,12 +123,32 @@ describe('файл версии 2 (этапы 2–4)', () => {
   });
 });
 
+describe('файл версии 4 (этап 6)', () => {
+  const r = loadPlan(structuredClone(v4));
+
+  test('открывается и переводится в версию 5', () => {
+    expect(r.ok && r.migratedFrom).toBe('v4');
+    expect(r.ok && r.plan.version).toBe(5);
+  });
+
+  test('снимков нет, остальное без изменений', () => {
+    const { version: _a, ...rest4 } = v4;
+    const { version: _b, ...rest5 } = (r as { plan: Plan }).plan;
+    expect(rest5).toEqual(rest4);
+  });
+
+  test('заготовка снимка из версии 4 получает пустые сведения', () => {
+    const p = v4to5({ ...structuredClone(v4), photos: [{ id: 'p', n: '1' }] });
+    expect(p.photos[0]).toMatchObject({ id: 'p', n: '1', file: '', kind: '', link: { kind: 'none' }, sha256: '' });
+  });
+});
+
 describe('файл версии 3 (этап 5)', () => {
   const r = loadPlan(structuredClone(v3));
 
-  test('открывается и переводится в версию 4', () => {
+  test('открывается и переводится в текущую версию', () => {
     expect(r.ok && r.migratedFrom).toBe('v3');
-    expect(r.ok && r.plan.version).toBe(4);
+    expect(r.ok && r.plan.version).toBe(5);
   });
 
   test('названия приборов пустые, остальное без изменений', () => {
@@ -138,7 +160,7 @@ describe('файл версии 3 (этап 5)', () => {
 });
 
 describe('loadPlan', () => {
-  const p = v3to4(v2to3(v1to2(fromPrototype(structuredClone(old)))));
+  const p = v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old))))));
 
   test('файл текущей версии открывается как есть', () => {
     const r = loadPlan(JSON.parse(JSON.stringify(p)));

@@ -19,7 +19,7 @@ export function FilePanel() {
   const a = autosave.value;
   return (
     <>
-      <p class="hint">Проект — один файл <b>.omp</b>. Его переносят на флешке или по USB-кабелю. Внутри обычный ZIP-архив: план и (с этапа 7) снимки.</p>
+      <p class="hint">Проект — один файл <b>.omp</b>. Его переносят на флешке или по USB-кабелю. Внутри обычный ZIP-архив: план и снимки (папка photos/ — оригиналы без изменений).</p>
       <div class="row">
         <button class="primary" onClick={saveToFile}>Сохранить в файл</button>
         <button onClick={openFile}>Открыть файл</button>

@@ -2,15 +2,15 @@
 // так старые состояния можно хранить для отмены и повтора.
 // Неизменённые части переиспользуются (подложка-картинка не копируется).
 import type {
-  Callout, Dim, Item, ItemType, Marker, MeasureMethod, Mm, Plan, Point, SheetOptions, Stamp, Underlay, WallItem, WallItemType,
+  Callout, Dim, Item, ItemType, Marker, MeasureMethod, Mm, Photo, Plan, Point, SheetOptions, Stamp, Underlay, WallItem, WallItemType,
 } from './types';
 import { IT_SIZE } from './labels';
 import { findWall, rectSize, rectWalls, wallLength } from './room';
 import { cond, withMm } from './units';
 
-type Collection = 'wallItems' | 'items' | 'markers' | 'callouts';
+type Collection = 'wallItems' | 'items' | 'markers' | 'callouts' | 'photos';
 export type ElemOf<C extends Collection> =
-  C extends 'wallItems' ? WallItem : C extends 'items' ? Item : C extends 'markers' ? Marker : Callout;
+  C extends 'wallItems' ? WallItem : C extends 'items' ? Item : C extends 'markers' ? Marker : C extends 'callouts' ? Callout : Photo;
 
 /** Условное значение масштабируется, замеренное остаётся */
 const scaleCond = (d: Dim, k: number): Dim => (d.status === 'conditional' && k !== 1 ? withMm(d, d.mm * k) : d);
@@ -132,6 +132,13 @@ export function setAngle(p: Plan, id: string, deg: number): Plan {
   const a = Math.round((((deg % 360) + 360) % 360) * 10) / 10;
   return patch(p, 'items', id, { angle: a === 360 ? 0 : a });
 }
+
+/** Следующий номер снимка — на единицу больше наибольшего; дальше номер правит пользователь */
+export function nextPhotoNumber(p: Plan): string {
+  return String(p.photos.reduce((m, k) => Math.max(m, parseInt(k.n) || 0), 0) + 1);
+}
+
+export const addPhotos = (p: Plan, list: Photo[]): Plan => (list.length ? { ...p, photos: [...p.photos, ...list] } : p);
 
 /** Новая выноска: подпись правее и выше середины помещения, стрелка — в середину */
 export function addCallout(p: Plan, id: string, text = ''): Plan {
