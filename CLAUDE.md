@@ -92,6 +92,7 @@ src/
   export/     PDF, SVG, PNG
   storage/    файл .omp, IndexedDB, автосохранение, шифрование
   photos/     добавление, превью, SHA-256, EXIF, камера
+  pwa/        работа без сети: service worker, список файлов, CSP, обновление по кнопке
   recognize/  распознавание (этап 10)
   ui/
     onsite/   режим «На месте»

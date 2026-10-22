@@ -8,6 +8,7 @@ import { dirtySince, fileSavedAt, plan, tab, toast, zoom } from '../store';
 import { autosave, openFile, saveToFile } from '../project';
 import { Toast } from '../common/Toast';
 import { PasswordDialog } from '../common/PasswordDialog';
+import { UpdateBar } from '../common/UpdateBar';
 import { Side } from './Side';
 import { PRINT_HINT, Sheet } from './Sheet';
 
@@ -59,6 +60,7 @@ export function App() {
         <button onClick={() => exportSheet('svg')} title="Лист в SVG (векторная картинка)">SVG</button>
         <button onClick={() => exportSheet('png')} title="Лист картинкой для вставки в Word">PNG</button>
         <button class="primary" onClick={() => exportSheet('pdf')}>Скачать PDF {plan.value.sheet.paper}</button>
+        <UpdateBar />
       </header>
       <main>
         <Side />

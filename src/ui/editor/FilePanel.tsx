@@ -6,6 +6,7 @@ import { PASSWORD_WARNING } from '../common/PasswordDialog';
 import { Check } from '../common/fields';
 import { autosave, changePassword, openFile, resumeAutosave, saveToFile, setProtect, stopAutosave } from '../project';
 import { meta, persisted, protect, replacePlan, snapshots } from '../store';
+import { APP_VERSION, install, installPrompt, offlineReady, standalone } from '../../pwa/register';
 
 const time = (ms: number) => new Date(ms).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
@@ -68,6 +69,20 @@ export function FilePanel() {
         {persisted.value === false && 'Браузер может удалить данные приложения при нехватке места. '}
         Рабочая копия — только на этом устройстве и в этом браузере. Надёжная копия — файл .omp.
       </p>
+
+      <h3>Приложение</h3>
+      <p class="hint">
+        Версия {APP_VERSION}.{' '}
+        {offlineReady.value ? 'Работает без интернета: файлы приложения сохранены в браузере.' : 'Без интернета заработает после первого полного открытия сайта.'}
+        {' '}Новая версия включается только кнопкой «Обновить» в шапке.
+      </p>
+      {standalone.value && <p class="hint">Открыто как установленное приложение.</p>}
+      {!standalone.value && installPrompt.value && <div class="row"><button onClick={() => void install()}>Установить приложение</button></div>}
+      {!standalone.value && (
+        <p class="hint">
+          Установить: на компьютере в Chrome или Edge — значок «Установить» справа в адресной строке; на Android в Chrome — меню ⋮ → «Добавить на главный экран» → «Установить». Значок «План ОМП» появится рядом с другими программами.
+        </p>
+      )}
     </>
   );
 }
