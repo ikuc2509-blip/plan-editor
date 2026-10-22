@@ -1,0 +1,27 @@
+# Зависимости и сборка
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Данные осмотров никогда не попадают в репозиторий (тайна следствия)
+*.omp
+photos/
+фото/
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.heif
+*.webp
+!src/assets/**/*.png
+!public/**/*.png
+
+# Служебное
+.claude/launch.json
+.vite/
+coverage/
+test-results/
+playwright-report/
+.DS_Store
+Thumbs.db
+*.log
