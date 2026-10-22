@@ -10,13 +10,15 @@ import { cond, toMm } from './units';
 export type LoadResult = { ok: true; plan: Plan; migratedFrom?: string } | { ok: false; error: string };
 
 /** Формат версии 1 (этап 1): без формата листа, с галочкой showDims */
-export type PlanV1 = Omit<Plan, 'version' | 'sheet'> & {
+export type PlanV1 = Omit<Plan, 'version' | 'sheet' | 'instruments'> & {
   version: 1;
   sheet: { mode: 'schematic' | 'scale'; scale: number; showDims: boolean; showTies: boolean };
 };
 
-/** Формат версии 2 (этапы 2–4): как текущий, только без предметов квартиры */
-export type PlanV2 = Omit<Plan, 'version'> & { version: 2 };
+/** Формат версии 3 (этап 5): без названий приборов */
+export type PlanV3 = Omit<Plan, 'version' | 'instruments'> & { version: 3 };
+/** Формат версии 2 (этапы 2–4): как версия 3, только без предметов квартиры */
+export type PlanV2 = Omit<PlanV3, 'version'> & { version: 2 };
 
 const NOT_A_PLAN = 'Это не файл проекта плана';
 
@@ -24,6 +26,7 @@ const NOT_A_PLAN = 'Это не файл проекта плана';
 const UPGRADES: Record<number, (o: Record<string, unknown>) => Record<string, unknown>> = {
   1: o => v1to2(o as unknown as PlanV1) as unknown as Record<string, unknown>,
   2: o => v2to3(o as unknown as PlanV2) as unknown as Record<string, unknown>,
+  3: o => v3to4(o as unknown as PlanV3) as unknown as Record<string, unknown>,
 };
 
 /** Распознать сохранённый план и привести к текущей версии формата */
@@ -60,8 +63,13 @@ export function v1to2(p: PlanV1): PlanV2 {
 }
 
 /** 2 → 3: появились новые виды предметов; старые данные подходят без изменений */
-export function v2to3(p: PlanV2): Plan {
+export function v2to3(p: PlanV2): PlanV3 {
   return { ...p, version: 3 };
+}
+
+/** 3 → 4: названия приборов ещё не вписаны */
+export function v3to4(p: PlanV3): Plan {
+  return { ...p, version: 4, instruments: { tape: '', rangefinder: '' } };
 }
 
 function checkShape(o: Record<string, unknown>): boolean {

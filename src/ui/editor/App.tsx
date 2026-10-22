@@ -10,6 +10,7 @@ import { autosave, openFile, saveToFile } from '../project';
 import { Toast } from '../common/Toast';
 import { PasswordDialog } from '../common/PasswordDialog';
 import { UpdateBar } from '../common/UpdateBar';
+import { MeasureDialog } from '../common/MeasureDialog';
 import { Side } from './Side';
 import { PRINT_HINT, Sheet, ZOOM_MAX, ZOOM_MIN } from './Sheet';
 
@@ -103,6 +104,7 @@ export function App() {
       </main>
       <Toast />
       <PasswordDialog />
+      <MeasureDialog />
     </div>
   );
 }

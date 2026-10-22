@@ -13,13 +13,15 @@ interface FieldProps {
   label: string;
   wide?: boolean;
   error?: string | null;
+  /** справа от подписи — например, отметка «замерено» */
+  chip?: ComponentChildren;
   children: ComponentChildren;
 }
 
-export function Field({ label, wide, error, children }: FieldProps) {
+export function Field({ label, wide, error, chip, children }: FieldProps) {
   return (
     <label class={'f' + (wide ? ' wide' : '') + (error ? ' bad' : '')}>
-      {label && <span>{label}</span>}
+      {label && (chip ? <span class="lab"><span>{label}</span>{chip}</span> : <span>{label}</span>)}
       {children}
       {error && <span class="err" role="alert">{error}</span>}
     </label>
@@ -55,13 +57,14 @@ interface LenProps {
   positive?: boolean;
   /** применять при выходе из поля или по Enter, а не на каждую цифру */
   onCommit?: boolean;
+  chip?: ComponentChildren;
 }
 
 /**
  * Поле длины: «1,25», «125 см», «1250 мм». Хранит свой текст, чтобы можно было набрать
  * «1,» без потери запятой; при ошибке — подсказка под полем, значение не меняется.
  */
-export function Len({ label, value, onValue, wide, positive, onCommit }: LenProps) {
+export function Len({ label, value, onValue, wide, positive, onCommit, chip }: LenProps) {
   const [text, setText] = useState(formatMeters(value));
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -87,7 +90,7 @@ export function Len({ label, value, onValue, wide, positive, onCommit }: LenProp
   };
 
   return (
-    <Field label={label} wide={wide} error={error}>
+    <Field label={label} wide={wide} error={error} chip={chip}>
       <input
         inputMode="decimal"
         value={text}
