@@ -4,6 +4,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { readManifest, readOmp, writeOmp, type OmpContent } from '../src/storage/omp';
 import { isoDate, objectSlug, projectFileName } from '../src/storage/naming';
 import { example } from '../src/model/state';
+import { FORMAT_VERSION } from '../src/model/types';
 import v1file from '../examples/old/auditorium.v1.json';
 
 const meta = { created: '2026-10-22T09:00:00.000Z', modified: '2026-10-22T11:30:00.000Z', saveNumber: 3 };
@@ -30,7 +31,7 @@ describe('без пароля', () => {
     const files = unzipSync(await writeOmp(content()));
     expect(Object.keys(files).sort()).toEqual(['manifest.json', 'photos/001.jpg', 'plan.json']);
     const m = JSON.parse(strFromU8(files['manifest.json']!));
-    expect(m).toMatchObject({ format: 'plan-editor-omp', version: 1, plan: 2, saveNumber: 3, created: meta.created, modified: meta.modified });
+    expect(m).toMatchObject({ format: 'plan-editor-omp', version: 1, plan: FORMAT_VERSION, saveNumber: 3, created: meta.created, modified: meta.modified });
     expect(typeof m.app).toBe('string');
     expect(JSON.parse(strFromU8(files['plan.json']!)).stamp.object).toBe('Аудитория, ул. Широкая, 33');
   });

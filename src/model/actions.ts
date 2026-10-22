@@ -2,13 +2,15 @@
 // так старые состояния можно хранить для отмены и повтора.
 // Неизменённые части переиспользуются (подложка-картинка не копируется).
 import type {
-  Dim, Item, ItemType, Marker, Mm, Plan, SheetOptions, Stamp, Underlay, WallItem, WallItemType,
+  Callout, Dim, Item, ItemType, Marker, Mm, Plan, Point, SheetOptions, Stamp, Underlay, WallItem, WallItemType,
 } from './types';
+import { IT_SIZE } from './labels';
 import { findWall, rectSize, rectWalls, wallLength } from './room';
 import { cond, withMm } from './units';
 
-type Collection = 'wallItems' | 'items' | 'markers';
-export type ElemOf<C extends Collection> = C extends 'wallItems' ? WallItem : C extends 'items' ? Item : Marker;
+type Collection = 'wallItems' | 'items' | 'markers' | 'callouts';
+export type ElemOf<C extends Collection> =
+  C extends 'wallItems' ? WallItem : C extends 'items' ? Item : C extends 'markers' ? Marker : Callout;
 
 /** Условное значение масштабируется, замеренное остаётся */
 const scaleCond = (d: Dim, k: number): Dim => (d.status === 'conditional' && k !== 1 ? withMm(d, d.mm * k) : d);
@@ -112,13 +114,30 @@ export function addWallItem(p: Plan, id: string, type: WallItemType, wallId: str
   return { ...p, wallItems: [...p.wallItems, o] };
 }
 
+/** Новый предмет типовых размеров — в середине помещения */
 export function addItem(p: Plan, id: string, type: ItemType = 'table'): Plan {
   const { L, W } = rectSize(p.room);
+  const [w, d] = IT_SIZE[type];
   const o: Item = {
-    id, type, label: '', x: cond(L.mm / 2 - 400), y: cond(W.mm / 2 - 400), w: cond(800), d: cond(800),
+    id, type, label: '', x: cond(Math.round((L.mm - w) / 2)), y: cond(Math.round((W.mm - d) / 2)), w: cond(w), d: cond(d),
     angle: 0, origin: { kind: 'manual' },
   };
   return { ...p, items: [...p.items, o] };
+}
+
+/** Угол поворота предмета: приводится к 0…360, до десятых долей градуса */
+export function setAngle(p: Plan, id: string, deg: number): Plan {
+  if (!Number.isFinite(deg)) return p;
+  const a = Math.round((((deg % 360) + 360) % 360) * 10) / 10;
+  return patch(p, 'items', id, { angle: a === 360 ? 0 : a });
+}
+
+/** Новая выноска: подпись правее и выше середины помещения, стрелка — в середину */
+export function addCallout(p: Plan, id: string, text = ''): Plan {
+  const { L, W } = rectSize(p.room);
+  const target: Point = { x: Math.round(L.mm / 2), y: Math.round(W.mm / 2) };
+  const o: Callout = { id, text, at: { x: target.x + 800, y: target.y - 800 }, target, origin: { kind: 'manual' } };
+  return { ...p, callouts: [...p.callouts, o] };
 }
 
 /** Новая метка получает номер на единицу больше наибольшего; дальше номер правит пользователь */

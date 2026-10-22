@@ -39,7 +39,7 @@ export function Text({ label, value, onValue, wide, area, placeholder }: TextPro
   return (
     <Field label={label} wide={wide}>
       {area
-        ? <textarea value={value} onInput={e => onValue(e.currentTarget.value)} onBlur={endGesture} />
+        ? <textarea value={value} placeholder={placeholder} onInput={e => onValue(e.currentTarget.value)} onBlur={endGesture} />
         : <input value={value} placeholder={placeholder} onInput={e => onValue(e.currentTarget.value)} onBlur={endGesture} />}
     </Field>
   );

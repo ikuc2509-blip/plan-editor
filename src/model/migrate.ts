@@ -15,11 +15,15 @@ export type PlanV1 = Omit<Plan, 'version' | 'sheet'> & {
   sheet: { mode: 'schematic' | 'scale'; scale: number; showDims: boolean; showTies: boolean };
 };
 
+/** Формат версии 2 (этапы 2–4): как текущий, только без предметов квартиры */
+export type PlanV2 = Omit<Plan, 'version'> & { version: 2 };
+
 const NOT_A_PLAN = 'Это не файл проекта плана';
 
 /** Переводы на одну версию вперёд: ключ — версия, из которой переводим */
 const UPGRADES: Record<number, (o: Record<string, unknown>) => Record<string, unknown>> = {
   1: o => v1to2(o as unknown as PlanV1) as unknown as Record<string, unknown>,
+  2: o => v2to3(o as unknown as PlanV2) as unknown as Record<string, unknown>,
 };
 
 /** Распознать сохранённый план и привести к текущей версии формата */
@@ -50,9 +54,14 @@ export function loadPlan(raw: unknown): LoadResult {
 }
 
 /** 1 → 2: лист A3 (другого раньше не было); галочка «Подписывать размеры» больше не нужна */
-export function v1to2(p: PlanV1): Plan {
+export function v1to2(p: PlanV1): PlanV2 {
   const { showDims: _, ...sheet } = p.sheet;
   return { ...p, version: 2, sheet: { paper: 'A3', ...sheet } };
+}
+
+/** 2 → 3: появились новые виды предметов; старые данные подходят без изменений */
+export function v2to3(p: PlanV2): Plan {
+  return { ...p, version: 3 };
 }
 
 function checkShape(o: Record<string, unknown>): boolean {

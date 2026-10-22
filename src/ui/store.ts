@@ -1,15 +1,16 @@
 // Состояние интерфейса. План меняется только через dispatch(действие) — каждое
 // состояние попадает в историю отмены (кнопки — этап 5). Рабочая копия и история
 // состояний хранятся в браузере (src/storage/db.ts).
-import { computed, signal } from '@preact/signals';
-import type { Plan, Selection } from '../model/types';
+import { computed, effect, signal } from '@preact/signals';
+import type { Mm, Plan, Selection } from '../model/types';
 import { example } from '../model/state';
 import { loadPlan } from '../model/migrate';
 import { addSnapshot, listSnapshots, loadWork, requestPersist, saveWork, type Snapshot } from '../storage/db';
 import { snapshotDue } from '../storage/history';
+import { loadPref, savePref } from '../storage/prefs';
 import type { ProjectMeta } from '../storage/omp';
 
-export type TabKey = 'room' | 'walls' | 'items' | 'markers' | 'under' | 'stamp' | 'file';
+export type TabKey = 'room' | 'walls' | 'items' | 'markers' | 'callouts' | 'under' | 'stamp' | 'file';
 
 export const freshMeta = (now = new Date()): ProjectMeta => ({ created: now.toISOString(), modified: now.toISOString(), saveNumber: 0 });
 
@@ -17,6 +18,11 @@ export const plan = signal<Plan>(example());
 export const sel = signal<Selection | null>(null);
 export const tab = signal<TabKey>('room');
 export const zoom = signal(1);
+
+/** Шаг привязки к сетке при перетаскивании, мм; 0 — без привязки. Настройка браузера, не плана. */
+export const GRID_STEPS: readonly Mm[] = [0, 10, 50, 100];
+export const gridStep = signal<Mm>(loadPref('grid', 50, (v): v is Mm => GRID_STEPS.includes(v as Mm)));
+effect(() => savePref('grid', gridStep.value));
 
 /* проект и файл */
 export const meta = signal<ProjectMeta>(freshMeta());

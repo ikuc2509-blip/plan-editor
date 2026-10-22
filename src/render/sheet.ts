@@ -1,15 +1,19 @@
 // План → SVG листа A3 или A4. Один и тот же код рисует лист на экране, в SVG, PNG и PDF.
-import type { Dim, Marker, Plan, Selection } from '../model/types';
-import { WI_TYPES } from '../model/labels';
+import type { Callout, Dim, Marker, Mm, Plan, Selection } from '../model/types';
+import { IT_TYPES, WI_TYPES } from '../model/labels';
 import { rectSize, wallsByLetter } from '../model/room';
 import { toM } from '../model/units';
 import { floorPt, geom, inward, outward, segOf, textRot, unf, unfRect, wallPt, type Geom, type Seg } from '../geometry/unfold';
+import { gridLineStep } from '../geometry/rotate';
 import { layoutFor, type Layout } from './layout';
+import { LEGEND_BOX, SYMBOL_TYPES, itemSymbol } from './symbols';
 import { Ln, R, T, fmt, marker, wrap } from './svg';
 
 export interface DrawOpts {
   /** выделенный объект; для файлов не передаётся — рамки выделения не рисуются */
   sel?: Selection | null;
+  /** шаг привязки, мм: сетка рисуется только на экране */
+  grid?: Mm;
 }
 
 const SEL = 'stroke="#2F6FB3" stroke-width="0.7" fill="none"';
@@ -121,10 +125,14 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
     const k = (u.scale || 100) / 100;
     P.push(`<image href="${u.src}" x="${fx + toM(u.dx) * s}" y="${fy + toM(u.dy) * s}" width="${L * s * k}" height="${W * s * k}" preserveAspectRatio="xMidYMid meet" opacity="${u.opacity}"/>`);
   }
+  if (opts.grid) P.push(gridLines(g, opts.grid));
   for (const it of st.items) {
     const [x, y] = floorPt(g, toM(it.x.mm), toM(it.y.mm)), w = toM(it.w.mm) * s, d = toM(it.d.mm) * s;
     let b = '';
-    if (it.type === 'projector') {
+    const symbol = itemSymbol(it.type, x, y, w, d);
+    if (symbol) {
+      b += symbol;
+    } else if (it.type === 'projector') {
       b += R(x, y, w, d, 'fill="none" stroke="#111" stroke-width="0.25" stroke-dasharray="1 0.6"') + Ln(x, y, x + w, y + d, 'stroke="#111" stroke-width="0.15"') + Ln(x + w, y, x, y + d, 'stroke="#111" stroke-width="0.15"');
     } else if (it.type === 'teacher') {
       b += R(x, y, w, d, 'fill="#ECECEC" stroke="#111" stroke-width="0.35"');
@@ -139,8 +147,15 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
     }
     if (it.label) { const rot = d > w * 1.6 && it.label.length * 1.0 > w ? -90 : 0; b += T(x + w / 2, y + d / 2, it.label, { size: 1.8, anchor: 'middle', base: 'central', rot }); }
     b = tint(b, !measured(it.x, it.y, it.w, it.d));
-    if (selA('it', it.id)) b += R(x - 0.8, y - 0.8, w + 1.6, d + 1.6, SEL);
-    P.push(`<g data-kind="it" data-id="${it.id}" style="cursor:move">${b}</g>`);
+    if (selA('it', it.id)) {
+      b += R(x - 0.8, y - 0.8, w + 1.6, d + 1.6, SEL);
+      // ручка поворота над верхней стороной — только на экране
+      b += Ln(x + w / 2, y - 0.8, x + w / 2, y - 5, SEL) +
+        `<circle data-handle="rot" data-id="${it.id}" cx="${x + w / 2}" cy="${y - 6.2}" r="1.4" fill="#fff" stroke="#2F6FB3" stroke-width="0.5" style="cursor:grab"/>`;
+    }
+    // поворот вокруг центра; без поворота — без transform, лист прежних версий не меняется
+    const tr = it.angle ? ` transform="rotate(${it.angle} ${x + w / 2} ${y + d / 2})"` : '';
+    P.push(`<g data-kind="it" data-id="${it.id}" style="cursor:move"${tr}>${b}</g>`);
   }
   // контур помещения
   P.push(R(fx, fy, L * s, W * s, 'fill="none" stroke="#111" stroke-width="0.9"'));
@@ -231,6 +246,9 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
     P.push(`<g data-kind="mk" data-id="${m.id}" style="cursor:move">${b}</g>`);
   }
 
+  /* выноски */
+  for (const c of st.callouts) P.push(callout(g, c, selA('co', c.id)));
+
   /* линейный масштаб «0—1—2 м» — только в масштабе: по нему проверяют печать линейкой */
   if (sc) P.push(scaleBar(lay.area.x + 2, lay.area.y + lay.area.h - 3, s));
 
@@ -266,6 +284,11 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   if (used.has('teacher')) sym((x, yy) => R(x + 1, yy, 8, 3, `fill="#ECECEC" ${K} stroke-width="0.35"`), 'Стол преподавателя');
   if (used.has('lectern')) sym((x, yy) => R(x + 3.3, yy, 3, 3, `fill="#fff" ${K} stroke-width="0.35"`) + T(x + 4.8, yy + 1.6, 'К', { size: 2, anchor: 'middle', base: 'central', weight: 700 }), 'Кафедра (трибуна)');
   if (used.has('cabinet')) sym((x, yy) => R(x + 1, yy, 8, 3, `fill="#fff" ${K} stroke-width="0.3"`) + Ln(x + 1, yy, x + 9, yy + 3, `${K} stroke-width="0.15"`), 'Шкаф');
+  for (const t of SYMBOL_TYPES) {
+    if (!used.has(t)) continue;
+    const [bw, bd] = LEGEND_BOX[t]!;
+    sym((x, yy) => itemSymbol(t, x + 5 - bw / 2, yy + 1.5 - bd / 2, bw, bd)!, IT_TYPES[t]);
+  }
   if (used.has('projector')) sym((x, yy) => R(x + 3.3, yy, 3, 3, `fill="none" ${K} stroke-width="0.25" stroke-dasharray="1 0.6"`) + Ln(x + 3.3, yy, x + 6.3, yy + 3, `${K} stroke-width="0.15"`) + Ln(x + 6.3, yy, x + 3.3, yy + 3, `${K} stroke-width="0.15"`), 'Проектор (на потолке)');
   sym((x, yy) => Ln(x, yy + 1.5, x + 10, yy + 1.5, `${K} stroke-width="0.25" stroke-dasharray="4 1 0.6 1"`), 'Линия сгиба (стены развёрнуты на пол)');
   if (st.sheet.showTies && st.markers.some(m => m.place === 'floor')) sym((x, yy) => Ln(x, yy + 1.5, x + 10, yy + 1.5, 'stroke="#2B5D8A" stroke-width="0.25" stroke-dasharray="1 0.6"'), 'Привязка метки к стенам, м');
@@ -334,6 +357,51 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   P.push(Ln(sx + lw + 2, bottom - total, sx + lw + 2, bottom, 'stroke="#111" stroke-width="0.2"'));
 
   return P.join('');
+}
+
+/** Видимая сетка по полу (только на экране) */
+function gridLines(g: Geom, snap: Mm): string {
+  const step = gridLineStep(snap, g.s);
+  if (!step) return '';
+  const { fx, fy, s, L, W } = g, a = 'stroke="#2F6FB3" stroke-opacity="0.22" stroke-width="0.1"';
+  let out = '';
+  for (let mm = step; mm < L * 1000 - 1; mm += step) out += Ln(fx + (mm / 1000) * s, fy, fx + (mm / 1000) * s, fy + W * s, a);
+  for (let mm = step; mm < W * 1000 - 1; mm += step) out += Ln(fx, fy + (mm / 1000) * s, fx + L * s, fy + (mm / 1000) * s, a);
+  return `<g pointer-events="none">${out}</g>`;
+}
+
+/** Ширина строки текста на листе, мм (оценка: средняя буква PT Sans — половина кегля) */
+const textW = (str: string, size: number) => str.length * size * 0.52;
+
+/**
+ * Выноска как в черчении: текст над полкой, от ближнего к цели конца полки — линия со стрелкой.
+ * at — левый конец полки.
+ */
+export function callout(g: Geom, c: Callout, selected = false): string {
+  const SIZE = 2.4;
+  const [ax, ay] = floorPt(g, toM(c.at.x), toM(c.at.y));
+  const [tx, ty] = floorPt(g, toM(c.target.x), toM(c.target.y));
+  const lines = c.text.trim() ? c.text.split('\n').flatMap(l => wrap(l, 36)) : [];
+  const shelf = Math.max(8, ...lines.map(l => textW(l, SIZE) + 1.2));
+  const ex = Math.abs(tx - ax) <= Math.abs(tx - (ax + shelf)) ? ax : ax + shelf;
+  let b = Ln(ax, ay, ax + shelf, ay, 'stroke="#111" stroke-width="0.25"');
+  lines.forEach((l, i) => { b += T(ax + 0.6, ay - 0.9 - (lines.length - 1 - i) * 3.1, l, { size: SIZE }); });
+  // стрелка: линия до основания наконечника, наконечник — залитый треугольник
+  const len = Math.hypot(tx - ex, ty - ay);
+  if (len > 0.5) {
+    const ux = (tx - ex) / len, uy = (ty - ay) / len, hl = Math.min(2, len), hw = 0.7;
+    const bx = tx - ux * hl, by = ty - uy * hl;
+    b += Ln(ex, ay, bx, by, 'stroke="#111" stroke-width="0.2"');
+    b += `<path d="M${tx} ${ty} L${bx - uy * hw} ${by + ux * hw} L${bx + uy * hw} ${by - ux * hw} Z" fill="#111"/>`;
+  }
+  const top = ay - 0.9 - lines.length * 3.1 - 0.4;
+  // прозрачная подложка, чтобы подпись было легко схватить мышью
+  b += R(ax, top, shelf, ay - top + 0.8, 'fill="transparent"');
+  if (selected) {
+    b += R(ax - 0.8, top - 0.8, shelf + 1.6, ay - top + 2.4, SEL);
+    b += `<circle data-handle="tip" data-id="${c.id}" cx="${tx}" cy="${ty}" r="1.5" fill="#fff" fill-opacity="0.6" stroke="#2F6FB3" stroke-width="0.5" style="cursor:crosshair"/>`;
+  }
+  return `<g data-kind="co" data-id="${c.id}" style="cursor:move">${b}</g>`;
 }
 
 /** Линейный масштаб: два отрезка по 1 м (чёрный и белый) и подписи 0, 1, 2 м */

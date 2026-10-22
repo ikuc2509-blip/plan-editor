@@ -1,6 +1,6 @@
 // Боковая панель: вкладки Помещение / Стены / Мебель / Метки / Подложка / Штамп.
 import { useEffect, useState } from 'preact/hooks';
-import type { Item, ItemType, Marker, MarkerPlace, Mm, Plan, WallItem, WallItemType } from '../../model/types';
+import type { Callout, Item, ItemType, Marker, MarkerPlace, Mm, Plan, WallItem, WallItemType } from '../../model/types';
 import { IT_TYPES, WI_TYPES } from '../../model/labels';
 import { blank, example, uid } from '../../model/state';
 import { rectSize, wallsByLetter } from '../../model/room';
@@ -14,7 +14,7 @@ import { Check, Field, Len, Num, Select, Text, parseNum } from '../common/fields
 import { stopAutosave } from '../project';
 import { FilePanel } from './FilePanel';
 
-const TABS: [TabKey, string][] = [['room', 'Помещение'], ['walls', 'Стены'], ['items', 'Мебель'], ['markers', 'Метки'], ['under', 'Подложка'], ['stamp', 'Штамп'], ['file', 'Файл']];
+const TABS: [TabKey, string][] = [['room', 'Помещение'], ['walls', 'Стены'], ['items', 'Мебель'], ['markers', 'Метки'], ['callouts', 'Подписи'], ['under', 'Подложка'], ['stamp', 'Штамп'], ['file', 'Файл']];
 
 /** Новый план вместо текущего: автосохранение выключаем, чтобы не записать пример поверх файла осмотра */
 async function newPlan(p: Plan, question: string, label: string) {
@@ -45,6 +45,7 @@ export function Side() {
         {tab.value === 'walls' && <WallsPanel />}
         {tab.value === 'items' && <ItemsPanel />}
         {tab.value === 'markers' && <MarkersPanel />}
+        {tab.value === 'callouts' && <CalloutsPanel />}
         {tab.value === 'under' && <UnderlayPanel />}
         {tab.value === 'stamp' && <StampPanel />}
         {tab.value === 'file' && <FilePanel />}
@@ -164,7 +165,7 @@ function WallItemCard({ it, walls }: { it: WallItem; walls: Record<string, strin
   );
 }
 
-function removeObj(col: 'wallItems' | 'items' | 'markers', id: string) {
+function removeObj(col: 'wallItems' | 'items' | 'markers' | 'callouts', id: string) {
   dispatch(p => A.remove(p, col, id));
   if (sel.value?.id === id) sel.value = null;
 }
@@ -183,6 +184,7 @@ function ItemCard({ it }: { it: Item }) {
         <Len label="Y, м" value={it.y.mm} onValue={len('y')} />
         <Len label="По X, м" value={it.w.mm} positive onValue={len('w')} />
         <Len label="По Y, м" value={it.d.mm} positive onValue={len('d')} />
+        <Num label="Поворот, °" value={it.angle} onValue={v => dispatch(p => A.setAngle(p, it.id, v), `it:${it.id}:angle`)} />
       </div>
     </div>
   );
@@ -195,6 +197,7 @@ function ItemsPanel() {
   const st = plan.value;
   // поля генератора рядов живут только в панели, в план не сохраняются
   const [rows, setRows] = useState<RowsText>(ROWS_DEFAULT);
+  const [newType, setNewType] = useState<ItemType>('table');
   const rowField = (k: keyof RowsText, label: string, mode: 'numeric' | 'decimal' = 'decimal') => (
     <Field label={label}>
       <input inputMode={mode} value={rows[k]} onInput={e => setRows({ ...rows, [k]: e.currentTarget.value })} />
@@ -211,14 +214,17 @@ function ItemsPanel() {
   };
   const addItem = () => {
     const id = uid();
-    dispatch(p => A.addItem(p, id));
+    dispatch(p => A.addItem(p, id, newType));
     sel.value = { kind: 'it', id };
   };
   const desks = st.items.filter(i => i.type === 'desk').length;
   return (
     <>
-      <p class="hint">X — от стены В (слева), Y — от стены А (сверху). Размеры по X и по Y.</p>
-      <div class="row"><button onClick={addItem}>+ Предмет</button></div>
+      <p class="hint">X, Y — левый верхний угол предмета до поворота: X — от стены В (слева), Y — от стены А (сверху). Поворот — вокруг центра, по часовой стрелке; изголовье кровати, спинка дивана, бачок унитаза — со стороны верхнего края.</p>
+      <div class="row" style="align-items:flex-end">
+        <Select<ItemType> label="Новый предмет" value={newType} options={IT_TYPES} onValue={setNewType} />
+        <button onClick={addItem}>+ Добавить</button>
+      </div>
       <div class="card">
         <b style="font-size:13px">Ряды столов</b>
         <p class="hint" style="margin:3px 0 6px">Две колонки с центральным проходом.</p>
@@ -290,6 +296,33 @@ function MarkersPanel() {
   );
 }
 
+function CalloutCard({ c }: { c: Callout }) {
+  return (
+    <div class={cardClass(c.id)} data-card={c.id}>
+      <div class="card-h">
+        <span style="flex:1;font-size:12.5px;color:var(--muted)">Подпись со стрелкой</span>
+        <button class="del" onClick={() => removeObj('callouts', c.id)}>Удалить</button>
+      </div>
+      <Text label="Текст" value={c.text} wide area placeholder="напр. следы волочения" onValue={v => dispatch(p => A.patch(p, 'callouts', c.id, { text: v }), `co:${c.id}:text`)} />
+    </div>
+  );
+}
+
+function CalloutsPanel() {
+  const add = () => {
+    const id = uid();
+    dispatch(p => A.addCallout(p, id));
+    sel.value = { kind: 'co', id };
+  };
+  return (
+    <>
+      <p class="hint">Подпись со стрелкой к любому месту плана, в том числе к развёртке стен. На листе перетаскивайте текст, а кончик стрелки — за синий кружок.</p>
+      <div class="row"><button onClick={add}>+ Подпись со стрелкой</button></div>
+      {plan.value.callouts.map(c => <CalloutCard key={c.id} c={c} />)}
+    </>
+  );
+}
+
 function UnderlayPanel() {
   const u = plan.value.underlay;
   const pick = async () => {
@@ -333,7 +366,7 @@ function StampPanel() {
         <Text label="Наименование" value={stamp.name} wide onValue={set('name')} />
         <Text label="Объект" value={stamp.object} wide onValue={set('object')} />
         <Text label="Подзаголовок" value={stamp.protocol} wide area onValue={set('protocol')} />
-        <Text label="Составил" value={stamp.author} wide onValue={set('author')} />
+        <Text label="Составил (роль и ФИО)" value={stamp.author} wide placeholder="следователь Иванов И. И." onValue={set('author')} />
         <Text label="Участники" value={stamp.members} wide onValue={set('members')} />
         <Text label="Дата" value={stamp.date} onValue={set('date')} />
         <Text label="Север, градусы" value={st.north} placeholder="пусто = вписать от руки" onValue={v => dispatch(p => A.setNorth(p, v), 'north')} />
