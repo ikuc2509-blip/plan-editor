@@ -1,4 +1,4 @@
-// Модель плана, формат plan.json версии 1.
+// Модель плана, формат plan.json (версия — FORMAT_VERSION ниже).
 // Все длины — в миллиметрах, целыми числами. Координаты пола: начало — угол между
 // стенами А и В (левый верхний на листе), X — вдоль стены А, Y — вдоль стены В.
 
@@ -83,7 +83,9 @@ export interface WallItem {
 
 export type ItemType =
   | 'desk' | 'chair' | 'teacher' | 'lectern' | 'table'
-  | 'cabinet' | 'projector' | 'other';
+  | 'cabinet' | 'projector' | 'other'
+  // квартира (формат 3)
+  | 'bed' | 'sofa' | 'fridge' | 'stove' | 'bath' | 'sink' | 'toilet' | 'column';
 
 /** Предмет на полу */
 export interface Item {
@@ -96,7 +98,7 @@ export interface Item {
   w: Dim;
   /** размер по Y */
   d: Dim;
-  /** поворот, градусы по часовой стрелке (рисуется с этапа 5) */
+  /** поворот вокруг центра, градусы по часовой стрелке, 0…360 */
   angle: number;
   origin: Origin;
 }
@@ -119,13 +121,13 @@ export interface Marker {
   origin: Origin;
 }
 
-/** Произвольная подпись со стрелкой (рисуется с этапа 5) */
+/** Произвольная подпись со стрелкой-выноской */
 export interface Callout {
   id: string;
   text: string;
-  /** где подпись, координаты пола */
+  /** где подпись (левый конец полки), координаты пола; может быть за пределами помещения */
   at: Point;
-  /** куда указывает стрелка */
+  /** куда указывает стрелка, координаты пола */
   target: Point;
   origin: Origin;
 }
@@ -170,9 +172,10 @@ export const FORMAT_ID = 'plan-editor';
 /**
  * История версий формата plan.json:
  * 1 — этап 1: модель в миллиметрах, стены-отрезки;
- * 2 — этап 2: формат листа (sheet.paper), убрана галочка sheet.showDims.
+ * 2 — этап 2: формат листа (sheet.paper), убрана галочка sheet.showDims;
+ * 3 — этап 5: предметы квартиры (кровать, диван, плита…), рисуется поворот предметов.
  */
-export const FORMAT_VERSION = 2;
+export const FORMAT_VERSION = 3;
 
 export interface Plan {
   format: typeof FORMAT_ID;
@@ -190,7 +193,7 @@ export interface Plan {
   sheet: SheetOptions;
 }
 
-export type SelKind = 'wi' | 'it' | 'mk';
+export type SelKind = 'wi' | 'it' | 'mk' | 'co';
 export interface Selection {
   kind: SelKind;
   id: string;
