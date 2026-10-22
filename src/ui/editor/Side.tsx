@@ -6,7 +6,8 @@ import { blank, example, uid } from '../../model/state';
 import { rectSize, wallsByLetter } from '../../model/room';
 import { parseLength } from '../../model/units';
 import * as A from '../../model/actions';
-import { geom } from '../../geometry/unfold';
+import { SCALES, fitsAt, smallerScaleThatFits } from '../../geometry/unfold';
+import { PAPERS, layoutFor } from '../../render/layout';
 import { pickFile, readDataUrl } from '../../storage/files';
 import { dispatch, endGesture, plan, replacePlan, sel, tab, toast, type TabKey } from '../store';
 import { Check, Field, Len, Num, Select, Text, parseNum } from '../common/fields';
@@ -44,28 +45,43 @@ export function Side() {
 
 const cardClass = (id: string) => 'card' + (sel.value?.id === id ? ' sel' : '');
 
+const SCALE_OPTS: Record<'50' | '100' | '200', string> = { '50': '1:50', '100': '1:100', '200': '1:200' };
+
 function RoomPanel() {
-  const st = plan.value, g = geom(st.room, st.sheet), sc = st.sheet.mode === 'scale';
+  const st = plan.value, lay = layoutFor(st.sheet.paper), sc = st.sheet.mode === 'scale';
+  const fits = !sc || fitsAt(st.room, lay.area, st.sheet.scale);
+  const better = fits ? null : smallerScaleThatFits(st.room, lay.area, st.sheet.scale);
   const { L, W } = rectSize(st.room);
+  const isM = (d: { status: string }) => d.status === 'measured';
   return (
     <>
-      <p class="hint">Пока замеров нет, оставьте «схематично»: размеры на листе будут пустыми строками, впишете от руки. Длины ниже задают только пропорции.</p>
-      <div class="grid two">
-        <Select label="Режим" value={st.sheet.mode} options={{ schematic: 'Схематично, без размеров', scale: 'В масштабе' }} onValue={v => dispatch(p => A.setSheet(p, { mode: v }))} />
+      <p class="hint">Пока замеров нет, оставьте «схематично»: незамеренные размеры на листе будут пустыми строками, впишете от руки. Длины ниже задают только пропорции.</p>
+      <div class="grid">
+        <Select label="Лист" value={st.sheet.paper} options={PAPERS} onValue={v => dispatch(p => A.setSheet(p, { paper: v }))} />
+        <Select label="Режим" value={st.sheet.mode} options={{ schematic: 'Схематично', scale: 'В масштабе' }} onValue={v => dispatch(p => A.setSheet(p, { mode: v }))} />
         {sc
-          ? <Select label="Масштаб" value={String(st.sheet.scale) as '50' | '100' | '200'} options={{ 50: '1:50', 100: '1:100', 200: '1:200' }} onValue={v => dispatch(p => A.setSheet(p, { scale: +v }))} />
+          ? <Select label="Масштаб" value={String(st.sheet.scale) as keyof typeof SCALE_OPTS} options={SCALE_OPTS} onValue={v => dispatch(p => A.setSheet(p, { scale: +v }))} />
           : <span />}
       </div>
-      {sc && !g.fits && <p class="warn" style="margin-top:8px">План в этом масштабе не помещается на лист A3. Выберите масштаб мельче.</p>}
+      {!fits && (
+        <div class="warn" style="margin-top:8px">
+          {better
+            ? <>План в масштабе 1:{st.sheet.scale} не помещается на лист {st.sheet.paper}. Подойдёт 1:{better}. <button class="inline" onClick={() => dispatch(p => A.setSheet(p, { scale: better }))}>Переключить на 1:{better}</button></>
+            : <>План не помещается на лист {st.sheet.paper} даже в 1:{SCALES[SCALES.length - 1]}. {st.sheet.paper === 'A4' ? 'Выберите лист A3 или режим «Схематично».' : 'Выберите режим «Схематично».'}</>}
+        </div>
+      )}
       <h3>{sc ? 'Размеры помещения, м' : 'Пропорции помещения (условно), м'}</h3>
       <div class="grid">
         <Len label="Длина L" value={L.mm} positive onCommit onValue={mm => dispatch(p => A.setRoomSize(p, { L: mm }))} />
         <Len label="Ширина W" value={W.mm} positive onCommit onValue={mm => dispatch(p => A.setRoomSize(p, { W: mm }))} />
         <Len label="Высота h" value={st.room.height.mm} positive onCommit onValue={mm => dispatch(p => A.setRoomSize(p, { h: mm }))} />
+        {/* временно, до этапа 6 — там появится полный ввод замеров */}
+        <Check label="замерено" checked={isM(L)} onValue={v => dispatch(p => A.setRoomDimStatus(p, 'L', v))} />
+        <Check label="замерено" checked={isM(W)} onValue={v => dispatch(p => A.setRoomDimStatus(p, 'W', v))} />
+        <Check label="замерено" checked={isM(st.room.height)} onValue={v => dispatch(p => A.setRoomDimStatus(p, 'h', v))} />
       </div>
-      <p class="hint" style="margin-top:6px">Можно писать «12,5», «1250 см» или «12500 мм». Новый размер применяется, когда вы выходите из поля или нажимаете Enter. Условные окна, метки и мебель при этом сдвигаются пропорционально, замеренные остаются на месте.</p>
+      <p class="hint" style="margin-top:6px">Можно писать «12,5», «1250 см» или «12500 мм». Новый размер применяется, когда вы выходите из поля или нажимаете Enter. Условные окна, метки и мебель при этом сдвигаются пропорционально, замеренные остаются на месте. На листе замеренный размер подписывается числом, условный — пустой строкой.</p>
       <h3>Отображение</h3>
-      <Check label="Подписывать размеры (в масштабе)" checked={st.sheet.showDims} onValue={v => dispatch(p => A.setSheet(p, { showDims: v }))} />
       <Check label="Привязки меток к стенам" checked={st.sheet.showTies} onValue={v => dispatch(p => A.setSheet(p, { showTies: v }))} />
       <h3>Названия стен</h3>
       <p class="hint">А — сверху, Б — снизу, В — слева, Г — справа от плана пола.</p>

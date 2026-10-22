@@ -156,15 +156,23 @@ export interface Underlay {
   dy: Mm;
 }
 
+export type Paper = 'A3' | 'A4';
+
 export interface SheetOptions {
+  /** формат листа, альбомная ориентация */
+  paper: Paper;
   mode: 'schematic' | 'scale';
   scale: number;
-  showDims: boolean;
   showTies: boolean;
 }
 
 export const FORMAT_ID = 'plan-editor';
-export const FORMAT_VERSION = 1;
+/**
+ * История версий формата plan.json:
+ * 1 — этап 1: модель в миллиметрах, стены-отрезки;
+ * 2 — этап 2: формат листа (sheet.paper), убрана галочка sheet.showDims.
+ */
+export const FORMAT_VERSION = 2;
 
 export interface Plan {
   format: typeof FORMAT_ID;

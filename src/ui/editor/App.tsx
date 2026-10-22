@@ -1,21 +1,17 @@
 // Режим «Чистовик» (пока — интерфейс прототипа).
 import { loadPlan } from '../../model/migrate';
-import { sheetSvg } from '../../render/sheet';
-import { rasterPdf } from '../../export/pdf';
+import { vectorPdf } from '../../export/pdf';
+import { sheetPng, sheetSvgFile } from '../../export/image';
 import { pickFile, readText, saveFile } from '../../storage/files';
 import { plan, replacePlan, toast, zoom } from '../store';
 import { Toast } from '../common/Toast';
 import { Side } from './Side';
-import { Sheet } from './Sheet';
+import { PRINT_HINT, Sheet } from './Sheet';
 
 const fname = (ext: string): string => {
   const d = (plan.value.stamp.date || '').replace(/[^\d.]/g, '');
   return `plan${d ? '_' + d : ''}.${ext}`;
 };
-
-function saved(name: string) {
-  toast('Файл сохранён: ' + name);
-}
 
 async function openProject() {
   const f = await pickFile('.json,application/json');
@@ -30,29 +26,26 @@ async function openProject() {
   const r = loadPlan(raw);
   if (!r.ok) { toast(r.error); return; }
   replacePlan(r.plan);
-  toast(r.migratedFrom === 'prototype' ? 'Проект прототипа открыт и переведён в новый формат' : 'Проект открыт');
+  toast(r.migratedFrom ? 'Проект открыт и переведён в новый формат' : 'Проект открыт');
 }
 
 function saveProject() {
   const name = fname('json');
   saveFile(name, JSON.stringify(plan.value, null, 1), 'application/json');
-  saved(name);
+  toast('Файл сохранён: ' + name);
 }
 
-function saveSvg() {
-  const name = fname('svg');
-  saveFile(name, sheetSvg(plan.value), 'image/svg+xml');
-  saved(name);
-}
-
-async function savePdf() {
-  toast('Готовлю PDF…');
+/** Экспорт листа: файл готовится, затем отдаётся пользователю */
+async function exportSheet(ext: 'pdf' | 'png' | 'svg') {
+  toast(ext === 'pdf' ? 'Готовлю PDF…' : 'Готовлю файл…');
   try {
-    const name = fname('pdf');
-    saveFile(name, await rasterPdf(sheetSvg(plan.value)));
-    saved(name);
+    const p = plan.value, name = fname(ext);
+    if (ext === 'pdf') saveFile(name, await vectorPdf(p));
+    else if (ext === 'png') saveFile(name, await sheetPng(p));
+    else saveFile(name, await sheetSvgFile(p), 'image/svg+xml');
+    toast(ext === 'pdf' ? `Файл сохранён: ${name}. ${PRINT_HINT}` : 'Файл сохранён: ' + name);
   } catch (e) {
-    toast(e instanceof Error && e.message ? e.message : 'Не удалось сделать PDF');
+    toast(e instanceof Error && e.message ? e.message : 'Не удалось сохранить файл');
   }
 }
 
@@ -67,8 +60,9 @@ export function App() {
         <button class="ghost" title="Увеличить" onClick={() => { zoom.value = Math.min(4, zoom.value * 1.25); }}>+</button>
         <button onClick={openProject}>Открыть проект</button>
         <button onClick={saveProject}>Сохранить проект</button>
-        <button onClick={saveSvg}>SVG</button>
-        <button class="primary" onClick={savePdf}>Скачать PDF A3</button>
+        <button onClick={() => exportSheet('svg')} title="Лист в SVG (векторная картинка)">SVG</button>
+        <button onClick={() => exportSheet('png')} title="Лист картинкой для вставки в Word">PNG</button>
+        <button class="primary" onClick={() => exportSheet('pdf')}>Скачать PDF {plan.value.sheet.paper}</button>
       </header>
       <main>
         <Side />

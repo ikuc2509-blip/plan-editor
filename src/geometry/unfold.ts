@@ -38,8 +38,17 @@ export interface Geom {
   segs: Seg[];
 }
 
-/** Область чертежа на листе A3 (слева от колонки легенды) */
-export const AREA = { x: 24, y: 28, w: 264, h: 256 } as const;
+/** Прямоугольник на листе, мм */
+export interface Area {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Масштабы режима «В масштабе», от крупного к мелкому */
+export const SCALES = [50, 100, 200] as const;
+
 const PAD = 15;
 
 function sideOf(nx: number, ny: number): Seg['side'] {
@@ -58,14 +67,29 @@ export function toSeg(w: Wall): Seg {
   return { wall: w, ax, ay, len, ux, uy, nx, ny, side: sideOf(nx, ny) };
 }
 
-export function geom(room: Room, sheet: SheetOptions): Geom {
-  const segs = room.walls.map(toSeg);
+/** Габарит развёртки, м: пол плюс высота стены во все стороны */
+function unfoldedSize(room: Room) {
   const e = roomExtent(room);
   const h = toM(room.height.mm);
-  // габарит развёртки: пол плюс высота стены во все стороны
   const minX = toM(e.minX) - h, maxX = toM(e.maxX) + h, minY = toM(e.minY) - h, maxY = toM(e.maxY) + h;
-  const totW = maxX - minX, totH = maxY - minY;
-  const area = AREA, pad = PAD;
+  return { e, h, minX, minY, totW: maxX - minX, totH: maxY - minY };
+}
+
+/** Помещается ли развёртка в область листа в масштабе 1:scale */
+export function fitsAt(room: Room, area: Area, scale: number): boolean {
+  const { totW, totH } = unfoldedSize(room), s = 1000 / scale;
+  return totW * s <= area.w - 2 * PAD + 0.01 && totH * s <= area.h - 2 * PAD + 0.01;
+}
+
+/** Ближайший более мелкий масштаб, в котором план помещается; null — не помещается ни в каком */
+export function smallerScaleThatFits(room: Room, area: Area, scale: number): number | null {
+  return SCALES.find(k => k > scale && fitsAt(room, area, k)) ?? null;
+}
+
+export function geom(room: Room, sheet: SheetOptions, area: Area): Geom {
+  const segs = room.walls.map(toSeg);
+  const { e, h, minX, minY, totW, totH } = unfoldedSize(room);
+  const pad = PAD;
   const s = sheet.mode === 'scale' ? 1000 / sheet.scale : Math.min((area.w - 2 * pad) / totW, (area.h - 2 * pad) / totH);
   const fits = totW * s <= area.w - 2 * pad + 0.01 && totH * s <= area.h - 2 * pad + 0.01;
   const fx = area.x + (area.w - totW * s) / 2 - minX * s, fy = area.y + (area.h - totH * s) / 2 - minY * s;

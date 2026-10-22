@@ -42,6 +42,17 @@ export function setRoomSize(p: Plan, size: { L?: Mm; W?: Mm; h?: Mm }): Plan {
   };
 }
 
+/**
+ * Отметить размер помещения замеренным или условным (временно, до полного ввода замеров на этапе 6).
+ * Длина L — стены А и Б, ширина W — стены В и Г.
+ */
+export function setRoomDimStatus(p: Plan, which: 'L' | 'W' | 'h', isMeasured: boolean): Plan {
+  const mark = (d: Dim): Dim => (isMeasured ? { mm: d.mm, status: 'measured', method: d.method ?? 'tape' } : { mm: d.mm, status: 'conditional' });
+  if (which === 'h') return { ...p, room: { ...p.room, height: mark(p.room.height) } };
+  const ids = which === 'L' ? ['A', 'B'] : ['V', 'G'];
+  return { ...p, room: { ...p.room, walls: p.room.walls.map(w => (ids.includes(w.id) ? { ...w, length: mark(w.length) } : w)) } };
+}
+
 export function setWallName(p: Plan, wallId: string, name: string): Plan {
   return { ...p, room: { ...p.room, walls: p.room.walls.map(w => (w.id === wallId ? { ...w, name } : w)) } };
 }

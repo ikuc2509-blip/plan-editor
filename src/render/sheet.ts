@@ -1,13 +1,11 @@
-// План → SVG листа A3. Один и тот же код рисует лист на экране, в SVG и в PDF.
-import type { Plan, Selection } from '../model/types';
+// План → SVG листа A3 или A4. Один и тот же код рисует лист на экране, в SVG, PNG и PDF.
+import type { Dim, Marker, Plan, Selection } from '../model/types';
 import { WI_TYPES } from '../model/labels';
-import { wallsByLetter } from '../model/room';
+import { rectSize, wallsByLetter } from '../model/room';
 import { toM } from '../model/units';
-import { floorPt, geom, inward, outward, segOf, textRot, unf, unfRect, wallPt, type Seg } from '../geometry/unfold';
+import { floorPt, geom, inward, outward, segOf, textRot, unf, unfRect, wallPt, type Geom, type Seg } from '../geometry/unfold';
+import { layoutFor, type Layout } from './layout';
 import { Ln, R, T, fmt, marker, wrap } from './svg';
-
-export const SHEET_W = 420;
-export const SHEET_H = 297;
 
 export interface DrawOpts {
   /** выделенный объект; для файлов не передаётся — рамки выделения не рисуются */
@@ -15,23 +13,45 @@ export interface DrawOpts {
 }
 
 const SEL = 'stroke="#2F6FB3" stroke-width="0.7" fill="none"';
+/** цвет незамеренного в масштабном режиме (decisions.md) */
+export const GRAY = '#9A9A9A';
 const isVert = (sg: Seg) => sg.side === 'left' || sg.side === 'right';
+
+const measured = (...ds: Dim[]): boolean => ds.every(d => d.status === 'measured');
+/** перекрасить линии объекта в серый */
+const gray = (svg: string): string => svg.replace(/#111\b/g, GRAY);
+
+export const sheetLayout = (st: Plan): Layout => layoutFor(st.sheet.paper);
+export const sheetGeom = (st: Plan): Geom => geom(st.room, st.sheet, sheetLayout(st).area);
+
+/** Метка, положение которой не замерено */
+function markerApprox(m: Marker): boolean {
+  if (m.place === 'floor') return !measured(m.x, m.y);
+  if (m.place === 'wall') return !measured(m.off, m.z);
+  return !measured(m.off);
+}
 
 /** Содержимое листа (без корневого тега svg) */
 export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
-  const g = geom(st.room, st.sheet), P: string[] = [];
+  const lay = sheetLayout(st), fr = lay.frame, right = fr.x + fr.w, bottom = fr.y + fr.h;
+  const g = sheetGeom(st), P: string[] = [];
   const { fx, fy, s, L, W, h } = g;
   const sc = st.sheet.mode === 'scale';
   const sel = opts.sel ?? null;
   const selA = (kind: Selection['kind'], id: string) => !!sel && sel.kind === kind && sel.id === id;
+  const size = rectSize(st.room);
+  let anyGray = false, anyBlank = false;
+  /** в масштабе незамеренное — серым */
+  const tint = (svg: string, approx: boolean) => { if (sc && approx) { anyGray = true; return gray(svg); } return svg; };
 
-  P.push(R(0, 0, 420, 297, 'fill="#fff"'));
-  P.push(R(20, 5, 395, 287, 'fill="none" stroke="#111" stroke-width="0.5"'));
-  P.push(Ln(20, 24, 415, 24, 'stroke="#111" stroke-width="0.3"'));
-  P.push(Ln(292, 24, 292, 292, 'stroke="#111" stroke-width="0.3"'));
-  P.push(T(217.5, 13, 'Развёрнутый план помещения (план-схема с развёрткой стен)', { size: 4.4, anchor: 'middle', weight: 700 }));
+  P.push(R(0, 0, lay.w, lay.h, 'fill="#fff"'));
+  P.push(R(fr.x, fr.y, fr.w, fr.h, 'fill="none" stroke="#111" stroke-width="0.5"'));
+  P.push(Ln(fr.x, 24, right, 24, 'stroke="#111" stroke-width="0.3"'));
+  P.push(Ln(lay.colX, 24, lay.colX, bottom, 'stroke="#111" stroke-width="0.3"'));
+  // заголовок — слева, как в образце
+  P.push(T(fr.x + 4, 13, 'Развёрнутый план помещения (план-схема с развёрткой стен)', { size: 4.4, weight: 700 }));
   const sub = [st.stamp.object, st.stamp.protocol].filter(Boolean).join(' — ');
-  if (sub) P.push(T(217.5, 19.6, sub, { size: 2.9, anchor: 'middle' }));
+  if (sub) P.push(T(fr.x + 4, 19.6, sub, { size: 2.9 }));
 
   /* развёртка стен */
   const segs = wallsByLetter(st.room).map(w => segOf(g, w.id)!);
@@ -39,15 +59,16 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   for (const sg of segs) { const r = full.get(sg)!; P.push(R(r.x, r.y, r.w, r.h, 'fill="#FAFAF8" stroke="#111" stroke-width="0.3"')); }
   // линии сгиба
   P.push(R(fx, fy, L * s, W * s, 'fill="none" stroke="#111" stroke-width="0.25" stroke-dasharray="4 1 0.6 1"'));
-  // подписи стен — у внешнего края развёртки
+  // подписи стен — у внешнего края развёртки; если полоса узкая (мелкий масштаб) — снаружи, чтобы не налезать на окна
+  const outside = h * s < 22;
   for (const sg of segs) {
     const r = full.get(sg)!, mid = wallPt(g, sg, sg.len / 2);
     const label = `СТЕНА ${sg.wall.letter}${sg.wall.name ? ' — ' + sg.wall.name : ''} (развёртка)`;
     const o = { size: 2.5, anchor: 'middle', weight: 700, fill: '#444', rot: textRot(sg) } as const;
-    if (sg.side === 'top') P.push(T(mid[0], r.y + 3.6, label, o));
-    else if (sg.side === 'bottom') P.push(T(mid[0], r.y + r.h - 1.6, label, o));
-    else if (sg.side === 'left') P.push(T(r.x + 3.2, mid[1], label, o));
-    else P.push(T(r.x + r.w - 3.2, mid[1], label, o));
+    if (sg.side === 'top') P.push(T(mid[0], outside ? r.y - 1.2 : r.y + 3.6, label, o));
+    else if (sg.side === 'bottom') P.push(T(mid[0], outside ? r.y + r.h + 3.2 : r.y + r.h - 1.6, label, o));
+    else if (sg.side === 'left') P.push(T(outside ? r.x - 1.2 : r.x + 3.2, mid[1], label, o));
+    else P.push(T(outside ? r.x + r.w + 1.2 : r.x + r.w - 3.2, mid[1], label, o));
   }
 
   /* элементы на развёртке */
@@ -88,6 +109,7 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
         body += T(tx + (vert ? o[0] * (r.w / 2 + 2.6) : 0), ty + (vert ? 0 : -r.h / 2 - 1.2), lab, { size: 2, anchor: 'middle', base: 'central', rot });
       }
     }
+    body = tint(body, !measured(it.off, it.z, it.w, it.h));
     if (selA('wi', it.id)) body += R(r.x - 0.8, r.y - 0.8, r.w + 1.6, r.h + 1.6, SEL);
     P.push(`<g ${a}>${body}<rect x="${r.x - 1}" y="${r.y - 1}" width="${r.w + 2}" height="${r.h + 2}" fill="transparent"/></g>`);
   }
@@ -116,6 +138,7 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
       b += R(x, y, w, d, 'fill="#fff" stroke="#111" stroke-width="0.25"');
     }
     if (it.label) { const rot = d > w * 1.6 && it.label.length * 1.0 > w ? -90 : 0; b += T(x + w / 2, y + d / 2, it.label, { size: 1.8, anchor: 'middle', base: 'central', rot }); }
+    b = tint(b, !measured(it.x, it.y, it.w, it.d));
     if (selA('it', it.id)) b += R(x - 0.8, y - 0.8, w + 1.6, d + 1.6, SEL);
     P.push(`<g data-kind="it" data-id="${it.id}" style="cursor:move">${b}</g>`);
   }
@@ -158,16 +181,21 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
         b += T(mi[0], mi[1], it.label, { size: 2.2, anchor: 'middle', base: 'central', weight: 700 });
       }
     }
+    b = tint(b, !measured(it.off, it.w));
     P.push(`<g data-kind="wi" data-id="${it.id}" style="cursor:move">${b}</g>`);
   }
 
-  /* размеры */
-  const dimTxt = (name: string, v: number) => (sc && st.sheet.showDims) ? `${name} = ${fmt(v)} м` : `${name} = ______ м`;
+  /* размеры: замеренное — числом, условное — пустой строкой (decisions.md) */
+  const dimTxt = (name: string, v: number, d: Dim) => {
+    if (measured(d)) return `${name} = ${fmt(v)} м`;
+    anyBlank = true;
+    return `${name} = ________ м`;
+  };
   const dimH = (x1: number, x2: number, y: number, txt: string) => Ln(x1, y, x2, y, 'stroke="#111" stroke-width="0.18"') + Ln(x1, y - 1.5, x1, y + 1.5, 'stroke="#111" stroke-width="0.18"') + Ln(x2, y - 1.5, x2, y + 1.5, 'stroke="#111" stroke-width="0.18"') + Ln(x1 - 0.9, y + 0.9, x1 + 0.9, y - 0.9, 'stroke="#111" stroke-width="0.35"') + Ln(x2 - 0.9, y + 0.9, x2 + 0.9, y - 0.9, 'stroke="#111" stroke-width="0.35"') + T((x1 + x2) / 2, y - 1.1, txt, { size: 2.4, anchor: 'middle' });
   const dimV = (x: number, y1: number, y2: number, txt: string) => Ln(x, y1, x, y2, 'stroke="#111" stroke-width="0.18"') + Ln(x - 1.5, y1, x + 1.5, y1, 'stroke="#111" stroke-width="0.18"') + Ln(x - 1.5, y2, x + 1.5, y2, 'stroke="#111" stroke-width="0.18"') + Ln(x - 0.9, y1 + 0.9, x + 0.9, y1 - 0.9, 'stroke="#111" stroke-width="0.35"') + Ln(x - 0.9, y2 + 0.9, x + 0.9, y2 - 0.9, 'stroke="#111" stroke-width="0.35"') + T(x - 1.1, (y1 + y2) / 2, txt, { size: 2.4, anchor: 'middle', rot: -90 });
-  P.push(dimH(fx, fx + L * s, fy - h * s - 5, dimTxt('L', L)));
-  P.push(dimV(fx - h * s - 5, fy, fy + W * s, dimTxt('W', W)));
-  P.push(dimV(fx + L * s + 6, fy - h * s, fy, dimTxt('h', h)));
+  P.push(dimH(fx, fx + L * s, fy - h * s - 5, dimTxt('L (длина помещения)', L, size.L)));
+  P.push(dimV(fx - h * s - 5, fy, fy + W * s, dimTxt('W (ширина)', W, size.W)));
+  P.push(dimV(fx + L * s + 6, fy - h * s, fy, dimTxt('h', h, st.room.height)));
 
   /* метки */
   for (const m of st.markers) {
@@ -176,13 +204,14 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
       const mx = toM(m.x.mm), my = toM(m.y.mm);
       [x, y] = floorPt(g, mx, my);
       if (st.sheet.showTies) {
-        // привязка к двум ближайшим стенам
+        // привязка к двум ближайшим стенам; от дальней стены расстояние зависит и от размера помещения
         const toV = mx <= L / 2, toA = my <= W / 2;
         const wx = toV ? fx : fx + L * s, wy = toA ? fy : fy + W * s;
         const dx = toV ? mx : L - mx, dy = toA ? my : W - my;
-        const lab = (v: number) => (sc && st.sheet.showDims) ? fmt(v) : '____';
-        extra += Ln(x, y, wx, y, 'stroke="#2B5D8A" stroke-width="0.18" stroke-dasharray="1 0.6"') + T((x + wx) / 2, y - 0.9, lab(dx), { size: 1.9, anchor: 'middle', fill: '#2B5D8A' });
-        extra += Ln(x, y, x, wy, 'stroke="#2B5D8A" stroke-width="0.18" stroke-dasharray="1 0.6"') + T(x + 0.9, (y + wy) / 2, lab(dy), { size: 1.9, fill: '#2B5D8A', base: 'central' });
+        const lab = (v: number, ...ds: Dim[]) => { if (measured(...ds)) return fmt(v); anyBlank = true; return '____'; };
+        const labX = toV ? lab(dx, m.x) : lab(dx, m.x, size.L), labY = toA ? lab(dy, m.y) : lab(dy, m.y, size.W);
+        extra += Ln(x, y, wx, y, 'stroke="#2B5D8A" stroke-width="0.18" stroke-dasharray="1 0.6"') + T((x + wx) / 2, y - 0.9, labX, { size: 1.9, anchor: 'middle', fill: '#2B5D8A' });
+        extra += Ln(x, y, x, wy, 'stroke="#2B5D8A" stroke-width="0.18" stroke-dasharray="1 0.6"') + T(x + 0.9, (y + wy) / 2, labY, { size: 1.9, fill: '#2B5D8A', base: 'central' });
       }
     } else {
       const sg = segOf(g, m.wallId);
@@ -202,18 +231,21 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
     P.push(`<g data-kind="mk" data-id="${m.id}" style="cursor:move">${b}</g>`);
   }
 
+  /* линейный масштаб «0—1—2 м» — только в масштабе: по нему проверяют печать линейкой */
+  if (sc) P.push(scaleBar(lay.area.x + 2, lay.area.y + lay.area.h - 3, s));
+
   /* север */
   const nv = parseFloat(String(st.north).replace(',', '.'));
   if (!isNaN(nv)) {
-    const cx = 278, cy = 40;
+    const { x: cx, y: cy } = lay.north;
     P.push(`<g transform="rotate(${nv} ${cx} ${cy})">` + `<path d="M${cx} ${cy - 7} L${cx + 2.2} ${cy + 4} L${cx} ${cy + 2.4} L${cx - 2.2} ${cy + 4} Z" fill="#111"/>` + T(cx, cy - 8.5, 'С', { size: 3.2, anchor: 'middle', weight: 700 }) + '</g>');
   }
 
   /* правая колонка */
-  let y = 33; const x0 = 296;
+  let y = 33; const x0 = lay.colX + 4;
   P.push(T(x0, y, 'Условные обозначения', { size: 3.2, weight: 700 })); y += 5;
   for (const m of st.markers) {
-    const lines = wrap(m.desc || '—', 46);
+    const lines = wrap(m.desc || '—', lay.legendChars);
     P.push(marker(x0 + 2.6, y + 0.4, m.n, 2.4));
     lines.forEach((l, i) => P.push(T(x0 + 7, y + 1.2 + i * 3.1, l, { size: 2.4 })));
     y += Math.max(6, lines.length * 3.1 + 2.6);
@@ -221,7 +253,9 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   y += 1;
   // в легенде — только то, что есть на плане
   const used = new Set<string>([...st.wallItems.map(i => i.type + (i.type === 'window' && i.open ? '_open' : '')), ...st.items.map(i => i.type)]);
-  const sym = (draw: (x: number, yy: number) => string, label: string) => { P.push(draw(x0, y)); P.push(T(x0 + 13, y + 2.2, label, { size: 2.3 })); y += 5.2; };
+  // знаки сначала собираем, потом раскладываем: в колонку справа (A3) или блоком под чертежом (A4)
+  const syms: [(x: number, yy: number) => string, string][] = [];
+  const sym = (draw: (x: number, yy: number) => string, label: string) => { syms.push([draw, label]); };
   const K = 'stroke="#111"';
   if (used.has('window') || used.has('window_open')) sym((x, yy) => Ln(x, yy + 1.5, x + 10, yy + 1.5, `${K} stroke-width="0.9"`) + Ln(x + 2, yy + 1.5, x + 8, yy + 1.5, 'stroke="#fff" stroke-width="1.4"') + Ln(x + 2, yy + 1.2, x + 8, yy + 1.2, `${K} stroke-width="0.15"`) + Ln(x + 2, yy + 1.8, x + 8, yy + 1.8, `${K} stroke-width="0.15"`), 'Оконный проём');
   if (used.has('window_open')) sym((x, yy) => Ln(x, yy + 1, x + 10, yy + 1, `${K} stroke-width="0.9"`) + Ln(x + 2, yy + 1, x + 8, yy + 1, 'stroke="#fff" stroke-width="1.4"') + Ln(x + 2, yy + 1, x + 4.4, yy + 3.4, `${K} stroke-width="0.3"`), 'Створка окна, открытая внутрь');
@@ -235,32 +269,94 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   if (used.has('projector')) sym((x, yy) => R(x + 3.3, yy, 3, 3, `fill="none" ${K} stroke-width="0.25" stroke-dasharray="1 0.6"`) + Ln(x + 3.3, yy, x + 6.3, yy + 3, `${K} stroke-width="0.15"`) + Ln(x + 6.3, yy, x + 3.3, yy + 3, `${K} stroke-width="0.15"`), 'Проектор (на потолке)');
   sym((x, yy) => Ln(x, yy + 1.5, x + 10, yy + 1.5, `${K} stroke-width="0.25" stroke-dasharray="4 1 0.6 1"`), 'Линия сгиба (стены развёрнуты на пол)');
   if (st.sheet.showTies && st.markers.some(m => m.place === 'floor')) sym((x, yy) => Ln(x, yy + 1.5, x + 10, yy + 1.5, 'stroke="#2B5D8A" stroke-width="0.25" stroke-dasharray="1 0.6"'), 'Привязка метки к стенам, м');
+  if (anyGray) sym((x, yy) => R(x + 1, yy, 8, 3, `fill="#fff" stroke="${GRAY}" stroke-width="0.3"`), 'Не замерено, нанесено приблизительно');
+
+  const box = lay.symbols;
+  if (!box) {
+    for (const [draw, label] of syms) {
+      const lines = wrap(label, lay.legendChars - 4);
+      P.push(draw(x0, y));
+      lines.forEach((l, i) => P.push(T(x0 + 13, y + 2.2 + i * 3, l, { size: 2.3 })));
+      y += 5.2 + (lines.length - 1) * 3;
+    }
+  } else {
+    // по колонкам сверху вниз; не влезает в колонку — следующая
+    const cw = box.w / box.cols;
+    let col = 0, yy = box.y;
+    for (const [draw, label] of syms) {
+      const lines = wrap(label, box.chars);
+      const hgt = 5.2 + (lines.length - 1) * 3;
+      if (yy + hgt > box.y + box.h + 0.01 && yy > box.y) { col++; yy = box.y; }
+      const sx = box.x + col * cw;
+      P.push(draw(sx, yy));
+      lines.forEach((l, i) => P.push(T(sx + 13, yy + 2.2 + i * 3, l, { size: 2.3 })));
+      yy += hgt;
+    }
+  }
 
   y += 2;
   P.push(T(x0, y, 'Примечания', { size: 3.2, weight: 700 })); y += 4.6;
   const notes: string[] = [];
   notes.push(sc ? `План выполнен в масштабе 1:${st.sheet.scale}.` : 'Схема составлена по фотоснимкам, масштаб не соблюдён.');
-  if (!sc || !st.sheet.showDims) notes.push('Размеры L, W, h и расстояния от меток до стен внести по результатам замеров.');
-  notes.push(isNaN(nv) ? 'Направление на север: ____________________' : 'Направление на север указано стрелкой «С».');
+  const roomApprox = ([['L', size.L], ['W', size.W], ['h', st.room.height]] as const).filter(([, d]) => !measured(d)).map(([n]) => n);
+  if (sc && roomApprox.length) notes.push(`${roomApprox.length > 1 ? 'Размеры' : 'Размер'} помещения ${roomApprox.join(', ')} не ${roomApprox.length > 1 ? 'замерены, нанесены' : 'замерен, нанесён'} приблизительно.`);
+  if (anyGray) notes.push('Положение объектов, показанных серым, нанесено приблизительно.');
+  const approxMarkers = st.markers.filter(markerApprox).map(m => m.n);
+  if (sc && approxMarkers.length) notes.push(`Положение ${approxMarkers.length > 1 ? 'меток № ' + approxMarkers.join(', ') : 'метки № ' + approxMarkers[0]} нанесено приблизительно.`);
+  if (anyBlank) notes.push('Размеры L, W, h и расстояния от меток до стен внести по результатам замеров.');
+  notes.push(isNaN(nv) ? 'Направление на север: ______________' : 'Направление на север указано стрелкой «С».');
   st.markers.filter(m => m.place === 'outside').forEach(m => notes.push(`Метка № ${m.n} находится вне помещения.`));
   String(st.notes || '').split('\n').map(t => t.trim()).filter(Boolean).forEach(t => notes.push(t));
-  notes.forEach((n, i) => { wrap(`${i + 1}. ${n}`, 48).forEach((l, j) => { P.push(T(x0 + (j ? 3 : 0), y, l, { size: 2.4 })); y += 3.1; }); y += 0.5; });
+  notes.forEach((n, i) => { wrap(`${i + 1}. ${n}`, lay.notesChars).forEach((l, j) => { P.push(T(x0 + (j ? 3 : 0), y, l, { size: 2.4 })); y += 3.1; }); y += 0.5; });
 
-  /* штамп */
-  const rh = 6.6, lw = 30, sy = 292 - rh * 7;
-  const rows: [string, string][] = [['Наименование', st.stamp.name], ['Объект', st.stamp.object], ['Составил', st.stamp.author], ['Участники', st.stamp.members], ['Дата', st.stamp.date], ['Масштаб', sc ? `1:${st.sheet.scale}` : 'без масштаба'], ['Лист', '1 / 1']];
-  P.push(R(x0 - 4, sy, 123, rh * rows.length, 'fill="#fff" stroke="#111" stroke-width="0.4"'));
+  /* штамп — как в образце: подписи жирным, «Лист» в строке масштаба; длинное значение переносится */
+  const lw = lay.stampLabelW, sx = lay.colX, sw = right - lay.colX;
+  const rows: [string, string][] = [
+    ['Наименование', st.stamp.name], ['Объект', st.stamp.object], ['Составил', st.stamp.author],
+    ['Участники', st.stamp.members], ['Дата', st.stamp.date],
+    ['Масштаб', sc ? `1:${st.sheet.scale}` : 'без масштаба'],
+  ];
+  const wrapped = rows.map(r => wrap(r[1] || '', lay.stampChars).slice(0, 3));
+  const heights = wrapped.map(v => Math.max(6.6, v.length * 3.1 + 3.5));
+  const total = heights.reduce((a, b) => a + b, 0);
+  let sy = bottom - total;
+  P.push(R(sx, sy, sw, total, 'fill="#fff" stroke="#111" stroke-width="0.4"'));
   rows.forEach((r, i) => {
-    const yy = sy + i * rh; if (i) P.push(Ln(x0 - 4, yy, x0 + 119, yy, 'stroke="#111" stroke-width="0.2"'));
-    P.push(T(x0 - 2, yy + rh / 2 + 0.9, r[0], { size: 2.4, weight: 600 }));
-    const v = wrap(r[1] || '', 36); P.push(T(x0 + lw, yy + rh / 2 + 0.9, v[0] || '', { size: 2.4 }));
+    const rh = heights[i]!, v = wrapped[i]!;
+    if (i) P.push(Ln(sx, sy, right, sy, 'stroke="#111" stroke-width="0.2"'));
+    const top = sy + rh / 2 + 0.9 - (Math.max(1, v.length) - 1) * 1.55;
+    P.push(T(sx + 2, top, r[0], { size: 2.4, weight: 700 }));
+    v.forEach((l, j) => P.push(T(sx + 4 + lw, top + j * 3.1, l, { size: 2.4 })));
+    // «Лист» — в строке масштаба справа, как в образце
+    if (i === rows.length - 1) P.push(T(right - 2, top, 'Лист 1 / 1', { size: 2.4, anchor: 'end' }));
+    sy += rh;
   });
-  P.push(Ln(x0 + lw - 2, sy, x0 + lw - 2, sy + rh * rows.length, 'stroke="#111" stroke-width="0.2"'));
+  P.push(Ln(sx + lw + 2, bottom - total, sx + lw + 2, bottom, 'stroke="#111" stroke-width="0.2"'));
 
   return P.join('');
 }
 
-/** Лист целиком — для файлов SVG и PDF: реальный размер в миллиметрах, без рамок выделения */
-export function sheetSvg(st: Plan): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm" viewBox="0 0 420 297">${drawSheet(st)}</svg>`;
+/** Линейный масштаб: два отрезка по 1 м (чёрный и белый) и подписи 0, 1, 2 м */
+function scaleBar(x: number, y: number, s: number): string {
+  const hgt = 1.4;
+  return '<g>' +
+    R(x, y, s, hgt, 'fill="#111" stroke="#111" stroke-width="0.2"') +
+    R(x + s, y, s, hgt, 'fill="#fff" stroke="#111" stroke-width="0.2"') +
+    T(x, y - 0.8, '0', { size: 2.2, anchor: 'middle' }) +
+    T(x + s, y - 0.8, '1', { size: 2.2, anchor: 'middle' }) +
+    T(x + 2 * s, y - 0.8, '2', { size: 2.2, anchor: 'middle' }) +
+    T(x + 2 * s + 2, y + hgt, 'м', { size: 2.2 }) +
+    '</g>';
+}
+
+export interface SvgFileOpts {
+  /** CSS со встроенным шрифтом (@font-face с data: URL), чтобы файл выглядел одинаково везде */
+  fontCss?: string;
+}
+
+/** Лист целиком — для файлов SVG, PNG и PDF: реальный размер в миллиметрах, без рамок выделения */
+export function sheetSvg(st: Plan, o: SvgFileOpts = {}): string {
+  const lay = sheetLayout(st);
+  const defs = o.fontCss ? `<defs><style>${o.fontCss}</style></defs>` : '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${lay.w}mm" height="${lay.h}mm" viewBox="0 0 ${lay.w} ${lay.h}">${defs}${drawSheet(st)}</svg>`;
 }

@@ -45,7 +45,7 @@
 | Тесты расчётов | Vitest | MIT |
 | Тесты интерфейса | Playwright (с этапа 8) | Apache-2.0 |
 | Распознавание (этап 10) | ONNX Runtime Web / Transformers.js, WebGPU | MIT / Apache-2.0 |
-| Шрифт | PT Sans или DejaVu Sans (выбрать на этапе 2), файл внутри приложения | OFL / свободная |
+| Шрифт | PT Sans (`src/assets/fonts/`), файл внутри приложения | OFL |
 
 Размещение: GitHub Pages, публикация через GitHub Actions. Позже (этап 2 проекта) тот же код упаковывается в APK и .exe (Capacitor / Tauri / Electron) — **не используй API, которые помешают упаковке**, работу с файлами держи в одном модуле `src/storage/`.
 

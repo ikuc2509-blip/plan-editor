@@ -2,12 +2,14 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Item, Marker, Mm, Plan, SelKind, WallItem } from '../../model/types';
 import { moveTo } from '../../model/actions';
-import { drawSheet, SHEET_H, SHEET_W } from '../../render/sheet';
-import { geom, segOf, wallDelta } from '../../geometry/unfold';
+import { drawSheet, sheetGeom, sheetLayout } from '../../render/sheet';
+import { segOf, wallDelta } from '../../geometry/unfold';
 import { dispatch, endGesture, plan, sel, tab, zoom, type TabKey } from '../store';
 
 const TAB_FOR: Record<SelKind, TabKey> = { wi: 'walls', it: 'items', mk: 'markers' };
 const COL = { wi: 'wallItems', it: 'items', mk: 'markers' } as const;
+
+export const PRINT_HINT = 'Печать PDF: масштаб 100 % («Фактический размер»), без подгонки по размеру страницы — иначе масштаб плана исказится.';
 
 /** Шаг привязки при перетаскивании — 5 см; на входе метры, на выходе мм */
 const snap = (m: number): Mm => Math.round(m * 20) * 50;
@@ -34,17 +36,18 @@ export function Sheet() {
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | null>(null);
   const [base, setBase] = useState(800);
+  const lay = sheetLayout(plan.value);
 
   // ширина листа под размер окна (как «По размеру» в прототипе)
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const fit = () => setBase(Math.max(320, Math.min(stage.clientWidth - 40, (stage.clientHeight - 60) * SHEET_W / SHEET_H)));
+    const fit = () => setBase(Math.max(320, Math.min(stage.clientWidth - 40, (stage.clientHeight - 60) * lay.w / lay.h)));
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(stage);
     return () => ro.disconnect();
-  }, []);
+  }, [lay]);
 
   const svgPt = (e: PointerEvent) => {
     const m = svgRef.current!.getScreenCTM()!.inverse();
@@ -67,7 +70,7 @@ export function Sheet() {
   const onMove = (e: PointerEvent) => {
     const d = drag.current;
     if (!d) return;
-    const g = geom(plan.value.room, plan.value.sheet);
+    const g = sheetGeom(plan.value);
     const p = svgPt(e);
     const dx = p.x - d.start.x, dy = p.y - d.start.y;
     // мелкое дрожание при клике — не перемещение
@@ -101,7 +104,7 @@ export function Sheet() {
       <svg
         ref={svgRef}
         class="sheet"
-        viewBox={`0 0 ${SHEET_W} ${SHEET_H}`}
+        viewBox={`0 0 ${lay.w} ${lay.h}`}
         xmlns="http://www.w3.org/2000/svg"
         style={{ width: base * zoom.value + 'px' }}
         onPointerDown={onDown}
@@ -111,6 +114,7 @@ export function Sheet() {
         dangerouslySetInnerHTML={{ __html: drawSheet(plan.value, { sel: sel.value }) }}
       />
       <div class="legendline">Перетаскивайте мебель, метки и элементы стен мышью. Точные значения правьте слева.</div>
+      <div class="legendline">{PRINT_HINT}</div>
     </div>
   );
 }
