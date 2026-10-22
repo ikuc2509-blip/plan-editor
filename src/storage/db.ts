@@ -1,5 +1,5 @@
 // Рабочая копия проекта в браузере (IndexedDB): текущий план, история состояний,
-// файл для автосохранения. Если IndexedDB недоступна — запасной вариант localStorage.
+// файл для автосохранения, снимки (оригиналы и уменьшенные копии). Если IndexedDB недоступна — запасной вариант localStorage.
 import { openDB, type IDBPDatabase } from 'idb';
 import type { Plan } from '../model/types';
 import type { ProjectMeta } from './omp';
@@ -31,11 +31,18 @@ let dbp: Promise<IDBPDatabase> | null = null;
 let broken = false;
 
 function db(): Promise<IDBPDatabase> {
-  dbp ??= openDB(DB, 1, {
-    upgrade(d) {
-      d.createObjectStore('work');
-      d.createObjectStore('history', { keyPath: 'id', autoIncrement: true });
-      d.createObjectStore('handles');
+  dbp ??= openDB(DB, 2, {
+    upgrade(d, old) {
+      if (old < 1) {
+        d.createObjectStore('work');
+        d.createObjectStore('history', { keyPath: 'id', autoIncrement: true });
+        d.createObjectStore('handles');
+      }
+      // этап 7: снимки по id — оригинал как есть и уменьшенная копия для экрана
+      if (old < 2) {
+        d.createObjectStore('photos');
+        d.createObjectStore('previews');
+      }
     },
   });
   return dbp;
@@ -106,4 +113,40 @@ export async function setFileHandle(h: FileSystemFileHandle | null): Promise<voi
     const d = await db();
     if (h) await d.put('handles', h, 'autosave'); else await d.delete('handles', 'autosave');
   } catch { /* без автосохранения */ }
+}
+
+/* снимки: если IndexedDB недоступна — только в памяти до закрытия вкладки */
+const memPhotos = new Map<string, Blob>();
+const memPreviews = new Map<string, Blob>();
+
+export async function putPhoto(id: string, blob: Blob): Promise<void> {
+  if (!broken) {
+    try { await (await db()).put('photos', blob, id); return; } catch { /* ниже — в память */ }
+  }
+  memPhotos.set(id, blob);
+}
+
+export async function getPhoto(id: string): Promise<Blob | null> {
+  if (memPhotos.has(id)) return memPhotos.get(id)!;
+  try { return ((await (await db()).get('photos', id)) as Blob | undefined) ?? null; } catch { return null; }
+}
+
+export async function putPreview(id: string, blob: Blob): Promise<void> {
+  try { await (await db()).put('previews', blob, id); } catch { memPreviews.set(id, blob); }
+}
+
+export async function getPreview(id: string): Promise<Blob | null> {
+  if (memPreviews.has(id)) return memPreviews.get(id)!;
+  try { return ((await (await db()).get('previews', id)) as Blob | undefined) ?? null; } catch { return null; }
+}
+
+/** Убрать снимки, кроме keep (новый проект — keep пустой) */
+export async function prunePhotos(keep: ReadonlySet<string>): Promise<void> {
+  for (const m of [memPhotos, memPreviews]) for (const k of [...m.keys()]) if (!keep.has(k)) m.delete(k);
+  try {
+    const d = await db();
+    for (const store of ['photos', 'previews']) {
+      for (const k of (await d.getAllKeys(store)) as string[]) if (!keep.has(k)) await d.delete(store, k);
+    }
+  } catch { /* нечего чистить */ }
 }

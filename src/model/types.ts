@@ -132,10 +132,41 @@ export interface Callout {
   origin: Origin;
 }
 
-/** Снимок осмотра — заготовка, наполняется на этапе 7 */
+/** Вид криминалистической съёмки; '' — ещё не выбран */
+export type ShotKind = '' | 'orienting' | 'overview' | 'nodal' | 'detail';
+
+/** К чему относится снимок */
+export type PhotoLink = { kind: 'none' } | { kind: 'marker'; markerId: string } | { kind: 'wall'; wallId: string };
+
+/**
+ * Снимок осмотра. Сам файл (оригинал без изменений) хранится отдельно: в браузере
+ * и в папке photos/ файла .omp под именем file.
+ */
 export interface Photo {
   id: string;
+  /** номер как в фототаблице; приложение само не перенумеровывает */
   n: string;
+  /** имя в photos/ — уникальное в проекте */
+  file: string;
+  /** исходное имя файла */
+  name: string;
+  /** MIME: image/jpeg и т. п. */
+  type: string;
+  /** байт */
+  size: number;
+  /** SHA-256 оригинала, hex — подтверждает неизменность с момента добавления */
+  sha256: string;
+  kind: ShotKind;
+  link: PhotoLink;
+  /** время съёмки из EXIF «2026-10-22T10:15:00» (местное время камеры); '' — нет */
+  takenAt: string;
+  /** в EXIF есть координаты (на лист не выводятся) */
+  hasGps: boolean;
+  /** когда добавлен в проект, ISO */
+  addedAt: string;
+  source: 'file' | 'camera';
+  /** пункт списка съёмки, из которого снят: 'wall:A', 'marker:<id>:detail'… */
+  shot: string;
 }
 
 export interface Stamp {
@@ -180,9 +211,10 @@ export const FORMAT_ID = 'plan-editor';
  * 1 — этап 1: модель в миллиметрах, стены-отрезки;
  * 2 — этап 2: формат листа (sheet.paper), убрана галочка sheet.showDims;
  * 3 — этап 5: предметы квартиры (кровать, диван, плита…), рисуется поворот предметов;
- * 4 — этап 6: названия приборов для замеров (instruments).
+ * 4 — этап 6: названия приборов для замеров (instruments);
+ * 5 — этап 7: снимки (файл, SHA-256, вид съёмки, привязка, время из EXIF).
  */
-export const FORMAT_VERSION = 4;
+export const FORMAT_VERSION = 5;
 
 export interface Plan {
   format: typeof FORMAT_ID;

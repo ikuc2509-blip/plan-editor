@@ -8,6 +8,8 @@ import { canWrite, fsaSupported, saveProjectFile, writeHandle } from '../storage
 import { getFileHandle, setFileHandle } from '../storage/db';
 import { askPassword } from './common/PasswordDialog';
 import { markSavedToFile, meta, password, persistWork, plan, planChanged, protect, replacePlan, toast } from './store';
+import { checkPhotos } from '../photos/meta';
+import { clearPhotos, importPhotos, photoFiles } from './photos';
 
 export type AutosaveState = 'on' | 'needs-permission' | 'needs-password' | 'error';
 /** автосохранение в файл: имя файла и состояние; null — выключено */
@@ -29,7 +31,7 @@ export async function saveToFile(): Promise<void> {
   const m: ProjectMeta = { ...meta.value, modified: new Date().toISOString(), saveNumber: meta.value.saveNumber + 1 };
   const name = projectFileName(plan.value, m.saveNumber, protect.value);
   try {
-    const bytes = await writeOmp({ plan: plan.value, meta: m, photos: {} }, pw ?? undefined);
+    const bytes = await writeOmp({ plan: plan.value, meta: m, photos: await photoFiles(plan.value) }, pw ?? undefined);
     const res = await saveProjectFile(name, bytes);
     if (!res) return; // окно закрыли — номер не тратим
     markSavedToFile(m);
@@ -62,11 +64,19 @@ export async function openFile(): Promise<void> {
     r = await readOmp(bytes, pw);
   }
   if (!r.ok) { toast(r.error); return; }
+  // отпечатки снимков: не изменились ли они с момента добавления в проект
+  const check = await checkPhotos(r.content.plan.photos, r.content.photos);
   await stopAutosave();
+  await importPhotos(r.content.plan, r.content.photos);
   await replacePlan(r.content.plan, { label: 'открытия файла', meta: r.content.meta, saved: true });
   protect.value = r.encrypted;
   password.value = pw ?? null;
   persistWork(true);
+  const warn = [
+    check.changed.length ? `Снимки № ${check.changed.join(', ')} изменены после добавления в проект (отпечаток SHA-256 не совпал).` : '',
+    check.missing.length ? `В файле нет снимков № ${check.missing.join(', ')}.` : '',
+  ].filter(Boolean).join(' ');
+  if (warn) alert(warn);
   toast(r.migratedFrom ? 'Проект открыт и переведён в новый формат' : 'Проект открыт: ' + f.name);
 }
 
@@ -76,6 +86,7 @@ async function openJson(bytes: Uint8Array): Promise<void> {
   const r = loadPlan(raw);
   if (!r.ok) { toast(r.error); return; }
   await stopAutosave();
+  await clearPhotos();
   // старый JSON — в .omp ещё не сохранён
   await replacePlan(r.plan, { label: 'открытия файла', dirty: true });
   toast('Старый проект открыт. Сохраните его в файл .omp.');
@@ -138,7 +149,7 @@ async function autosaveNow(): Promise<void> {
   try {
     // номер сохранения не меняется: пишем в тот же файл
     const m: ProjectMeta = { ...meta.value, modified: new Date().toISOString() };
-    await writeHandle(handle, await writeOmp({ plan: plan.value, meta: m, photos: {} }, password.value ?? undefined));
+    await writeHandle(handle, await writeOmp({ plan: plan.value, meta: m, photos: await photoFiles(plan.value) }, password.value ?? undefined));
     markSavedToFile(m);
   } catch {
     autosave.value = { name: handle.name, state: (await canWrite(handle, false)) ? 'error' : 'needs-permission' };

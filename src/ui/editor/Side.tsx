@@ -15,14 +15,21 @@ import { pickFile, readDataUrl } from '../../storage/files';
 import { dispatch, endGesture, plan, replacePlan, sel, tab, toast, type TabKey } from '../store';
 import { Check, Field, Len, Num, Select, Text, parseNum } from '../common/fields';
 import { stopAutosave } from '../project';
+import { clearPhotos } from '../photos';
 import { FilePanel } from './FilePanel';
+import { PhotosPanel, Thumb, showPhoto } from './PhotosPanel';
 
-const TABS: [TabKey, string][] = [['room', 'Помещение'], ['walls', 'Стены'], ['items', 'Мебель'], ['markers', 'Метки'], ['callouts', 'Подписи'], ['measure', 'Замеры'], ['under', 'Подложка'], ['stamp', 'Штамп'], ['file', 'Файл']];
+const TABS: [TabKey, string][] = [['room', 'Помещение'], ['walls', 'Стены'], ['items', 'Мебель'], ['markers', 'Метки'], ['callouts', 'Подписи'], ['measure', 'Замеры'], ['photos', 'Фото'], ['under', 'Подложка'], ['stamp', 'Штамп'], ['file', 'Файл']];
 
 /** Новый план вместо текущего: автосохранение выключаем, чтобы не записать пример поверх файла осмотра */
 async function newPlan(p: Plan, question: string, label: string) {
-  if (!confirm(question)) return;
+  const photos = plan.value.photos.length;
+  const q = photos ? `${question}
+
+Снимки текущего проекта (${photos}) уберутся из браузера. Если они нужны — сначала «Сохранить в файл».` : question;
+  if (!confirm(q)) return;
   await stopAutosave();
+  await clearPhotos();
   await replacePlan(p, { label });
 }
 
@@ -50,6 +57,7 @@ export function Side() {
         {tab.value === 'markers' && <MarkersPanel />}
         {tab.value === 'callouts' && <CalloutsPanel />}
         {tab.value === 'measure' && <MeasurePanel />}
+        {tab.value === 'photos' && <PhotosPanel />}
         {tab.value === 'under' && <UnderlayPanel />}
         {tab.value === 'stamp' && <StampPanel />}
         {tab.value === 'file' && <FilePanel />}
@@ -294,6 +302,7 @@ function MarkersPanel() {
               )}
               <Text label="Описание" value={m.desc} wide area onValue={v => set({ desc: v }, `mk:${m.id}:desc`)} />
             </div>
+            <MarkerPhotos id={m.id} />
           </div>
         );
       })}
@@ -370,6 +379,18 @@ function MeasurePanel() {
         <Text label="Лазерный дальномер — модель" value={st.instruments.rangefinder} placeholder="Bosch GLM 50-27" onValue={v => dispatch(p => A.setInstruments(p, { rangefinder: v }), 'instr:range')} />
       </div>
     </>
+  );
+}
+
+/** Снимки метки — значками; щелчок — карточка снимка на вкладке «Фото» */
+function MarkerPhotos({ id }: { id: string }) {
+  const list = plan.value.photos.filter(ph => ph.link.kind === 'marker' && ph.link.markerId === id);
+  if (!list.length) return <p class="hint" style="margin:6px 0 0">Снимков нет — вкладка «Фото».</p>;
+  return (
+    <div class="mk-photos">
+      <span class="hint" style="margin:0">Снимки:</span>
+      {list.map(ph => <Thumb key={ph.id} ph={ph} small onClick={() => showPhoto(ph.id)} />)}
+    </div>
   );
 }
 

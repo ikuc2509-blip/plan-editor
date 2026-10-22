@@ -26,6 +26,19 @@ export function pickFile(accept: string): Promise<File | null> {
   });
 }
 
+/** Выбор нескольких файлов (снимки); пустой список — окно закрыли */
+export function pickFiles(accept: string): Promise<File[]> {
+  return new Promise(resolve => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.multiple = true;
+    input.addEventListener('change', () => resolve([...(input.files ?? [])]), { once: true });
+    input.addEventListener('cancel', () => resolve([]), { once: true });
+    input.click();
+  });
+}
+
 export function readText(f: File): Promise<string> {
   return f.text();
 }

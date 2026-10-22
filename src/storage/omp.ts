@@ -1,7 +1,7 @@
 // Файл проекта .omp — обычный ZIP:
 //   manifest.json — версия формата, версия приложения, даты, номер сохранения;
 //   plan.json     — план (формат см. src/model/types.ts);
-//   photos/       — оригиналы снимков без изменений (с этапа 7).
+//   photos/       — оригиналы снимков без изменений (этап 7).
 // С паролем: manifest.json открыт (без адреса и имён), а plan.json и photos/ лежат
 // внутри зашифрованного блока content.bin (это тоже ZIP, но зашифрованный).
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate';
