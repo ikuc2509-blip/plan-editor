@@ -1,18 +1,22 @@
 // Рабочая копия плана в браузере (до этапа 3 — localStorage, потом IndexedDB).
-import type { PlanState } from '../model/types';
+import type { Plan } from '../model/types';
 
-const KEY = 'mesto-plan-v1';
+const KEY = 'plan-editor:plan';
+/** где хранил план прототип и этап 0 — читаем один раз для перевода */
+const OLD_KEY = 'mesto-plan-v1';
 
+/** Сохранённый план в любом формате; null — ничего нет */
 export function loadLocal(): unknown {
-  try {
-    const raw = localStorage.getItem(KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
+  for (const k of [KEY, OLD_KEY]) {
+    try {
+      const raw = localStorage.getItem(k);
+      if (raw) return JSON.parse(raw);
+    } catch { /* повреждено или хранилище недоступно — пробуем дальше */ }
   }
+  return null;
 }
 
-export function saveLocal(s: PlanState): void {
+export function saveLocal(s: Plan): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(s));
   } catch {

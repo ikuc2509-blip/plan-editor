@@ -1,5 +1,5 @@
 // Режим «Чистовик» (пока — интерфейс прототипа).
-import { fromJson } from '../../model/state';
+import { loadPlan } from '../../model/migrate';
 import { sheetSvg } from '../../render/sheet';
 import { rasterPdf } from '../../export/pdf';
 import { pickFile, readText, saveFile } from '../../storage/files';
@@ -20,14 +20,17 @@ function saved(name: string) {
 async function openProject() {
   const f = await pickFile('.json,application/json');
   if (!f) return;
+  let raw: unknown;
   try {
-    const s = fromJson(JSON.parse(await readText(f)));
-    if (!s) throw new Error();
-    replacePlan(s);
-    toast('Проект открыт');
+    raw = JSON.parse(await readText(f));
   } catch {
     toast('Это не файл проекта плана (.json)');
+    return;
   }
+  const r = loadPlan(raw);
+  if (!r.ok) { toast(r.error); return; }
+  replacePlan(r.plan);
+  toast(r.migratedFrom === 'prototype' ? 'Проект прототипа открыт и переведён в новый формат' : 'Проект открыт');
 }
 
 function saveProject() {

@@ -1,6 +1,9 @@
 // Поля ввода боковой панели (как в прототипе: подпись над полем).
 import { useEffect, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
+import type { Mm } from '../../model/types';
+import { formatMeters, parseLength } from '../../model/units';
+import { endGesture } from '../store';
 
 /** Число из поля: запятая и точка — обе как десятичный разделитель */
 export const parseNum = (t: string): number => parseFloat(String(t).replace(',', '.'));
@@ -9,14 +12,16 @@ const showNum = (v: number): string => String(v).replace('.', ',');
 interface FieldProps {
   label: string;
   wide?: boolean;
+  error?: string | null;
   children: ComponentChildren;
 }
 
-export function Field({ label, wide, children }: FieldProps) {
+export function Field({ label, wide, error, children }: FieldProps) {
   return (
-    <label class={'f' + (wide ? ' wide' : '')}>
+    <label class={'f' + (wide ? ' wide' : '') + (error ? ' bad' : '')}>
       {label && <span>{label}</span>}
       {children}
+      {error && <span class="err" role="alert">{error}</span>}
     </label>
   );
 }
@@ -34,8 +39,68 @@ export function Text({ label, value, onValue, wide, area, placeholder }: TextPro
   return (
     <Field label={label} wide={wide}>
       {area
-        ? <textarea value={value} onInput={e => onValue(e.currentTarget.value)} />
-        : <input value={value} placeholder={placeholder} onInput={e => onValue(e.currentTarget.value)} />}
+        ? <textarea value={value} onInput={e => onValue(e.currentTarget.value)} onBlur={endGesture} />
+        : <input value={value} placeholder={placeholder} onInput={e => onValue(e.currentTarget.value)} onBlur={endGesture} />}
+    </Field>
+  );
+}
+
+interface LenProps {
+  label: string;
+  /** значение, мм */
+  value: Mm;
+  onValue: (mm: Mm) => void;
+  wide?: boolean;
+  /** только больше нуля (ширина, высота, длина) */
+  positive?: boolean;
+  /** применять при выходе из поля или по Enter, а не на каждую цифру */
+  onCommit?: boolean;
+}
+
+/**
+ * Поле длины: «1,25», «125 см», «1250 мм». Хранит свой текст, чтобы можно было набрать
+ * «1,» без потери запятой; при ошибке — подсказка под полем, значение не меняется.
+ */
+export function Len({ label, value, onValue, wide, positive, onCommit }: LenProps) {
+  const [text, setText] = useState(formatMeters(value));
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const r = parseLength(text);
+    if (!r.ok || r.mm !== value) { setText(formatMeters(value)); setError(null); }
+  }, [value]);
+
+  const check = (t: string): Mm | null => {
+    const r = parseLength(t);
+    if (!r.ok) { setError(r.error); return null; }
+    if (positive && r.mm <= 0) { setError('Должно быть больше нуля'); return null; }
+    setError(null);
+    return r.mm;
+  };
+  const commit = () => {
+    const mm = check(text);
+    if (mm !== null) {
+      // показать, как понято: «125 см» → «1,25»
+      setText(formatMeters(mm));
+      if (mm !== value) onValue(mm);
+    }
+    endGesture();
+  };
+
+  return (
+    <Field label={label} wide={wide} error={error}>
+      <input
+        inputMode="decimal"
+        value={text}
+        aria-invalid={!!error}
+        onInput={e => {
+          const t = e.currentTarget.value;
+          setText(t);
+          const mm = check(t);
+          if (!onCommit && mm !== null) onValue(mm);
+        }}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') commit(); }}
+      />
     </Field>
   );
 }
@@ -47,7 +112,7 @@ interface NumProps {
   wide?: boolean;
 }
 
-/** Числовое поле: свой текст, чтобы можно было набрать «1,» без потери запятой */
+/** Просто число (проценты и т. п.) */
 export function Num({ label, value, onValue, wide }: NumProps) {
   const [text, setText] = useState(showNum(value));
   useEffect(() => {
@@ -64,6 +129,7 @@ export function Num({ label, value, onValue, wide }: NumProps) {
           const v = parseNum(t);
           if (!isNaN(v)) onValue(v);
         }}
+        onBlur={endGesture}
       />
     </Field>
   );

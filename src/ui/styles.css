@@ -48,6 +48,8 @@ aside{border-right:1px solid var(--line);background:var(--panel);display:flex;fl
 .grid.two{grid-template-columns:1fr 1fr}
 .f{display:flex;flex-direction:column;gap:2px;font-size:11.5px;color:var(--muted);min-width:0}
 .f.wide{grid-column:1/-1}
+.f .err{color:var(--danger);font-size:11px;line-height:1.25}
+.f.bad input{border-color:var(--danger)}
 input,select,textarea{font:inherit;font-size:13px;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:5px;padding:4px 6px;width:100%;min-width:0}
 textarea{resize:vertical;min-height:44px}
 .chk{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink);margin:4px 0}

@@ -1,27 +1,33 @@
 // Лист на экране и перетаскивание объектов мышью или пальцем.
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { Item, Marker, PlanState, SelKind, WallItem } from '../../model/types';
+import type { Item, Marker, Mm, Plan, SelKind, WallItem } from '../../model/types';
+import { moveTo } from '../../model/actions';
 import { drawSheet, SHEET_H, SHEET_W } from '../../render/sheet';
-import { geom, wallDelta, wallLen } from '../../geometry/unfold';
-import { plan, sel, tab, update, zoom, type TabKey } from '../store';
+import { geom, segOf, wallDelta } from '../../geometry/unfold';
+import { dispatch, endGesture, plan, sel, tab, zoom, type TabKey } from '../store';
 
 const TAB_FOR: Record<SelKind, TabKey> = { wi: 'walls', it: 'items', mk: 'markers' };
 const COL = { wi: 'wallItems', it: 'items', mk: 'markers' } as const;
 
-/** Шаг привязки при перетаскивании — 5 см */
-const snap = (v: number): number => Math.round(v * 20) / 20;
+/** Шаг привязки при перетаскивании — 5 см; на входе метры, на выходе мм */
+const snap = (m: number): Mm => Math.round(m * 20) * 50;
+
+type Obj = WallItem | Item | Marker;
 
 interface Drag {
   kind: SelKind;
   id: string;
+  key: string;
   start: { x: number; y: number };
-  orig: WallItem | Item | Marker;
+  orig: Obj;
   moved: boolean;
 }
 
-function findObj(s: PlanState, kind: SelKind, id: string): WallItem | Item | Marker | undefined {
-  return (s[COL[kind]] as (WallItem | Item | Marker)[]).find(x => x.id === id);
+function findObj(s: Plan, kind: SelKind, id: string): Obj | undefined {
+  return (s[COL[kind]] as Obj[]).find(x => x.id === id);
 }
+
+let dragN = 0;
 
 export function Sheet() {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -53,7 +59,7 @@ export function Sheet() {
     const o = findObj(plan.value, kind, id);
     if (!o) return;
     sel.value = { kind, id };
-    drag.current = { kind, id, start: svgPt(e), orig: { ...o }, moved: false };
+    drag.current = { kind, id, key: `drag:${++dragN}`, start: svgPt(e), orig: o, moved: false };
     svgRef.current!.setPointerCapture(e.pointerId);
     tab.value = TAB_FOR[kind];
   };
@@ -61,29 +67,34 @@ export function Sheet() {
   const onMove = (e: PointerEvent) => {
     const d = drag.current;
     if (!d) return;
-    const g = geom(plan.value.room);
+    const g = geom(plan.value.room, plan.value.sheet);
     const p = svgPt(e);
     const dx = p.x - d.start.x, dy = p.y - d.start.y;
     // мелкое дрожание при клике — не перемещение
     if (Math.abs(dx) + Math.abs(dy) < 0.4 && !d.moved) return;
     d.moved = true;
-    update(s => {
-      const o = findObj(s, d.kind, d.id);
-      if (!o) return;
-      const q = d.orig;
-      if (d.kind === 'it' || (d.kind === 'mk' && (o as Marker).place === 'floor')) {
-        const oo = o as Item | Marker, qq = q as Item | Marker;
-        oo.x = snap(qq.x + dx / g.s); oo.y = snap(qq.y + dy / g.s);
-      } else {
-        const oo = o as WallItem | Marker, qq = q as WallItem | Marker;
-        const [doff, dz] = wallDelta(oo.wall, dx, dy, g.s);
-        oo.off = snap(Math.max(-1, Math.min(wallLen(g, oo.wall), qq.off + doff)));
-        if (d.kind === 'wi' || (oo as Marker).place === 'wall') oo.z = snap(Math.max(0, Math.min(g.h, qq.z + dz)));
-      }
-    });
+    const q = d.orig;
+    const onFloor = d.kind === 'it' || (d.kind === 'mk' && (q as Marker).place === 'floor');
+    if (onFloor) {
+      const qq = q as Item | Marker;
+      const x = snap(qq.x.mm / 1000 + dx / g.s), y = snap(qq.y.mm / 1000 + dy / g.s);
+      dispatch(pl => moveTo(pl, COL[d.kind], d.id, { x, y }), d.key);
+      return;
+    }
+    const qq = q as WallItem | Marker;
+    const sg = segOf(g, qq.wallId);
+    if (!sg) return;
+    const [doff, dz] = wallDelta(sg, dx, dy, g.s);
+    const off = snap(Math.max(-1, Math.min(sg.len, qq.off.mm / 1000 + doff)));
+    if (d.kind === 'wi' || (qq as Marker).place === 'wall') {
+      const z = snap(Math.max(0, Math.min(g.h, qq.z.mm / 1000 + dz)));
+      dispatch(pl => moveTo(pl, COL[d.kind], d.id, { off, z }), d.key);
+    } else {
+      dispatch(pl => moveTo(pl, COL[d.kind], d.id, { off }), d.key);
+    }
   };
 
-  const onUp = () => { drag.current = null; };
+  const onUp = () => { drag.current = null; endGesture(); };
 
   return (
     <div class="stage" ref={stageRef}>
