@@ -1,8 +1,9 @@
-// Рабочая копия плана в браузере (до этапа 3 — localStorage, потом IndexedDB).
+// Старое место хранения плана (localStorage, этапы 0–2) и запасной вариант,
+// если IndexedDB недоступна (например, в приватном окне некоторых браузеров).
 import type { Plan } from '../model/types';
 
 const KEY = 'plan-editor:plan';
-/** где хранил план прототип и этап 0 — читаем один раз для перевода */
+/** где хранил план прототип и этап 0 */
 const OLD_KEY = 'mesto-plan-v1';
 
 /** Сохранённый план в любом формате; null — ничего нет */
@@ -25,4 +26,12 @@ export function saveLocal(s: Plan): void {
       localStorage.setItem(KEY, JSON.stringify({ ...s, underlay: { ...s.underlay, src: '' } }));
     } catch { /* хранилище недоступно — план живёт только в памяти */ }
   }
+}
+
+/** План переехал в IndexedDB — старую копию убираем, чтобы данные осмотра не лежали в двух местах */
+export function clearLocal(): void {
+  try {
+    localStorage.removeItem(KEY);
+    localStorage.removeItem(OLD_KEY);
+  } catch { /* нечего чистить */ }
 }

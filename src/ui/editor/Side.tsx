@@ -11,8 +11,17 @@ import { PAPERS, layoutFor } from '../../render/layout';
 import { pickFile, readDataUrl } from '../../storage/files';
 import { dispatch, endGesture, plan, replacePlan, sel, tab, toast, type TabKey } from '../store';
 import { Check, Field, Len, Num, Select, Text, parseNum } from '../common/fields';
+import { stopAutosave } from '../project';
+import { FilePanel } from './FilePanel';
 
-const TABS: [TabKey, string][] = [['room', 'Помещение'], ['walls', 'Стены'], ['items', 'Мебель'], ['markers', 'Метки'], ['under', 'Подложка'], ['stamp', 'Штамп']];
+const TABS: [TabKey, string][] = [['room', 'Помещение'], ['walls', 'Стены'], ['items', 'Мебель'], ['markers', 'Метки'], ['under', 'Подложка'], ['stamp', 'Штамп'], ['file', 'Файл']];
+
+/** Новый план вместо текущего: автосохранение выключаем, чтобы не записать пример поверх файла осмотра */
+async function newPlan(p: Plan, question: string, label: string) {
+  if (!confirm(question)) return;
+  await stopAutosave();
+  await replacePlan(p, { label });
+}
 
 const wallOpts = (p: Plan): Record<string, string> =>
   Object.fromEntries(wallsByLetter(p.room).map(w => [w.id, 'Стена ' + w.letter]));
@@ -38,6 +47,7 @@ export function Side() {
         {tab.value === 'markers' && <MarkersPanel />}
         {tab.value === 'under' && <UnderlayPanel />}
         {tab.value === 'stamp' && <StampPanel />}
+        {tab.value === 'file' && <FilePanel />}
       </div>
     </aside>
   );
@@ -92,8 +102,8 @@ function RoomPanel() {
       </div>
       <h3>Шаблон</h3>
       <div class="row">
-        <button onClick={() => { if (confirm('Заменить текущий план примером аудитории?')) replacePlan(example()); }}>Пример: наша аудитория</button>
-        <button onClick={() => { if (confirm('Начать пустой план? Текущий будет заменён.')) replacePlan(blank()); }}>Пустой план</button>
+        <button onClick={() => void newPlan(example(), 'Заменить текущий план примером аудитории? Текущий сохранится в истории (вкладка «Файл»).', 'примера аудитории')}>Пример: наша аудитория</button>
+        <button onClick={() => void newPlan(blank(), 'Начать пустой план? Текущий сохранится в истории (вкладка «Файл»).', 'пустого плана')}>Пустой план</button>
       </div>
     </>
   );

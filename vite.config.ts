@@ -1,8 +1,11 @@
 import { defineConfig } from 'vitest/config';
+import pkg from './package.json';
 
 export default defineConfig({
   // Относительные пути: сайт работает с любого адреса GitHub Pages (имя репозитория не важно)
   base: './',
+  // версия приложения записывается в manifest.json файла проекта
+  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   // JSX для Preact без отдельного модуля-плагина
   esbuild: { jsx: 'automatic', jsxImportSource: 'preact' },
   resolve: {
