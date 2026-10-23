@@ -2,7 +2,7 @@
 // так старые состояния можно хранить для отмены и повтора.
 // Неизменённые части переиспользуются (подложка-картинка не копируется).
 import type {
-  Callout, Dim, FrameEdge, Item, ItemType, Marker, MeasureMethod, Mm, Photo, Plan, Point, SheetOptions, Stamp, Underlay, WallItem, WallItemType, WallPhoto,
+  Callout, Dim, FrameEdge, Item, ItemType, Marker, MeasureMethod, Mm, Origin, Photo, Plan, Point, SheetOptions, Stamp, Underlay, WallItem, WallItemType, WallPhoto,
 } from './types';
 import { IT_SIZE } from './labels';
 import { findWall, rectSize, rectWalls, wallLength } from './room';
@@ -118,6 +118,12 @@ export function addWallItem(p: Plan, id: string, type: WallItemType, wallId: str
     open: false, hinge: 'start', origin: { kind: 'manual' },
   };
   return { ...p, wallItems: [...p.wallItems, o] };
+}
+
+/** Элемент стены, обведённый по снимку (этап 9): положение и размеры «условно», происхождение — снимок и рамка */
+export function addTracedWallItem(p: Plan, id: string, type: WallItemType, wallId: string, r: { off: Mm; z: Mm; w: Mm; h: Mm }, origin: Origin): Plan {
+  const q = addWallItem(p, id, type, wallId);
+  return patch(q, 'wallItems', id, { off: cond(r.off), z: cond(r.z), w: cond(r.w), h: cond(r.h), origin });
 }
 
 /** Новый предмет типовых размеров — в середине помещения */

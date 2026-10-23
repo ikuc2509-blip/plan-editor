@@ -70,6 +70,37 @@ test('снимок стены выпрямляется и ложится на р
   await expect(page.getByTestId('sheet').locator('image')).toHaveCount(1);
   await nav('Проёмы').click();
   await expect(page.getByText('Стена А: снимок № 1')).toBeVisible();
+
+  // обвести окно по снимку: два угла на развёртке; «окно» на выпрямленном снимке — примерно 0,30…0,50 × 0,30…0,60
+  const sheet = page.getByTestId('sheet');
+  await page.getByRole('button', { name: 'Окно', exact: true }).click();
+  const sb = (await sheet.boundingBox())!, ib = (await sheet.locator('image').boundingBox())!;
+  const onImg = (u: number, v: number) => ({ x: ib.x - sb.x + u * ib.width, y: ib.y - sb.y + v * ib.height });
+  await sheet.tap({ position: onImg(0.31, 0.32) });
+  await expect(page.getByText(/Теперь — противоположный угол/).first()).toBeVisible();
+  await sheet.tap({ position: onImg(0.49, 0.58) });
+  await expect(page.locator('#toast')).toContainText('Окно: обведено по снимку');
+  const card = page.locator('.os-panel .card').filter({ hasText: 'Обведено по снимку № 1' });
+  await expect(card).toBeVisible();
+  await expect(card.locator('.chip', { hasText: 'по фото' })).toHaveCount(4);
+  await card.getByRole('button', { name: 'Показать' }).click();
+  await expect(page.locator('dialog.viewer[open] .vbox')).toBeVisible();
+  await page.locator('dialog.viewer[open]').click();
+
+  // масштаб по фото: ширина окна на самом деле 1,5 м → длина стены меньше 10 м
+  await page.getByRole('button', { name: 'Масштаб по фото' }).click();
+  const dlg2 = page.locator('dialog.rect[open]');
+  const pad2 = dlg2.getByTestId('pointpad');
+  await expect(pad2).toBeVisible();
+  const b2 = (await pad2.boundingBox())!;
+  await pad2.tap({ position: { x: 0.3 * b2.width, y: 0.45 * b2.height } });
+  await pad2.tap({ position: { x: 0.5 * b2.width, y: 0.45 * b2.height } });
+  await dlg2.getByLabel('Настоящая длина отрезка, м').fill('1,5');
+  await expect(dlg2.getByText(/Отрезок вдоль стены\. По снимку выходит: длина стены А ≈ 7,5 м/)).toBeVisible();
+  await dlg2.getByRole('button', { name: 'Применить' }).click();
+  await expect(page.locator('#toast')).toContainText('Статус — «условно»');
+  await nav('Помещение').click();
+  await expect(page.getByRole('textbox', { name: /Длина L/ })).toHaveValue(/^7,\d+$/);
 });
 
 test.describe('камера «Снять стену»', () => {

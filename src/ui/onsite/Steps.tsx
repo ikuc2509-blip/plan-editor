@@ -18,7 +18,7 @@ import { openFile, saveToFile, setProtect } from '../project';
 import { MarkerCard, MeasurePanel, WallItemCard, newPlan, wallOpts } from '../editor/Side';
 import { PhotosPanel } from '../editor/PhotosPanel';
 import { schematicView } from '../editor/Sheet';
-import { WallPhotosList } from '../common/WallPhotos';
+import { TraceBar, WallPhotosList } from '../common/WallPhotos';
 import { placing, step, today } from './state';
 
 /** выделенная карточка — прокрутить к ней (выбрали касанием плана) */
@@ -94,6 +94,7 @@ export function OpeningsStep() {
       <div class="row">
         {ADD_WI.map(([t, label]) => <button key={t} onClick={() => add(t)}>{label}</button>)}
       </div>
+      <TraceBar />
       {onWall.length === 0 && <p class="hint">На этой стене пока ничего нет.</p>}
       {onWall.length > 0 && (
         <div class="os-pick" role="group" aria-label="Что на стене">

@@ -6,7 +6,7 @@ import type { Callout, Item, Marker, Mm, Plan, SelKind, WallItem } from '../../m
 import { moveTo, patch, setAngle, setSheet } from '../../model/actions';
 import { drawSheet, sheetGeom, sheetLayout } from '../../render/sheet';
 import type { Box } from '../../render/layout';
-import { locate, segOf, wallDelta, type Spot } from '../../geometry/unfold';
+import { locate, segOf, unf, wallDelta, type Spot } from '../../geometry/unfold';
 import { angleFromHandle, snapAngle, snapMm } from '../../geometry/rotate';
 import { dispatch, endGesture, gridStep, plan, sel, tab, toast, zoom, type TabKey } from '../store';
 import type { MeasureRef } from '../../model/measure';
@@ -66,6 +66,8 @@ interface SheetProps {
   full?: boolean;
   /** режим «новая метка»: сюда приходит место касания */
   onPlace?: (s: Spot) => void;
+  /** отмеченная точка (первый угол обводки) — синий крестик */
+  mark?: Spot;
   /** объект выделен касанием (вместо переключения вкладки «Чистовика») */
   onSelect?: (kind: SelKind) => void;
 }
@@ -73,7 +75,7 @@ interface SheetProps {
 /** на сколько пикселей можно сдвинуть палец, чтобы это ещё было касанием, а не сдвигом */
 const TAP_PX = 8;
 
-export function Sheet({ onsite, full, onPlace, onSelect }: SheetProps = {}) {
+export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}) {
   const stageRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -294,7 +296,7 @@ export function Sheet({ onsite, full, onPlace, onSelect }: SheetProps = {}) {
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
-        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true, touch: onsite, wallImages: wallImages.value }) }}
+        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true, touch: onsite, wallImages: wallImages.value }) + markSvg(shown, mark) }}
       />
       {!onsite && (
         <>
@@ -304,4 +306,14 @@ export function Sheet({ onsite, full, onPlace, onSelect }: SheetProps = {}) {
       )}
     </div>
   );
+}
+
+/** Крестик в отмеченной точке развёртки (первый угол обводки) */
+function markSvg(p: Plan, s: Spot | undefined): string {
+  if (!s || s.place !== 'wall') return '';
+  const g = sheetGeom(p), sg = segOf(g, s.wallId);
+  if (!sg) return '';
+  const [x, y] = unf(g, sg, s.off / 1000, s.z / 1000);
+  return `<circle cx="${x}" cy="${y}" r="1.6" fill="none" stroke="#2F6FB3" stroke-width="0.5"/>` +
+    `<path d="M${x - 3} ${y}h6M${x} ${y - 3}v6" stroke="#2F6FB3" stroke-width="0.35"/>`;
 }

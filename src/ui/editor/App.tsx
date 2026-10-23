@@ -19,6 +19,7 @@ import { photosBytes } from '../photos';
 import { Side } from './Side';
 import { PRINT_HINT, Sheet, ZOOM_MAX, ZOOM_MIN } from './Sheet';
 import { setMode } from '../mode';
+import { traceTap, tracing } from '../trace';
 
 const fname = (ext: string): string => {
   const d = (plan.value.stamp.date || '').replace(/[^\d.]/g, '');
@@ -112,7 +113,7 @@ export function App() {
       </header>
       <main>
         <Side />
-        <Sheet />
+        <Sheet onPlace={tracing.value ? traceTap : undefined} mark={tracing.value?.first} />
       </main>
       <Toast />
       <PasswordDialog />

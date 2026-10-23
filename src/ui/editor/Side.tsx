@@ -1,6 +1,6 @@
 // Боковая панель: вкладки Помещение / Стены / Мебель / Метки / Подложка / Штамп.
 import { useEffect, useState } from 'preact/hooks';
-import type { Callout, Dim, Item, ItemType, Marker, MarkerPlace, Mm, Plan, WallItem, WallItemType } from '../../model/types';
+import type { Callout, Dim, Item, ItemType, Marker, MarkerPlace, Mm, PhotoBox, Plan, WallItem, WallItemType } from '../../model/types';
 import { measureList, type MeasureRef, type MeasureRow } from '../../model/measure';
 import { formatMeters } from '../../model/units';
 import { StatusChip, openMeasure } from '../common/MeasureDialog';
@@ -17,8 +17,8 @@ import { Check, Field, Len, Num, Select, Text, parseNum } from '../common/fields
 import { stopAutosave } from '../project';
 import { clearPhotos } from '../photos';
 import { FilePanel } from './FilePanel';
-import { PhotosPanel, Thumb, showPhoto } from './PhotosPanel';
-import { WallPhotosList } from '../common/WallPhotos';
+import { PhotosPanel, Thumb, showPhoto, showPhotoBox } from './PhotosPanel';
+import { TraceBar, WallPhotosList } from '../common/WallPhotos';
 
 const TABS: [TabKey, string][] = [['room', 'Помещение'], ['walls', 'Стены'], ['items', 'Мебель'], ['markers', 'Метки'], ['callouts', 'Подписи'], ['measure', 'Замеры'], ['photos', 'Фото'], ['under', 'Подложка'], ['stamp', 'Штамп'], ['file', 'Файл']];
 
@@ -140,6 +140,7 @@ function WallsPanel() {
         <button onClick={() => addWallItem('radiator')}>+ Радиатор</button>
         <button onClick={() => addWallItem('other')}>+ Другое</button>
       </div>
+      <TraceBar />
       {items.map(it => <WallItemCard key={it.id} it={it} walls={wallOpts(st)} />)}
       <h3>Снимки на развёртке</h3>
       <WallPhotosList />
@@ -153,6 +154,9 @@ export function WallItemCard({ it, walls }: { it: WallItem; walls: Record<string
   const set = (o: Partial<WallItem>) => dispatch(p => A.patch(p, 'wallItems', it.id, o));
   const len = (k: DimKeys<WallItem>) => (mm: Mm) => dispatch(p => A.patchDims(p, 'wallItems', it.id, { [k]: mm }), `wi:${it.id}:${k}`);
   const wiRef = (key: 'off' | 'z' | 'w' | 'h'): MeasureRef => ({ t: 'obj', col: 'wallItems', id: it.id, key });
+  // обведено по снимку: условные размеры подписаны «по фото»
+  const fromPhoto = it.origin.kind === 'photo';
+  const pchip = (d: Dim, r: MeasureRef) => <StatusChip status={d.status} mref={r} photo={fromPhoto} />;
   return (
     <div class={cardClass(it.id)} data-card={it.id}>
       <div class="card-h">
@@ -162,10 +166,10 @@ export function WallItemCard({ it, walls }: { it: WallItem; walls: Record<string
       <div class="grid">
         <Select label="Стена" value={it.wallId} options={walls} onValue={v => set({ wallId: v })} />
         <Text label="Подпись" value={it.label} onValue={v => dispatch(p => A.patch(p, 'wallItems', it.id, { label: v }), `wi:${it.id}:label`)} />
-        <Len label="Отступ, м" value={it.off.mm} chip={chip(it.off, wiRef('off'))} onValue={len('off')} />
-        <Len label="Ширина, м" value={it.w.mm} positive chip={chip(it.w, wiRef('w'))} onValue={len('w')} />
-        <Len label="От пола, м" value={it.z.mm} chip={chip(it.z, wiRef('z'))} onValue={len('z')} />
-        <Len label="Высота, м" value={it.h.mm} positive chip={chip(it.h, wiRef('h'))} onValue={len('h')} />
+        <Len label="Отступ, м" value={it.off.mm} chip={pchip(it.off, wiRef('off'))} onValue={len('off')} />
+        <Len label="Ширина, м" value={it.w.mm} positive chip={pchip(it.w, wiRef('w'))} onValue={len('w')} />
+        <Len label="От пола, м" value={it.z.mm} chip={pchip(it.z, wiRef('z'))} onValue={len('z')} />
+        <Len label="Высота, м" value={it.h.mm} positive chip={pchip(it.h, wiRef('h'))} onValue={len('h')} />
       </div>
       {(it.type === 'door' || it.type === 'window') && (
         <div class="grid two" style="margin-top:6px">
@@ -175,6 +179,18 @@ export function WallItemCard({ it, walls }: { it: WallItem; walls: Record<string
             : <span />}
         </div>
       )}
+      {it.origin.kind === 'photo' && <OriginRow photoId={it.origin.photoId} box={it.origin.box} />}
+    </div>
+  );
+}
+
+/** Откуда взят объект: снимок и рамка на нём (этап 9) */
+function OriginRow({ photoId, box }: { photoId: string; box: PhotoBox }) {
+  const ph = plan.value.photos.find(x => x.id === photoId);
+  return (
+    <div class="origin">
+      <span>{ph ? `Обведено по снимку № ${ph.n}` : 'Обведено по снимку, которого уже нет в проекте'}</span>
+      {ph && <button class="inline" onClick={() => void showPhotoBox(photoId, box)}>Показать</button>}
     </div>
   );
 }
@@ -344,11 +360,13 @@ function CalloutsPanel() {
 
 function MeasureRowView({ r }: { r: MeasureRow }) {
   const ok = r.dim.status === 'measured';
+  // обведённое по снимку — «≈ 1,42 м (по фото)» (decisions.md)
+  const photo = r.sel?.kind === 'wi' && plan.value.wallItems.find(i => i.id === r.sel!.id)?.origin.kind === 'photo';
   const open = () => { if (r.sel) sel.value = r.sel; openMeasure(r.ref); };
   return (
     <div class="mrow">
       <span class="w">{r.title} — {r.what}</span>
-      <span class="v">{(ok ? '' : '≈ ') + formatMeters(r.mm) + ' м'}</span>
+      <span class="v">{(ok ? '' : '≈ ') + formatMeters(r.mm) + ' м' + (!ok && photo ? ' (по фото)' : '')}</span>
       <button class={ok ? 'ghost' : ''} onClick={open}>{ok ? 'Изменить' : 'Ввести'}</button>
     </div>
   );
