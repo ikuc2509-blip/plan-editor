@@ -15,6 +15,8 @@ export interface DrawOpts {
   sel?: Selection | null;
   /** шаг привязки, мм: сетка рисуется только на экране */
   grid?: Mm;
+  /** лист на экране телефона: вокруг меток невидимая зона под палец (в файлы не попадает) */
+  touch?: boolean;
   /** лист на экране: размеры можно щёлкнуть, чтобы ввести замер */
   screen?: boolean;
 }
@@ -246,7 +248,7 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
         extra += T(x + (vert ? 0 : 4), y + (vert ? 5 : 0.9), 'снаружи', { size: 1.9, anchor: vert ? 'middle' : 'start', fill: '#333' });
       }
     }
-    let b = extra + marker(x, y, m.n);
+    let b = extra + (opts.touch ? `<circle cx="${x}" cy="${y}" r="6" fill="transparent"/>` : '') + marker(x, y, m.n);
     if (selA('mk', m.id)) b += `<circle cx="${x}" cy="${y}" r="4" ${SEL}/>`;
     P.push(`<g data-kind="mk" data-id="${m.id}" style="cursor:move">${b}</g>`);
   }
