@@ -17,7 +17,15 @@ export default defineConfig({
     reuseExistingServer: false,
   },
   projects: [
-    { name: 'phone', testMatch: /(onsite|wall)\.spec\.ts/, use: { ...devices['Pixel 7'], channel: 'msedge' } },
+    {
+      name: 'phone', testMatch: /(onsite|wall)\.spec\.ts/,
+      use: {
+        ...devices['Pixel 7'], channel: 'msedge',
+        // поддельная камера браузера (заставка вместо видео) — для встроенной камеры, без вопроса о разрешении
+        launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] },
+        permissions: ['camera'],
+      },
+    },
     { name: 'desktop', testMatch: /editor\.spec\.ts/, use: { ...devices['Desktop Edge'], channel: 'msedge' }, dependencies: ['phone'] },
   ],
 });

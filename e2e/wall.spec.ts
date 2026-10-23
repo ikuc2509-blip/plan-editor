@@ -71,3 +71,26 @@ test('снимок стены выпрямляется и ложится на р
   await nav('Проёмы').click();
   await expect(page.getByText('Стена А: снимок № 1')).toBeVisible();
 });
+
+test.describe('камера «Снять стену»', () => {
+  test('пункт «Стена А целиком»: рамка-подсказка, снимок привязан к стене, сразу «Выпрямить»', async ({ page }) => {
+    // поддельная камера не отдаёт полноразмерный снимок — берётся кадр видео, как в браузерах без ImageCapture
+    await page.addInitScript(() => { Object.defineProperty(window, 'ImageCapture', { value: undefined }); });
+    await page.goto('/');
+    const nav = (name: string) => page.getByRole('navigation', { name: 'Шаги осмотра' }).getByRole('button', { name });
+    await nav('Помещение').click();
+    await page.getByRole('button', { name: 'Новый осмотр' }).click();
+    await nav('Фото').click();
+    await page.locator('.shot', { hasText: 'Стена А' }).getByRole('button', { name: 'Снять' }).click();
+    const cam = page.locator('dialog.camera[open]');
+    await expect(cam.locator('.cam-guide')).toBeVisible();
+    await expect(cam.locator('.g-top')).toHaveText('потолок');
+    await cam.getByRole('button', { name: 'Снять' }).click();
+    await cam.getByRole('button', { name: 'Выпрямить' }).click();
+    const dlg = page.locator('dialog.rect[open]');
+    await expect(dlg.getByTestId('pointpad')).toBeVisible();
+    await expect(dlg.getByRole('group', { name: 'Стена' }).getByRole('button', { name: 'Стена А' })).toHaveAttribute('aria-pressed', 'true');
+    await dlg.getByRole('button', { name: 'Закрыть' }).click();
+    await expect(page.locator('.shot', { hasText: 'Стена А' })).toHaveClass(/done/);
+  });
+});

@@ -4,7 +4,8 @@ import { signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { ShotItem } from '../../photos/shots';
 import { capture, openCamera, stopCamera } from '../../photos/image';
-import { addCameraShot } from '../photos';
+import { addCameraShot, selPhoto } from '../photos';
+import { openRectify } from '../rectify';
 
 /** открыта камера: для какого пункта (null — просто снимок) */
 const cameraFor = signal<{ shot: ShotItem | null } | null>(null);
@@ -21,18 +22,23 @@ export function CameraDialog() {
   const [err, setErr] = useState<string | null>(null);
   const [count, setCount] = useState(0);
   const [busy, setBusy] = useState(false);
+  // кнопка «Снять» — только когда камера уже показывает картинку
+  const [ready, setReady] = useState(false);
+  // режим «Снять стену …» (этап 9): рамка-подсказка, после снимка — сразу «Выпрямить»
+  const wallShot = req?.shot?.link.kind === 'wall' ? req.shot.link.wallId : null;
+  const [last, setLast] = useState<string | null>(null);
 
   useEffect(() => {
     const d = dlg.current;
     if (!d) return;
     if (!req) { if (d.open) d.close(); return; }
-    setErr(null); setCount(0);
+    setErr(null); setCount(0); setLast(null); setReady(false);
     if (!d.open) d.showModal();
     let alive = true;
     openCamera().then(s => {
       if (!alive) { stopCamera(s); return; }
       stream.current = s;
-      if (video.current) { video.current.srcObject = s; void video.current.play(); }
+      if (video.current) { video.current.srcObject = s; void video.current.play().catch(() => undefined).finally(() => { if (alive) setReady(true); }); }
     }, (e: unknown) => {
       const name = e instanceof DOMException ? e.name : '';
       setErr(name === 'NotAllowedError'
@@ -49,6 +55,7 @@ export function CameraDialog() {
     try {
       await addCameraShot(await capture(stream.current, video.current), req?.shot ?? undefined);
       setCount(c => c + 1);
+      setLast(selPhoto.value);
     } catch {
       setErr('Не удалось сделать снимок');
     } finally {
@@ -64,11 +71,22 @@ export function CameraDialog() {
             <b>{req.shot ? req.shot.title : 'Снимок'}</b>
             {req.shot && <p>{req.shot.hint}</p>}
           </div>
-          {err ? <p class="cam-err">{err}</p> : <video ref={video} playsInline muted />}
+          {err ? <p class="cam-err">{err}</p> : (
+            <div class="cam-view">
+              <video ref={video} playsInline muted />
+              {wallShot && (
+                <div class="cam-guide" aria-hidden="true">
+                  <span class="g-top">потолок</span><span class="g-bot">пол</span><i class="g-mid" />
+                </div>
+              )}
+            </div>
+          )}
           <div class="cam-bar">
             <span>{count ? `Снято: ${count}` : 'Снимок сразу попадёт в проект, в галерею — нет'}</span>
-            <button class="shoot" aria-label="Снять" disabled={!!err || busy} onClick={() => void shoot()} />
-            <button onClick={close}>Готово</button>
+            <button class="shoot" aria-label="Снять" disabled={!!err || busy || !ready} onClick={() => void shoot()} />
+            {wallShot && last
+              ? <button onClick={() => { const id = last; close(); openRectify(id, { wallId: wallShot }); }}>Выпрямить</button>
+              : <button onClick={close}>Готово</button>}
           </div>
         </div>
       )}
