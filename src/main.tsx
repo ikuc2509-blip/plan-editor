@@ -1,5 +1,5 @@
 import { render } from 'preact';
-import { App } from './ui/editor/App';
+import { Root } from './ui/Root';
 import { dirtySince, initStore } from './ui/store';
 import { initAutosave } from './ui/project';
 import { initOffline, reloadingForUpdate } from './pwa/register';
@@ -15,4 +15,4 @@ window.addEventListener('beforeunload', e => {
   if (dirtySince.value !== null && !reloadingForUpdate) e.preventDefault();
 });
 
-render(<App />, document.getElementById('app')!);
+render(<Root />, document.getElementById('app')!);

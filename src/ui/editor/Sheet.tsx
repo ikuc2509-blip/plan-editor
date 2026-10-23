@@ -1,11 +1,14 @@
 // Лист на экране: перетаскивание объектов, поворот ручкой, выноски, сдвиг и масштаб листа.
+// Тот же лист в режиме «На месте» (этап 8): только чертёж, схематично, два пальца — масштаб.
+import { signal, type Signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Callout, Item, Marker, Mm, Plan, SelKind, WallItem } from '../../model/types';
-import { moveTo, patch, setAngle } from '../../model/actions';
+import { moveTo, patch, setAngle, setSheet } from '../../model/actions';
 import { drawSheet, sheetGeom, sheetLayout } from '../../render/sheet';
-import { segOf, wallDelta } from '../../geometry/unfold';
+import type { Box } from '../../render/layout';
+import { locate, segOf, wallDelta, type Spot } from '../../geometry/unfold';
 import { angleFromHandle, snapAngle, snapMm } from '../../geometry/rotate';
-import { dispatch, endGesture, gridStep, plan, sel, tab, zoom, type TabKey } from '../store';
+import { dispatch, endGesture, gridStep, plan, sel, tab, toast, zoom, type TabKey } from '../store';
 import type { MeasureRef } from '../../model/measure';
 import { openMeasure } from '../common/MeasureDialog';
 
@@ -15,6 +18,12 @@ const COL = { wi: 'wallItems', it: 'items', mk: 'markers', co: 'callouts' } as c
 export const PRINT_HINT = 'Печать PDF: масштаб 100 % («Фактический размер»), без подгонки по размеру страницы — иначе масштаб плана исказится.';
 
 export const ZOOM_MIN = 0.4, ZOOM_MAX = 6;
+
+/** масштаб плана в режиме «На месте» — свой, чтобы не сбивать «Чистовик» */
+export const onsiteZoom = signal(1);
+
+/** План «На месте» — всегда схематично (decisions.md, этап 8) */
+export const schematicView = (p: Plan): Plan => (p.sheet.mode === 'schematic' ? p : setSheet(p, { mode: 'schematic' }));
 
 type Obj = WallItem | Item | Marker | Callout;
 
@@ -29,6 +38,8 @@ interface Drag {
   client?: { x: number; y: number; left: number; top: number };
   orig?: Obj;
   moved: boolean;
+  /** режим «новая метка»: касание без сдвига ставит метку */
+  place?: boolean;
 }
 
 function findObj(s: Plan, kind: SelKind, id: string): Obj | undefined {
@@ -45,23 +56,62 @@ function parseMeasure(s: string): MeasureRef | null {
   return null;
 }
 
-export function Sheet() {
+interface SheetProps {
+  /** режим «На месте»: схематично, без мебели и подписей на ощупь, свой масштаб */
+  onsite?: boolean;
+  /** показать лист целиком; иначе «На месте» — только чертёж */
+  full?: boolean;
+  /** режим «новая метка»: сюда приходит место касания */
+  onPlace?: (s: Spot) => void;
+  /** объект выделен касанием (вместо переключения вкладки «Чистовика») */
+  onSelect?: (kind: SelKind) => void;
+}
+
+/** на сколько пикселей можно сдвинуть палец, чтобы это ещё было касанием, а не сдвигом */
+const TAP_PX = 8;
+
+export function Sheet({ onsite, full, onPlace, onSelect }: SheetProps = {}) {
   const stageRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | null>(null);
+  // пальцы на экране — для масштаба двумя пальцами
+  const fingers = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ d0: number; z0: number } | null>(null);
   const [base, setBase] = useState(800);
-  const lay = sheetLayout(plan.value);
+  const z: Signal<number> = onsite ? onsiteZoom : zoom;
+  const view = (p: Plan) => (onsite ? schematicView(p) : p);
+  const shown = view(plan.value);
+  const lay = sheetLayout(shown);
+  // «На месте» — только область чертежа с небольшим полем
+  const box: Box = onsite && !full
+    ? { x: lay.area.x - 2, y: lay.area.y - 2, w: lay.area.w + 4, h: lay.area.h + 4 }
+    : { x: 0, y: 0, w: lay.w, h: lay.h };
+  const gap = onsite ? { x: 12, y: 12 } : { x: 40, y: 60 };
 
   // ширина листа под размер окна (как «По размеру» в прототипе)
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const fit = () => setBase(Math.max(320, Math.min(stage.clientWidth - 40, (stage.clientHeight - 60) * lay.w / lay.h)));
+    const fit = () => setBase(Math.max(onsite ? 200 : 320, Math.min(stage.clientWidth - gap.x, (stage.clientHeight - gap.y) * box.w / box.h)));
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(stage);
     return () => ro.disconnect();
-  }, [lay]);
+  }, [lay, box.w, box.h]);
+
+  /** новый масштаб; точка экрана (cx, cy) остаётся на месте */
+  const zoomAt = (cx: number, cy: number, value: number) => {
+    const stage = stageRef.current, svg = svgRef.current;
+    if (!stage || !svg) return;
+    const r = svg.getBoundingClientRect();
+    const kx = (cx - r.left) / r.width, ky = (cy - r.top) / r.height;
+    z.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, value));
+    requestAnimationFrame(() => {
+      const n = svg.getBoundingClientRect();
+      stage.scrollLeft += n.left + kx * n.width - cx;
+      stage.scrollTop += n.top + ky * n.height - cy;
+    });
+  };
 
   // Ctrl + колесо — масштаб у курсора: точка под курсором остаётся на месте
   useEffect(() => {
@@ -70,20 +120,11 @@ export function Sheet() {
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      const svg = svgRef.current;
-      if (!svg) return;
-      const r = svg.getBoundingClientRect();
-      const kx = (e.clientX - r.left) / r.width, ky = (e.clientY - r.top) / r.height;
-      zoom.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom.value * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
-      requestAnimationFrame(() => {
-        const n = svg.getBoundingClientRect();
-        stage.scrollLeft += n.left + kx * n.width - e.clientX;
-        stage.scrollTop += n.top + ky * n.height - e.clientY;
-      });
+      zoomAt(e.clientX, e.clientY, z.value * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
     };
     stage.addEventListener('wheel', onWheel, { passive: false });
     return () => stage.removeEventListener('wheel', onWheel);
-  }, []);
+  }, [onsite]);
 
   const svgPt = (e: PointerEvent) => {
     const m = svgRef.current!.getScreenCTM()!.inverse();
@@ -91,48 +132,79 @@ export function Sheet() {
     return { x: p.x, y: p.y };
   };
 
+  const twoFingers = () => {
+    const [a, b] = [...fingers.current.values()];
+    return { a: a!, b: b!, d: Math.hypot(a!.x - b!.x, a!.y - b!.y) };
+  };
+
   const onDown = (e: PointerEvent) => {
-    if (e.button !== 0) return;
+    fingers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    svgRef.current!.setPointerCapture(e.pointerId);
+    if (fingers.current.size === 2) {
+      // второй палец — масштаб; начатое перетаскивание заканчивается
+      if (drag.current?.moved) endGesture();
+      drag.current = null;
+      pinch.current = { d0: Math.max(1, twoFingers().d), z0: z.value };
+      return;
+    }
+    if (fingers.current.size > 2 || e.button !== 0) return;
     const target = e.target as Element;
     const start = svgPt(e), key = `drag:${++dragN}`;
+    const client = () => {
+      const st = stageRef.current!;
+      return { x: e.clientX, y: e.clientY, left: st.scrollLeft, top: st.scrollTop };
+    };
+    if (onPlace) {
+      // новая метка: место — по отпусканию пальца, если он не сдвигал план
+      drag.current = { mode: 'pan', key, start, client: client(), moved: false, place: true };
+      return;
+    }
     // размер на листе — окно замера
     const mEl = target.closest<SVGElement>('[data-measure]');
     const mref = mEl && parseMeasure(mEl.dataset.measure!);
     if (mref) { openMeasure(mref); return; }
-    const handle = target.closest<SVGElement>('[data-handle]');
+    // «На месте» на ощупь — только проёмы и метки; мебель и подписи — в «Чистовике»
+    const handle = onsite ? null : target.closest<SVGElement>('[data-handle]');
     const gEl = target.closest<SVGElement>('[data-kind]');
+    const gKind = gEl?.dataset.kind as SelKind | undefined;
     if (handle) {
       // ручка поворота предмета или кончик стрелки выноски
       const id = handle.dataset.id!;
       drag.current = handle.dataset.handle === 'rot'
         ? { mode: 'rot', kind: 'it', id, key, start, moved: false }
         : { mode: 'tip', kind: 'co', id, key, start, moved: false };
-    } else if (gEl) {
-      const kind = gEl.dataset.kind as SelKind, id = gEl.dataset.id!;
-      const o = findObj(plan.value, kind, id);
+    } else if (gEl && gKind && (!onsite || gKind === 'wi' || gKind === 'mk')) {
+      const id = gEl.dataset.id!;
+      const o = findObj(plan.value, gKind, id);
       if (!o) return;
-      sel.value = { kind, id };
-      tab.value = TAB_FOR[kind];
-      drag.current = { mode: 'move', kind, id, key, start, orig: o, moved: false };
+      sel.value = { kind: gKind, id };
+      if (onSelect) onSelect(gKind); else tab.value = TAB_FOR[gKind];
+      drag.current = { mode: 'move', kind: gKind, id, key, start, orig: o, moved: false };
     } else {
       // пустое место: снять выделение и сдвигать лист
       if (sel.value) sel.value = null;
-      const st = stageRef.current!;
-      drag.current = { mode: 'pan', key, start, client: { x: e.clientX, y: e.clientY, left: st.scrollLeft, top: st.scrollTop }, moved: false };
+      drag.current = { mode: 'pan', key, start, client: client(), moved: false };
     }
-    svgRef.current!.setPointerCapture(e.pointerId);
   };
 
   const onMove = (e: PointerEvent) => {
+    if (fingers.current.has(e.pointerId)) fingers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch.current) {
+      if (fingers.current.size < 2) return;
+      const { a, b, d } = twoFingers();
+      zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, pinch.current.z0 * (d / pinch.current.d0));
+      return;
+    }
     const d = drag.current;
     if (!d) return;
     if (d.mode === 'pan') {
       const st = stageRef.current!, c = d.client!;
+      if (Math.abs(e.clientX - c.x) + Math.abs(e.clientY - c.y) > TAP_PX) d.moved = true;
       st.scrollLeft = c.left - (e.clientX - c.x);
       st.scrollTop = c.top - (e.clientY - c.y);
       return;
     }
-    const g = sheetGeom(plan.value);
+    const g = sheetGeom(view(plan.value));
     const p = svgPt(e);
     const dx = p.x - d.start.x, dy = p.y - d.start.y;
     // мелкое дрожание при клике — не перемещение
@@ -183,24 +255,43 @@ export function Sheet() {
     }
   };
 
-  const onUp = () => { drag.current = null; endGesture(); };
+  const onUp = (e: PointerEvent) => {
+    fingers.current.delete(e.pointerId);
+    if (pinch.current) {
+      // масштаб закончен, когда сняты оба пальца
+      if (fingers.current.size === 0) pinch.current = null;
+      return;
+    }
+    const d = drag.current;
+    drag.current = null;
+    endGesture();
+    if (d?.place && !d.moved && e.type === 'pointerup' && onPlace) {
+      const spot = locate(sheetGeom(view(plan.value)), d.start.x, d.start.y);
+      if (spot) onPlace(spot); else toast('Коснитесь пола или развёртки стены');
+    }
+  };
 
   return (
-    <div class="stage" ref={stageRef}>
+    <div class={'stage' + (onsite ? ' os-stage' : '')} ref={stageRef}>
       <svg
         ref={svgRef}
-        class="sheet"
-        viewBox={`0 0 ${lay.w} ${lay.h}`}
+        class={'sheet' + (onPlace ? ' placing' : '')}
+        viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
         xmlns="http://www.w3.org/2000/svg"
-        style={{ width: base * zoom.value + 'px' }}
+        style={{ width: base * z.value + 'px' }}
+        data-testid="sheet"
         onPointerDown={onDown}
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
-        dangerouslySetInnerHTML={{ __html: drawSheet(plan.value, { sel: sel.value, grid: gridStep.value, screen: true }) }}
+        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true }) }}
       />
-      <div class="legendline">Перетаскивайте предметы, метки, подписи и элементы стен мышью; Alt — без привязки к сетке. Синий кружок над предметом — поворот. Ctrl + колесо — масштаб, перетаскивание пустого места — сдвиг листа. Щелчок по размеру (L, W, h, расстояния от меток) — ввести замер.</div>
-      <div class="legendline">{PRINT_HINT}</div>
+      {!onsite && (
+        <>
+          <div class="legendline">Перетаскивайте предметы, метки, подписи и элементы стен мышью; Alt — без привязки к сетке. Синий кружок над предметом — поворот. Ctrl + колесо — масштаб, перетаскивание пустого места — сдвиг листа. Щелчок по размеру (L, W, h, расстояния от меток) — ввести замер.</div>
+          <div class="legendline">{PRINT_HINT}</div>
+        </>
+      )}
     </div>
   );
 }

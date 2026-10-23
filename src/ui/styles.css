@@ -132,3 +132,54 @@ header .update span{flex:1;min-width:200px}
 #toast.on{opacity:1}
 @media (max-width:860px){main{grid-template-columns:1fr;grid-template-rows:auto 1fr}aside{max-height:46vh;border-right:0;border-bottom:1px solid var(--line)}}
 @media (prefers-reduced-motion:reduce){#toast{transition:none}}
+/* Режим «На месте» (телефон, этап 8): крупные элементы, план сверху, шаги внизу */
+.onsite{display:flex;flex-direction:column;height:100%;height:100dvh}
+.onsite header.os-top{flex-wrap:wrap;gap:4px;padding:4px 8px}
+.onsite header.os-top>.grow{display:none}
+.onsite header.os-top h1{font-size:15px;margin:0}
+.onsite header .status{flex:1;min-width:0;padding:4px 4px;min-height:40px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+.onsite header.os-top>.ghost{min-width:40px;padding:6px 8px}
+.os-plan{position:relative;flex:0 0 40%;min-height:150px;border-bottom:1px solid var(--line);background:var(--bg)}
+.stage.os-stage{height:100%;padding:6px;gap:0}
+.sheet.placing{cursor:crosshair;outline:3px solid var(--accent);outline-offset:-3px}
+.os-tools{position:absolute;right:8px;bottom:8px;display:flex;gap:6px}
+.onsite .os-tools button{min-height:40px;min-width:40px;padding:4px 10px;background:color-mix(in srgb,var(--field) 92%,transparent);box-shadow:0 1px 4px rgba(20,30,35,.2)}
+.os-panel{flex:1;min-height:0;overflow:auto;padding:12px 14px 16px;background:var(--panel)}
+.os-panel h2{font-size:17px;margin:0 0 10px;display:flex;align-items:baseline;gap:8px}
+.os-panel h2 small{font-size:12.5px;color:var(--muted);font-weight:400}
+.os-nav{display:flex;gap:8px;margin-top:18px}
+.os-nav button{flex:1}
+.os-steps{display:grid;grid-template-columns:repeat(6,1fr);border-top:1px solid var(--line);background:var(--panel)}
+.onsite .os-steps button{border:0;border-radius:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;font-size:11px;min-height:56px;min-width:0;color:var(--muted)}
+.os-steps .num{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--line);font-weight:700;font-size:13px;color:var(--ink)}
+.os-steps button[aria-current="step"]{color:var(--ink);font-weight:600}
+.os-steps button[aria-current="step"] .num{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.onsite button{min-height:44px;padding:8px 14px;font-size:15px;border-radius:8px}
+.onsite button.del{padding:8px 10px}
+.onsite button.inline{display:inline;min-height:0;padding:2px 8px;font-size:13.5px;margin:0}
+.onsite input,.onsite select,.onsite textarea{font-size:16px;padding:8px 10px;min-height:44px;border-radius:7px}
+.onsite .f{font-size:13px;gap:3px}
+.onsite .grid{grid-template-columns:1fr 1fr;gap:10px}
+.onsite .grid.one{grid-template-columns:1fr}
+.onsite .chip{font-size:12.5px;padding:3px 10px;line-height:1.6}
+.onsite .chk{font-size:15px;min-height:40px}
+.onsite .chk input{width:20px;height:20px;min-height:0}
+.onsite .hint,.onsite .warn{font-size:13.5px}
+.onsite h3{font-size:14.5px;margin:18px 0 8px}
+.onsite .row{gap:8px}
+.onsite .mrow{font-size:14px;padding:8px 0;flex-wrap:wrap}
+.onsite .mrow button{min-height:40px;padding:6px 14px;font-size:14px}
+.onsite .shot-h button{min-height:38px;padding:5px 12px;font-size:14px}
+.onsite .shot-h button.link{min-height:38px;font-size:14px}
+.onsite .thumb.small{width:48px;height:36px}
+.os-pick{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.os-pick button{display:flex;align-items:center;gap:6px;max-width:100%}
+.os-pick button[aria-pressed="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.os-pick .cnt{font-size:12px;background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:0 7px;font-weight:700}
+.os-pick .mkb .d{max-width:9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px}
+.os-sum{margin:0 0 12px;padding-left:20px;font-size:14.5px}
+.os-sum li{margin:3px 0}
+details.os-how{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:0 0 8px;background:var(--field);font-size:14px}
+details.os-how summary{cursor:pointer;font-weight:600;min-height:28px}
+details.os-how ol{margin:8px 0 0;padding-left:20px}
+details.os-how li{margin:4px 0}

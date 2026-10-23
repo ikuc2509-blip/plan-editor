@@ -134,6 +134,37 @@ export function wallDelta(sg: Seg, dx: number, dy: number, s: number): Pt {
   return [(dx * sg.ux + dy * sg.uy) / s, -(dx * sg.nx + dy * sg.ny) / s];
 }
 
+/** Место на плане, куда коснулись: пол (мм от начала координат) или развёртка стены */
+export type Spot =
+  | { place: 'floor'; x: number; y: number }
+  | { place: 'wall'; wallId: string; off: number; z: number };
+
+/** Точка внутри многоугольника пола (лучом вправо) */
+function inFloor(segs: Seg[], x: number, y: number): boolean {
+  let inside = false;
+  for (const sg of segs) {
+    const x1 = sg.ax, y1 = sg.ay, x2 = sg.ax + sg.ux * sg.len, y2 = sg.ay + sg.uy * sg.len;
+    if ((y1 > y) !== (y2 > y) && x < x1 + ((y - y1) * (x2 - x1)) / (y2 - y1)) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Точка листа (мм листа) → место на плане: «новая метка — касанием плана» (этап 8).
+ * Вне пола и вне развёрток — null.
+ */
+export function locate(g: Geom, px: number, py: number): Spot | null {
+  const x = (px - g.fx) / g.s, y = (py - g.fy) / g.s;
+  const mm = (m: number) => Math.round(m * 1000);
+  if (inFloor(g.segs, x, y)) return { place: 'floor', x: mm(x), y: mm(y) };
+  for (const sg of g.segs) {
+    const o = unf(g, sg, 0, 0);
+    const [off, z] = wallDelta(sg, px - o[0], py - o[1], g.s);
+    if (off >= 0 && off <= sg.len && z >= 0 && z <= g.h) return { place: 'wall', wallId: sg.wall.id, off: mm(off), z: mm(z) };
+  }
+  return null;
+}
+
 /** Поворот подписи на развёртке, чтобы текст читался (не вверх ногами) */
 export function textRot(sg: Seg): number {
   return sg.side === 'left' ? -90 : sg.side === 'right' ? 90 : 0;
