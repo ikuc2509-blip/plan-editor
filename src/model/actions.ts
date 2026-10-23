@@ -2,19 +2,20 @@
 // так старые состояния можно хранить для отмены и повтора.
 // Неизменённые части переиспользуются (подложка-картинка не копируется).
 import type {
-  Callout, Dim, Item, ItemType, Marker, MeasureMethod, Mm, Photo, Plan, Point, SheetOptions, Stamp, Underlay, WallItem, WallItemType,
+  Callout, Dim, FrameEdge, Item, ItemType, Marker, MeasureMethod, Mm, Photo, Plan, Point, SheetOptions, Stamp, Underlay, WallItem, WallItemType, WallPhoto,
 } from './types';
 import { IT_SIZE } from './labels';
 import { findWall, rectSize, rectWalls, wallLength } from './room';
 import { cond, withMm } from './units';
 
-type Collection = 'wallItems' | 'items' | 'markers' | 'callouts' | 'photos';
+type Collection = 'wallItems' | 'items' | 'markers' | 'callouts' | 'photos' | 'wallPhotos';
 export type ElemOf<C extends Collection> =
-  C extends 'wallItems' ? WallItem : C extends 'items' ? Item : C extends 'markers' ? Marker : C extends 'callouts' ? Callout : Photo;
+  C extends 'wallItems' ? WallItem : C extends 'items' ? Item : C extends 'markers' ? Marker : C extends 'callouts' ? Callout : C extends 'photos' ? Photo : WallPhoto;
 
 /** Условное значение масштабируется, замеренное остаётся */
 const scaleCond = (d: Dim, k: number): Dim => (d.status === 'conditional' && k !== 1 ? withMm(d, d.mm * k) : d);
 const ratio = (now: Mm, was: Mm): number => (was > 0 ? now / was : 1);
+const scaleEdge = (e: FrameEdge, k: number): FrameEdge => (e.kind === 'mark' ? { kind: 'mark', off: scaleCond(e.off, k) } : e);
 
 /**
  * Новые размеры прямоугольного помещения. Условные объекты сдвигаются пропорционально
@@ -40,6 +41,10 @@ export function setRoomSize(p: Plan, size: { L?: Mm; W?: Mm; h?: Mm }): Plan {
     items: p.items.map(it => ({ ...it, x: scaleCond(it.x, kx), y: scaleCond(it.y, ky) })),
     markers: p.markers.map(m => ({
       ...m, x: scaleCond(m.x, kx), y: scaleCond(m.y, ky), off: scaleCond(m.off, kWall(m.wallId)), z: scaleCond(m.z, kz),
+    })),
+    // ориентиры краёв кадров на стенах — как отступы на стене
+    wallPhotos: p.wallPhotos.map(wp => ({
+      ...wp, left: scaleEdge(wp.left, kWall(wp.wallId)), right: scaleEdge(wp.right, kWall(wp.wallId)),
     })),
   };
 }
@@ -198,3 +203,12 @@ export function addRows(p: Plan, r: RowsParams, newId: () => string): Plan {
 }
 
 export const removeDesks = (p: Plan): Plan => ({ ...p, items: p.items.filter(i => i.type !== 'desk') });
+
+/* снимки на развёртке стен (этап 9) */
+
+export const addWallPhoto = (p: Plan, wp: WallPhoto): Plan => ({ ...p, wallPhotos: [...p.wallPhotos, wp] });
+
+/** Убрать снимок из проекта — вместе с его выпрямлениями на стенах */
+export function removePhoto(p: Plan, id: string): Plan {
+  return { ...p, photos: p.photos.filter(ph => ph.id !== id), wallPhotos: p.wallPhotos.filter(wp => wp.photoId !== id) };
+}

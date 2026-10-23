@@ -69,7 +69,7 @@ function PhotoCard({ ph }: { ph: Photo }) {
   };
   const del = () => {
     if (!confirm(`Убрать снимок № ${ph.n} из проекта? Отменить можно кнопкой ↶.`)) return;
-    dispatch(q => A.remove(q, 'photos', ph.id));
+    dispatch(q => A.removePhoto(q, ph.id));
     selPhoto.value = null;
   };
   return (

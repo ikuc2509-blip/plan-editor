@@ -214,7 +214,33 @@ export const FORMAT_ID = 'plan-editor';
  * 4 — этап 6: названия приборов для замеров (instruments);
  * 5 — этап 7: снимки (файл, SHA-256, вид съёмки, привязка, время из EXIF).
  */
-export const FORMAT_VERSION = 5;
+/** Точка на снимке, в долях ширины и высоты (0…1) */
+export interface PhotoPt {
+  x: number;
+  y: number;
+}
+
+/** Край кадра на стене: угол стены или видимый ориентир (край окна и т. п.) на расстоянии от левого угла */
+export type FrameEdge = { kind: 'corner' } | { kind: 'mark'; off: Dim };
+
+/**
+ * Снимок, выпрямленный на развёртку стены (этап 9). Хранятся только углы — ровная картинка
+ * считается заново из оригинала (decisions.md). Верх кадра — потолок, низ — пол.
+ */
+export interface WallPhoto {
+  id: string;
+  photoId: string;
+  wallId: string;
+  /** углы участка стены на снимке: вверху слева, вверху справа, внизу справа, внизу слева */
+  quad: PhotoPt[];
+  /** левый край кадра: угол — начало стены (отступ 0); правый: угол — конец стены */
+  left: FrameEdge;
+  right: FrameEdge;
+  show: boolean;
+  opacity: number;
+}
+
+export const FORMAT_VERSION = 6;
 
 export interface Plan {
   format: typeof FORMAT_ID;
@@ -225,6 +251,8 @@ export interface Plan {
   markers: Marker[];
   callouts: Callout[];
   photos: Photo[];
+  /** снимки, выпрямленные на развёртку стен (этап 9) */
+  wallPhotos: WallPhoto[];
   stamp: Stamp;
   north: string;
   notes: string;
