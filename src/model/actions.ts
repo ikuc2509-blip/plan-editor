@@ -159,6 +159,19 @@ export function addMarker(p: Plan, id: string, wallId: string): Plan {
   return { ...p, markers: [...p.markers, o] };
 }
 
+/** Место новой метки на плане: пол или развёртка стены, мм */
+export type MarkerAt =
+  | { place: 'floor'; x: Mm; y: Mm }
+  | { place: 'wall'; wallId: string; off: Mm; z: Mm };
+
+/** Новая метка там, куда коснулись на плане («На месте», этап 8); положение — «условно» */
+export function addMarkerAt(p: Plan, id: string, at: MarkerAt): Plan {
+  const q = addMarker(p, id, at.place === 'wall' ? at.wallId : 'A');
+  return at.place === 'wall'
+    ? patch(q, 'markers', id, { place: 'wall', off: cond(at.off), z: cond(at.z) })
+    : patch(q, 'markers', id, { x: cond(at.x), y: cond(at.y) });
+}
+
 export interface RowsParams {
   rows: number;
   x0: Mm;

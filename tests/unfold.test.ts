@@ -1,7 +1,7 @@
 // Помещение из отрезков и координаты развёртки на простом помещении 10 × 6 × 3 м.
 import { describe, expect, test } from 'vitest';
 import { createRectRoom, rectSize, wallLength } from '../src/model/room';
-import { fitsAt, geom, segOf, smallerScaleThatFits, unf, unfRect, wallDelta, wallPt, type Geom, type Seg } from '../src/geometry/unfold';
+import { fitsAt, geom, locate, segOf, smallerScaleThatFits, unf, unfRect, wallDelta, wallPt, type Geom, type Seg } from '../src/geometry/unfold';
 import { layoutFor } from '../src/render/layout';
 import type { SheetOptions } from '../src/model/types';
 
@@ -128,5 +128,23 @@ describe('wallDelta — перетаскивание по развёртке', (
       expect(doff).toBeCloseTo(1, 10);
       expect(dz).toBeCloseTo(0.5, 10);
     }
+  });
+});
+
+describe('locate — куда коснулись на плане (новая метка, этап 8)', () => {
+  test('пол: точка листа переводится в мм от угла помещения', () => {
+    expect(locate(g, fx + 25, fy + 40)).toEqual({ place: 'floor', x: 2500, y: 4000 });
+  });
+
+  test.each(['A', 'G', 'B', 'V'])('стена %s: обратно к отступу и высоте', id => {
+    const p = unf(g, sg(id), 2, 1);
+    expect(locate(g, p[0], p[1])).toEqual({ place: 'wall', wallId: id, off: 2000, z: 1000 });
+  });
+
+  test('вне пола и развёрток — ничего', () => {
+    // угол между развёртками А и В
+    expect(locate(g, fx - 10, fy - 10)).toBeNull();
+    // дальше высоты стены
+    expect(locate(g, fx + 50, fy - 40)).toBeNull();
   });
 });

@@ -22,7 +22,7 @@ import { PhotosPanel, Thumb, showPhoto } from './PhotosPanel';
 const TABS: [TabKey, string][] = [['room', 'Помещение'], ['walls', 'Стены'], ['items', 'Мебель'], ['markers', 'Метки'], ['callouts', 'Подписи'], ['measure', 'Замеры'], ['photos', 'Фото'], ['under', 'Подложка'], ['stamp', 'Штамп'], ['file', 'Файл']];
 
 /** Новый план вместо текущего: автосохранение выключаем, чтобы не записать пример поверх файла осмотра */
-async function newPlan(p: Plan, question: string, label: string) {
+export async function newPlan(p: Plan, question: string, label: string) {
   const photos = plan.value.photos.length;
   const q = photos ? `${question}
 
@@ -33,7 +33,7 @@ async function newPlan(p: Plan, question: string, label: string) {
   await replacePlan(p, { label });
 }
 
-const wallOpts = (p: Plan): Record<string, string> =>
+export const wallOpts = (p: Plan): Record<string, string> =>
   Object.fromEntries(wallsByLetter(p.room).map(w => [w.id, 'Стена ' + w.letter]));
 
 export function Side() {
@@ -146,7 +146,7 @@ function WallsPanel() {
 
 type DimKeys<T> = { [K in keyof T]: T[K] extends { mm: Mm } ? K : never }[keyof T];
 
-function WallItemCard({ it, walls }: { it: WallItem; walls: Record<string, string> }) {
+export function WallItemCard({ it, walls }: { it: WallItem; walls: Record<string, string> }) {
   const set = (o: Partial<WallItem>) => dispatch(p => A.patch(p, 'wallItems', it.id, o));
   const len = (k: DimKeys<WallItem>) => (mm: Mm) => dispatch(p => A.patchDims(p, 'wallItems', it.id, { [k]: mm }), `wi:${it.id}:${k}`);
   const wiRef = (key: 'off' | 'z' | 'w' | 'h'): MeasureRef => ({ t: 'obj', col: 'wallItems', id: it.id, key });
@@ -260,7 +260,7 @@ function ItemsPanel() {
   );
 }
 
-const PLACES: Record<MarkerPlace, string> = { floor: 'на полу / мебели', wall: 'на стене', outside: 'вне помещения' };
+export const PLACES: Record<MarkerPlace, string> = { floor: 'на полу / мебели', wall: 'на стене', outside: 'вне помещения' };
 
 function MarkersPanel() {
   const st = plan.value;
@@ -274,39 +274,41 @@ function MarkersPanel() {
     <>
       <p class="hint">Номера меток — как в протоколе и фототаблице. Отступ на стене — от левого угла, если стоять лицом к стене.</p>
       <div class="row"><button onClick={addMarker}>+ Метка</button></div>
-      {st.markers.map(m => {
-        const set = (o: Partial<Marker>, key?: string) => dispatch(p => A.patch(p, 'markers', m.id, o), key);
-        const len = (k: DimKeys<Marker>) => (mm: Mm) => dispatch(p => A.patchDims(p, 'markers', m.id, { [k]: mm }), `mk:${m.id}:${k}`);
-        const mkRef = (key: 'x' | 'y' | 'off' | 'z'): MeasureRef => ({ t: 'obj', col: 'markers', id: m.id, key });
-        return (
-          <div key={m.id} class={cardClass(m.id)} data-card={m.id}>
-            <div class="card-h">
-              <span class="mk">{m.n}</span>
-              <span style="flex:1" />
-              <button class="del" onClick={() => removeObj('markers', m.id)}>Удалить</button>
-            </div>
-            <div class="grid">
-              <Text label="№" value={m.n} onValue={v => set({ n: v }, `mk:${m.id}:n`)} />
-              <Select label="Где" value={m.place} options={PLACES} onValue={v => set({ place: v })} />
-              {m.place === 'floor' ? (
-                <>
-                  <Len label="X, м" value={m.x.mm} chip={chip(m.x, mkRef('x'))} onValue={len('x')} />
-                  <Len label="Y, м" value={m.y.mm} chip={chip(m.y, mkRef('y'))} onValue={len('y')} />
-                </>
-              ) : (
-                <>
-                  <Select label="Стена" value={m.wallId} options={walls} onValue={v => set({ wallId: v })} />
-                  <Len label="Отступ, м" value={m.off.mm} chip={chip(m.off, mkRef('off'))} onValue={len('off')} />
-                  {m.place === 'wall' && <Len label="От пола, м" value={m.z.mm} chip={chip(m.z, mkRef('z'))} onValue={len('z')} />}
-                </>
-              )}
-              <Text label="Описание" value={m.desc} wide area onValue={v => set({ desc: v }, `mk:${m.id}:desc`)} />
-            </div>
-            <MarkerPhotos id={m.id} />
-          </div>
-        );
-      })}
+      {st.markers.map(m => <MarkerCard key={m.id} m={m} walls={walls} />)}
     </>
+  );
+}
+
+export function MarkerCard({ m, walls }: { m: Marker; walls: Record<string, string> }) {
+  const set = (o: Partial<Marker>, key?: string) => dispatch(p => A.patch(p, 'markers', m.id, o), key);
+  const len = (k: DimKeys<Marker>) => (mm: Mm) => dispatch(p => A.patchDims(p, 'markers', m.id, { [k]: mm }), `mk:${m.id}:${k}`);
+  const mkRef = (key: 'x' | 'y' | 'off' | 'z'): MeasureRef => ({ t: 'obj', col: 'markers', id: m.id, key });
+  return (
+    <div class={cardClass(m.id)} data-card={m.id}>
+      <div class="card-h">
+        <span class="mk">{m.n}</span>
+        <span style="flex:1" />
+        <button class="del" onClick={() => removeObj('markers', m.id)}>Удалить</button>
+      </div>
+      <div class="grid">
+        <Text label="№" value={m.n} onValue={v => set({ n: v }, `mk:${m.id}:n`)} />
+        <Select label="Где" value={m.place} options={PLACES} onValue={v => set({ place: v })} />
+        {m.place === 'floor' ? (
+          <>
+            <Len label="X, м" value={m.x.mm} chip={chip(m.x, mkRef('x'))} onValue={len('x')} />
+            <Len label="Y, м" value={m.y.mm} chip={chip(m.y, mkRef('y'))} onValue={len('y')} />
+          </>
+        ) : (
+          <>
+            <Select label="Стена" value={m.wallId} options={walls} onValue={v => set({ wallId: v })} />
+            <Len label="Отступ, м" value={m.off.mm} chip={chip(m.off, mkRef('off'))} onValue={len('off')} />
+            {m.place === 'wall' && <Len label="От пола, м" value={m.z.mm} chip={chip(m.z, mkRef('z'))} onValue={len('z')} />}
+          </>
+        )}
+        <Text label="Описание" value={m.desc} wide area onValue={v => set({ desc: v }, `mk:${m.id}:desc`)} />
+      </div>
+      <MarkerPhotos id={m.id} />
+    </div>
   );
 }
 
@@ -349,7 +351,7 @@ function MeasureRowView({ r }: { r: MeasureRow }) {
   );
 }
 
-function MeasurePanel() {
+export function MeasurePanel() {
   const st = plan.value;
   const [showAll, setShowAll] = useState(false);
   const rows = measureList(st);

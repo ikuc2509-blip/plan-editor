@@ -17,6 +17,7 @@ import { BIG_PROJECT, formatSize } from '../../photos/meta';
 import { photosBytes } from '../photos';
 import { Side } from './Side';
 import { PRINT_HINT, Sheet, ZOOM_MAX, ZOOM_MIN } from './Sheet';
+import { setMode } from '../mode';
 
 const fname = (ext: string): string => {
   const d = (plan.value.stamp.date || '').replace(/[^\d.]/g, '');
@@ -83,6 +84,7 @@ export function App() {
     <div class="app">
       <header>
         <h1><span class="dot">1</span>План места происшествия</h1>
+        <button class="ghost" title="Пошаговый режим для телефона" onClick={() => setMode('onsite')}>На месте</button>
         <SaveStatus />
         {plan.value.photos.length > 0 && (
           <span class={'weight' + (photosBytes.value > BIG_PROJECT ? ' big' : '')} title="Снимки проекта; больше 500 МБ — файл переносить и сохранять медленно">
