@@ -10,6 +10,8 @@ import { dispatch, plan, tab } from '../store';
 import { Select, Text } from '../common/fields';
 import { openCameraDialog } from '../common/CameraDialog';
 import { originalUrl, photosBytes, pickPhotos, previewUrl, selPhoto } from '../photos';
+import { openRectify } from '../rectify';
+import { findWall } from '../../model/room';
 
 /** Уменьшенная копия снимка; копии нет (HEIC и т. п.) — значок с номером */
 export function Thumb({ ph, small, onClick }: { ph: Photo; small?: boolean; onClick?: () => void }) {
@@ -90,6 +92,12 @@ function PhotoCard({ ph }: { ph: Photo }) {
       </p>
       {ph.hasGps && <p class="hint" style="margin:4px 0 0">В снимке записаны координаты места съёмки (GPS). На лист они не выводятся; оригинал не меняется.</p>}
       <p class="hint sha" title={ph.sha256}>SHA-256: {ph.sha256 || '—'}</p>
+      <div class="row" style="margin:8px 0 0">
+        <button onClick={() => openRectify(ph.id)} disabled={!ph.file}>Выпрямить на стену</button>
+        {p.wallPhotos.filter(w => w.photoId === ph.id).map(w => (
+          <button key={w.id} class="ghost" onClick={() => openRectify(ph.id, { wpId: w.id })}>На стене {findWall(p.room, w.wallId)?.letter} — изменить</button>
+        ))}
+      </div>
     </div>
   );
 }

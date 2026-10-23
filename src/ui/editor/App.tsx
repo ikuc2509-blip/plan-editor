@@ -12,6 +12,7 @@ import { PasswordDialog } from '../common/PasswordDialog';
 import { UpdateBar } from '../common/UpdateBar';
 import { MeasureDialog } from '../common/MeasureDialog';
 import { CameraDialog } from '../common/CameraDialog';
+import { RectifyDialog } from '../common/RectifyDialog';
 import { PhotoViewer } from './PhotosPanel';
 import { BIG_PROJECT, formatSize } from '../../photos/meta';
 import { photosBytes } from '../photos';
@@ -117,6 +118,7 @@ export function App() {
       <PasswordDialog />
       <MeasureDialog />
       <CameraDialog />
+      <RectifyDialog />
       <PhotoViewer />
     </div>
   );

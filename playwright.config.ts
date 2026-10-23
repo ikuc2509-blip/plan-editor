@@ -17,7 +17,7 @@ export default defineConfig({
     reuseExistingServer: false,
   },
   projects: [
-    { name: 'phone', testMatch: /onsite\.spec\.ts/, use: { ...devices['Pixel 7'], channel: 'msedge' } },
+    { name: 'phone', testMatch: /(onsite|wall)\.spec\.ts/, use: { ...devices['Pixel 7'], channel: 'msedge' } },
     { name: 'desktop', testMatch: /editor\.spec\.ts/, use: { ...devices['Desktop Edge'], channel: 'msedge' }, dependencies: ['phone'] },
   ],
 });

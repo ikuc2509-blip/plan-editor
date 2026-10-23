@@ -63,3 +63,16 @@ export function quadOk(q: readonly Pt2[]): boolean {
   }
   return true;
 }
+
+/**
+ * Четыре точки в порядке «вверху слева, вверху справа, внизу справа, внизу слева» —
+ * в каком бы порядке их ни отметили: по углу вокруг центра, первая — ближайшая к левому верху.
+ */
+export function orderQuad(q: readonly Pt2[]): Pt2[] {
+  const cx = q.reduce((s, p) => s + p.x, 0) / q.length, cy = q.reduce((s, p) => s + p.y, 0) / q.length;
+  // ось Y вниз: рост угла — по часовой стрелке на экране
+  const byAngle = [...q].sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
+  let first = 0;
+  byAngle.forEach((p, i) => { if (p.x + p.y < byAngle[first]!.x + byAngle[first]!.y) first = i; });
+  return [...byAngle.slice(first), ...byAngle.slice(0, first)];
+}

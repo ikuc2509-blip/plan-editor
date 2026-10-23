@@ -18,6 +18,7 @@ import { stopAutosave } from '../project';
 import { clearPhotos } from '../photos';
 import { FilePanel } from './FilePanel';
 import { PhotosPanel, Thumb, showPhoto } from './PhotosPanel';
+import { WallPhotosList } from '../common/WallPhotos';
 
 const TABS: [TabKey, string][] = [['room', 'Помещение'], ['walls', 'Стены'], ['items', 'Мебель'], ['markers', 'Метки'], ['callouts', 'Подписи'], ['measure', 'Замеры'], ['photos', 'Фото'], ['under', 'Подложка'], ['stamp', 'Штамп'], ['file', 'Файл']];
 
@@ -140,6 +141,8 @@ function WallsPanel() {
         <button onClick={() => addWallItem('other')}>+ Другое</button>
       </div>
       {items.map(it => <WallItemCard key={it.id} it={it} walls={wallOpts(st)} />)}
+      <h3>Снимки на развёртке</h3>
+      <WallPhotosList />
     </>
   );
 }

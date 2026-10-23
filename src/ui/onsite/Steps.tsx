@@ -18,6 +18,7 @@ import { openFile, saveToFile, setProtect } from '../project';
 import { MarkerCard, MeasurePanel, WallItemCard, newPlan, wallOpts } from '../editor/Side';
 import { PhotosPanel } from '../editor/PhotosPanel';
 import { schematicView } from '../editor/Sheet';
+import { WallPhotosList } from '../common/WallPhotos';
 import { placing, step, today } from './state';
 
 /** выделенная карточка — прокрутить к ней (выбрали касанием плана) */
@@ -105,6 +106,8 @@ export function OpeningsStep() {
       )}
       {cur && cur.wallId === wall && <WallItemCard it={cur} walls={wallOpts(st)} />}
       {!cur && onWall.length > 0 && <p class="hint">Нажмите на проём выше или на плане, чтобы поправить размеры.</p>}
+      <h3>Снимки на этой стене</h3>
+      <WallPhotosList wallId={wall} />
     </>
   );
 }

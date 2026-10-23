@@ -6,6 +6,7 @@ import { cond } from '../src/model/units';
 import type { Plan, WallPhoto } from '../src/model/types';
 import { applyScaleFix, frameAspect, frameAt, frameSpan, photoBoxOf, photoScale } from '../src/model/wallPhotos';
 import { loadPlan } from '../src/model/migrate';
+import { drawSheet, sheetGeom, sheetSvg } from '../src/render/sheet';
 
 // пустой план 10 × 6 × 3 м, один снимок
 const base = (): Plan => ({
@@ -99,4 +100,33 @@ describe('снимок убран — его выпрямления тоже', (
 test('план со снимками на стенах сохраняется и открывается как есть', () => {
   const p = addWallPhoto(base(), frame({ right: { kind: 'mark', off: cond(4200) } }));
   expect(loadPlan(JSON.parse(JSON.stringify(p)))).toEqual({ ok: true, plan: p });
+});
+
+describe('снимок на листе', () => {
+  const p = addWallPhoto(addWallPhoto(base(), frame()), frame({ id: 'fb', wallId: 'B' }));
+  const imgs = { f: 'blob:a', fb: 'blob:b' };
+
+  test('только на экране: в файлах (PDF, SVG, PNG) картинок нет', () => {
+    expect(sheetSvg(p)).not.toContain('<image');
+    expect(drawSheet(p, { screen: true, wallImages: imgs })).toContain('href="blob:a"');
+  });
+
+  test('стена А — потолок вверху, стена Б — развёрнута на 180°', () => {
+    const g = sheetGeom(p);
+    const svg = drawSheet(p, { screen: true, wallImages: imgs });
+    const m = (url: string) => /matrix\(([^)]*)\)/.exec(svg.slice(svg.indexOf(`href="${url}"`)))![1]!.split(' ').map(Number);
+    const [a, b, c, d, e, f] = m('blob:a');
+    expect([a, b, c]).toEqual([+(10 * g.s).toFixed(3), 0, 0]);
+    expect(d).toBeCloseTo(3 * g.s, 2);
+    expect(e).toBeCloseTo(g.fx, 2);
+    expect(f).toBeCloseTo(g.fy - 3 * g.s, 2);
+    const [a2, , , d2] = m('blob:b');
+    expect(a2).toBeLessThan(0);
+    expect(d2).toBeLessThan(0);
+  });
+
+  test('скрытый кадр не рисуется', () => {
+    const q = { ...p, wallPhotos: p.wallPhotos.map(w => ({ ...w, show: false })) };
+    expect(drawSheet(q, { screen: true, wallImages: imgs })).not.toContain('<image');
+  });
 });
