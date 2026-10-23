@@ -24,6 +24,7 @@ photos/
 coverage/
 test-results/
 playwright-report/
+e2e/.out/
 .DS_Store
 Thumbs.db
 *.log

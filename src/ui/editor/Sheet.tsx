@@ -40,6 +40,8 @@ interface Drag {
   moved: boolean;
   /** режим «новая метка»: касание без сдвига ставит метку */
   place?: boolean;
+  /** «На месте»: выбор — по отпусканию пальца, чтобы щипок не переключал шаг */
+  pick?: boolean;
 }
 
 function findObj(s: Plan, kind: SelKind, id: string): Obj | undefined {
@@ -177,13 +179,15 @@ export function Sheet({ onsite, full, onPlace, onSelect }: SheetProps = {}) {
       const id = gEl.dataset.id!;
       const o = findObj(plan.value, gKind, id);
       if (!o) return;
-      sel.value = { kind: gKind, id };
-      if (onSelect) onSelect(gKind); else tab.value = TAB_FOR[gKind];
-      drag.current = { mode: 'move', kind: gKind, id, key, start, orig: o, moved: false };
+      if (!onSelect) {
+        sel.value = { kind: gKind, id };
+        tab.value = TAB_FOR[gKind];
+      }
+      drag.current = { mode: 'move', kind: gKind, id, key, start, orig: o, moved: false, pick: !!onSelect };
     } else {
       // пустое место: снять выделение и сдвигать лист
-      if (sel.value) sel.value = null;
-      drag.current = { mode: 'pan', key, start, client: client(), moved: false };
+      if (sel.value && !onSelect) sel.value = null;
+      drag.current = { mode: 'pan', key, start, client: client(), moved: false, pick: !!onSelect };
     }
   };
 
@@ -265,6 +269,11 @@ export function Sheet({ onsite, full, onPlace, onSelect }: SheetProps = {}) {
     const d = drag.current;
     drag.current = null;
     endGesture();
+    if (d?.pick && e.type === 'pointerup') {
+      // объект — выбрать (и после перетаскивания); пустое место — снять выбор, если план не сдвигали
+      if (d.mode === 'move') { sel.value = { kind: d.kind!, id: d.id! }; onSelect?.(d.kind!); }
+      else if (!d.moved) sel.value = null;
+    }
     if (d?.place && !d.moved && e.type === 'pointerup' && onPlace) {
       const spot = locate(sheetGeom(view(plan.value)), d.start.x, d.start.y);
       if (spot) onPlace(spot); else toast('Коснитесь пола или развёртки стены');
@@ -284,7 +293,7 @@ export function Sheet({ onsite, full, onPlace, onSelect }: SheetProps = {}) {
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
-        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true }) }}
+        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true, touch: onsite }) }}
       />
       {!onsite && (
         <>
