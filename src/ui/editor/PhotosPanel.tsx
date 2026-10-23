@@ -1,7 +1,7 @@
 // Вкладка «Фото»: список съёмки, плитка снимков, карточка снимка, просмотр оригинала.
 import { signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { Photo, PhotoLink, ShotKind } from '../../model/types';
+import type { Photo, PhotoBox, PhotoLink, ShotKind } from '../../model/types';
 import * as A from '../../model/actions';
 import { wallsByLetter } from '../../model/room';
 import { BIG_PROJECT, formatSize, showTaken } from '../../photos/meta';
@@ -31,7 +31,13 @@ export function showPhoto(id: string): void {
   tab.value = 'photos';
 }
 
-const viewing = signal<{ url: string; title: string } | null>(null);
+const viewing = signal<{ url: string; title: string; box?: PhotoBox } | null>(null);
+
+/** Снимок, по которому обведён объект, — с рамкой (этап 9) */
+export async function showPhotoBox(photoId: string, box: PhotoBox): Promise<void> {
+  const ph = plan.value.photos.find(x => x.id === photoId), u = await originalUrl(photoId);
+  if (u) viewing.value = { url: u, title: `Снимок № ${ph?.n ?? '?'} — рамка: откуда взят объект`, box };
+}
 
 /** Оригинал на весь экран */
 export function PhotoViewer() {
@@ -46,7 +52,15 @@ export function PhotoViewer() {
   const close = () => { if (v) URL.revokeObjectURL(v.url); viewing.value = null; };
   return (
     <dialog ref={dlg} class="viewer" onCancel={e => { e.preventDefault(); close(); }} onClick={close}>
-      {v && <><img src={v.url} alt={v.title} /><span class="cap">{v.title} — щелчок, чтобы закрыть</span></>}
+      {v && (
+        <>
+          <span class="vw">
+            <img src={v.url} alt={v.title} />
+            {v.box && <i class="vbox" style={{ left: v.box.x * 100 + '%', top: v.box.y * 100 + '%', width: v.box.w * 100 + '%', height: v.box.h * 100 + '%' }} />}
+          </span>
+          <span class="cap">{v.title} — щелчок, чтобы закрыть</span>
+        </>
+      )}
     </dialog>
   );
 }

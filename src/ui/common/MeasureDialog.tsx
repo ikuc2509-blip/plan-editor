@@ -97,7 +97,7 @@ export function MeasureDialog() {
 }
 
 /** Отметка у поля в карточке: «✓ замерено» или «условно»; щелчок — окно замера */
-export function StatusChip({ status, mref }: { status: DimStatus; mref: MeasureRef }) {
+export function StatusChip({ status, mref, photo }: { status: DimStatus; mref: MeasureRef; photo?: boolean }) {
   const open = (e: Event) => { e.preventDefault(); e.stopPropagation(); openMeasure(mref); };
   return (
     <span
@@ -108,7 +108,7 @@ export function StatusChip({ status, mref }: { status: DimStatus; mref: MeasureR
       onClick={open}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') open(e); }}
     >
-      {status === 'measured' ? '✓ замерено' : 'условно'}
+      {status === 'measured' ? '✓ замерено' : photo ? 'по фото' : 'условно'}
     </span>
   );
 }

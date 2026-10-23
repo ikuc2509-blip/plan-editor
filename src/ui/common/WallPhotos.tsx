@@ -7,6 +7,10 @@ import { dispatch, endGesture, plan } from '../store';
 import { Check, Field, parseNum } from './fields';
 import { Thumb } from '../editor/PhotosPanel';
 import { openRectify } from '../rectify';
+import { startTrace, tracing } from '../trace';
+import { WI_TYPES } from '../../model/labels';
+import type { WallItemType } from '../../model/types';
+import { useEffect } from 'preact/hooks';
 
 export function WallPhotosList({ wallId }: { wallId?: string }) {
   const p = plan.value;
@@ -45,5 +49,28 @@ export function WallPhotosList({ wallId }: { wallId?: string }) {
       })}
       <p class="hint">Снимок на развёртке виден только на экране — для обводки; в PDF он не попадает.</p>
     </>
+  );
+}
+
+const TRACE_TYPES: WallItemType[] = ['window', 'door', 'radiator', 'other'];
+
+/** «Обвести по снимку»: тип элемента, затем два угла на развёртке */
+export function TraceBar() {
+  const t = tracing.value;
+  // ушли со вкладки или шага — обводка отменяется
+  useEffect(() => () => { tracing.value = null; }, []);
+  if (t) {
+    return (
+      <p class="warn">
+        Обводка: {WI_TYPES[t.type].toLowerCase()}. {t.first ? 'Теперь — противоположный угол.' : 'Коснитесь на развёртке стены одного угла, затем противоположного.'}{' '}
+        <button class="inline" onClick={() => { tracing.value = null; }}>Отмена</button>
+      </p>
+    );
+  }
+  return (
+    <div class="row" style="align-items:center">
+      <span class="hint" style="margin:0">Обвести по снимку:</span>
+      {TRACE_TYPES.map(k => <button key={k} onClick={() => startTrace(k)}>{WI_TYPES[k]}</button>)}
+    </div>
   );
 }

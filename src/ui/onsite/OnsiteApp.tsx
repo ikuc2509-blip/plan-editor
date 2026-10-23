@@ -8,6 +8,7 @@ import { snapMm } from '../../geometry/rotate';
 import { saveStatusText } from '../../storage/history';
 import { canRedo, canUndo, dirtySince, dispatch, fileSavedAt, gridStep, plan, redo, sel, tab, toast, undo } from '../store';
 import { setMode } from '../mode';
+import { traceTap, tracing } from '../trace';
 import { Toast } from '../common/Toast';
 import { PasswordDialog } from '../common/PasswordDialog';
 import { UpdateBar } from '../common/UpdateBar';
@@ -81,7 +82,8 @@ export function OnsiteApp() {
         <Sheet
           onsite
           full={fullSheet.value}
-          onPlace={placing.value ? placeMarker : undefined}
+          onPlace={placing.value ? placeMarker : tracing.value ? traceTap : undefined}
+          mark={tracing.value?.first}
           onSelect={k => { if (k === 'wi') go('openings'); else if (k === 'mk') go('markers'); }}
         />
         <div class="os-tools">
