@@ -15,8 +15,10 @@ export type PlanV1 = Omit<PlanV3, 'version' | 'sheet'> & {
   sheet: { mode: 'schematic' | 'scale'; scale: number; showDims: boolean; showTies: boolean };
 };
 
+/** Формат версии 5 (этапы 7–8): без снимков на развёртке стен */
+export type PlanV5 = Omit<Plan, 'version' | 'wallPhotos'> & { version: 5 };
 /** Формат версии 4 (этап 6): снимок — только id и номер (заготовка) */
-export type PlanV4 = Omit<Plan, 'version' | 'photos'> & { version: 4; photos: { id: string; n: string }[] };
+export type PlanV4 = Omit<PlanV5, 'version' | 'photos'> & { version: 4; photos: { id: string; n: string }[] };
 /** Формат версии 3 (этап 5): без названий приборов */
 export type PlanV3 = Omit<PlanV4, 'version' | 'instruments'> & { version: 3 };
 /** Формат версии 2 (этапы 2–4): как версия 3, только без предметов квартиры */
@@ -30,6 +32,7 @@ const UPGRADES: Record<number, (o: Record<string, unknown>) => Record<string, un
   2: o => v2to3(o as unknown as PlanV2) as unknown as Record<string, unknown>,
   3: o => v3to4(o as unknown as PlanV3) as unknown as Record<string, unknown>,
   4: o => v4to5(o as unknown as PlanV4) as unknown as Record<string, unknown>,
+  5: o => v5to6(o as unknown as PlanV5) as unknown as Record<string, unknown>,
 };
 
 /** Распознать сохранённый план и привести к текущей версии формата */
@@ -79,7 +82,7 @@ export function v3to4(p: PlanV3): PlanV4 {
  * 4 → 5: снимков до этапа 7 не было (список всегда пуст); если что-то есть — без файла,
  * такой снимок покажется как «файл не найден».
  */
-export function v4to5(p: PlanV4): Plan {
+export function v4to5(p: PlanV4): PlanV5 {
   return {
     ...p, version: 5,
     photos: p.photos.map(ph => ({
@@ -87,6 +90,11 @@ export function v4to5(p: PlanV4): Plan {
       takenAt: '', hasGps: false, addedAt: '', source: 'file', shot: '',
     })),
   };
+}
+
+/** 5 → 6: снимков на развёртке стен ещё нет */
+export function v5to6(p: PlanV5): Plan {
+  return { ...p, version: 6, wallPhotos: [] };
 }
 
 function checkShape(o: Record<string, unknown>): boolean {
