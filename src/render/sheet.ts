@@ -1,5 +1,6 @@
 // План → SVG листа A3 или A4. Один и тот же код рисует лист на экране, в SVG, PNG и PDF.
-import type { Callout, Dim, Marker, Mm, Plan, Selection } from '../model/types';
+import type { Callout, Dim, Marker, Mm, Plan, Selection, WallPhoto } from '../model/types';
+import { frameSpan } from '../model/wallPhotos';
 import { IT_TYPES, WI_TYPES } from '../model/labels';
 import { rectSize, wallsByLetter } from '../model/room';
 import { toM } from '../model/units';
@@ -8,13 +9,15 @@ import { gridLineStep } from '../geometry/rotate';
 import { measureNote } from '../model/measure';
 import { layoutFor, type Layout } from './layout';
 import { LEGEND_BOX, SYMBOL_TYPES, itemSymbol } from './symbols';
-import { Ln, R, T, fmt, marker, wrap } from './svg';
+import { Ln, R, T, esc, fmt, marker, wrap } from './svg';
 
 export interface DrawOpts {
   /** выделенный объект; для файлов не передаётся — рамки выделения не рисуются */
   sel?: Selection | null;
   /** шаг привязки, мм: сетка рисуется только на экране */
   grid?: Mm;
+  /** выпрямленные снимки стен: id кадра → адрес картинки; только на экране */
+  wallImages?: Readonly<Record<string, string>>;
   /** лист на экране телефона: вокруг меток невидимая зона под палец (в файлы не попадает) */
   touch?: boolean;
   /** лист на экране: размеры можно щёлкнуть, чтобы ввести замер */
@@ -68,6 +71,8 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   const segs = wallsByLetter(st.room).map(w => segOf(g, w.id)!);
   const full = new Map(segs.map(sg => [sg, unfRect(g, sg, 0, 0, sg.len, h)]));
   for (const sg of segs) { const r = full.get(sg)!; P.push(R(r.x, r.y, r.w, r.h, 'fill="#FAFAF8" stroke="#111" stroke-width="0.3"')); }
+  // выпрямленные снимки стен — только на экране (decisions.md, этап 9)
+  if (opts.wallImages) for (const wp of st.wallPhotos) P.push(wallImage(g, st, wp, opts.wallImages[wp.id]));
   // линии сгиба
   P.push(R(fx, fy, L * s, W * s, 'fill="none" stroke="#111" stroke-width="0.25" stroke-dasharray="4 1 0.6 1"'));
   // подписи стен — у внешнего края развёртки; если полоса узкая (мелкий масштаб) — снаружи, чтобы не налезать на окна
@@ -436,4 +441,13 @@ export function sheetSvg(st: Plan, o: SvgFileOpts = {}): string {
   const lay = sheetLayout(st);
   const defs = o.fontCss ? `<defs><style>${o.fontCss}</style></defs>` : '';
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${lay.w}mm" height="${lay.h}mm" viewBox="0 0 ${lay.w} ${lay.h}">${defs}${drawSheet(st)}</svg>`;
+}
+
+/** Выпрямленный кадр на развёртке своей стены: верх картинки — потолок, низ — пол */
+function wallImage(g: Geom, st: Plan, wp: WallPhoto, url: string | undefined): string {
+  const sg = segOf(g, wp.wallId), span = frameSpan(st, wp);
+  if (!url || !wp.show || !sg || !span) return '';
+  const o = unf(g, sg, toM(span.from), g.h), u = unf(g, sg, toM(span.to), g.h), v = unf(g, sg, toM(span.from), 0);
+  const m = [u[0] - o[0], u[1] - o[1], v[0] - o[0], v[1] - o[1], o[0], o[1]].map(n => +n.toFixed(3)).join(' ');
+  return `<image href="${esc(url)}" x="0" y="0" width="1" height="1" preserveAspectRatio="none" opacity="${wp.opacity}" pointer-events="none" transform="matrix(${m})"/>`;
 }

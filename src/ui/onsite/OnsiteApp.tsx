@@ -13,6 +13,7 @@ import { PasswordDialog } from '../common/PasswordDialog';
 import { UpdateBar } from '../common/UpdateBar';
 import { MeasureDialog } from '../common/MeasureDialog';
 import { CameraDialog } from '../common/CameraDialog';
+import { RectifyDialog } from '../common/RectifyDialog';
 import { PhotoViewer } from '../editor/PhotosPanel';
 import { Sheet, ZOOM_MAX, ZOOM_MIN, onsiteZoom } from '../editor/Sheet';
 import { STEPS, fullSheet, placing, step, type StepKey } from './state';
@@ -108,6 +109,7 @@ export function OnsiteApp() {
       <PasswordDialog />
       <MeasureDialog />
       <CameraDialog />
+      <RectifyDialog />
       <PhotoViewer />
     </div>
   );

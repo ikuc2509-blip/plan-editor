@@ -11,6 +11,7 @@ import { angleFromHandle, snapAngle, snapMm } from '../../geometry/rotate';
 import { dispatch, endGesture, gridStep, plan, sel, tab, toast, zoom, type TabKey } from '../store';
 import type { MeasureRef } from '../../model/measure';
 import { openMeasure } from '../common/MeasureDialog';
+import { wallImages } from '../rectify';
 
 const TAB_FOR: Record<SelKind, TabKey> = { wi: 'walls', it: 'items', mk: 'markers', co: 'callouts' };
 const COL = { wi: 'wallItems', it: 'items', mk: 'markers', co: 'callouts' } as const;
@@ -293,7 +294,7 @@ export function Sheet({ onsite, full, onPlace, onSelect }: SheetProps = {}) {
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
-        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true, touch: onsite }) }}
+        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true, touch: onsite, wallImages: wallImages.value }) }}
       />
       {!onsite && (
         <>
