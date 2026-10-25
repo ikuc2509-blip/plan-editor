@@ -88,6 +88,11 @@ export function smallerScaleThatFits(room: Room, area: Area, scale: number): num
 
 export function geom(room: Room, sheet: SheetOptions, area: Area): Geom {
   const segs = room.walls.map(toSeg);
+  if (!segs.length) {
+    // чистый лист (этап 12): масштаб для рисования — 1:100 (или масштаб листа), начало координат — середина чертежа
+    const k = 1000 / (sheet.mode === 'scale' ? sheet.scale : 100);
+    return { L: 0, W: 0, h: toM(room.height.mm), s: k, fx: area.x + area.w / 2, fy: area.y + area.h / 2, fits: true, segs };
+  }
   const { e, h, minX, minY, totW, totH } = unfoldedSize(room);
   const pad = PAD;
   const s = sheet.mode === 'scale' ? 1000 / sheet.scale : Math.min((area.w - 2 * pad) / totW, (area.h - 2 * pad) / totH);

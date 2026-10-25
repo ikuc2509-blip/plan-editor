@@ -19,6 +19,12 @@ export function blank(): Plan {
   };
 }
 
+/** Чистый лист (этап 12): комнаты нет — её рисуют или берут заготовку */
+export function emptyPlan(): Plan {
+  const p = blank();
+  return { ...p, room: { walls: [], height: p.room.height } };
+}
+
 /** Учебная аудитория (ул. Широкая, 33) — из examples/ */
 export function example(): Plan {
   return structuredClone(auditorium as unknown as Plan);

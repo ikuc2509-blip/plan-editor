@@ -5,7 +5,7 @@ import type {
   Callout, Dim, FrameEdge, Item, ItemType, Marker, MeasureMethod, Mm, Origin, Photo, Plan, Point, SheetOptions, Stamp, Underlay, WallItem, WallItemType, WallPhoto,
 } from './types';
 import { IT_SIZE } from './labels';
-import { findWall, rectSize, rectWalls, wallLength } from './room';
+import { createRectRoom, findWall, isRect, polygonWalls, rectSize, rectWalls, roomExtent, wallLength } from './room';
 import { cond, withMm } from './units';
 
 type Collection = 'wallItems' | 'items' | 'markers' | 'callouts' | 'photos' | 'wallPhotos';
@@ -22,6 +22,8 @@ const scaleEdge = (e: FrameEdge, k: number): FrameEdge => (e.kind === 'mark' ? {
  * (только положение, не размеры — см. decisions.md), замеренные остаются на месте.
  */
 export function setRoomSize(p: Plan, size: { L?: Mm; W?: Mm; h?: Mm }): Plan {
+  // у нарисованной комнаты нет L и W — меняется только высота
+  if (!isRect(p.room)) return size.h !== undefined ? setHeight(p, size.h) : p;
   const { L, W } = rectSize(p.room);
   const nL = size.L !== undefined ? withMm(L, size.L) : L;
   const nW = size.W !== undefined ? withMm(W, size.W) : W;
@@ -128,10 +130,10 @@ export function addTracedWallItem(p: Plan, id: string, type: WallItemType, wallI
 
 /** Новый предмет типовых размеров — в середине помещения */
 export function addItem(p: Plan, id: string, type: ItemType = 'table'): Plan {
-  const { L, W } = rectSize(p.room);
+  const c = floorCenter(p);
   const [w, d] = IT_SIZE[type];
   const o: Item = {
-    id, type, label: '', x: cond(Math.round((L.mm - w) / 2)), y: cond(Math.round((W.mm - d) / 2)), w: cond(w), d: cond(d),
+    id, type, label: '', x: cond(Math.round(c.x - w / 2)), y: cond(Math.round(c.y - d / 2)), w: cond(w), d: cond(d),
     angle: 0, origin: { kind: 'manual' },
   };
   return { ...p, items: [...p.items, o] };
@@ -153,18 +155,17 @@ export const addPhotos = (p: Plan, list: Photo[]): Plan => (list.length ? { ...p
 
 /** Новая выноска: подпись правее и выше середины помещения, стрелка — в середину */
 export function addCallout(p: Plan, id: string, text = ''): Plan {
-  const { L, W } = rectSize(p.room);
-  const target: Point = { x: Math.round(L.mm / 2), y: Math.round(W.mm / 2) };
+  const target: Point = floorCenter(p);
   const o: Callout = { id, text, at: { x: target.x + 800, y: target.y - 800 }, target, origin: { kind: 'manual' } };
   return { ...p, callouts: [...p.callouts, o] };
 }
 
 /** Новая метка получает номер на единицу больше наибольшего; дальше номер правит пользователь */
 export function addMarker(p: Plan, id: string, wallId: string): Plan {
-  const { L, W } = rectSize(p.room);
+  const c = floorCenter(p);
   const n = String(p.markers.reduce((m, k) => Math.max(m, parseInt(k.n) || 0), 0) + 1);
   const o: Marker = {
-    id, n, desc: '', place: 'floor', x: cond(L.mm / 2), y: cond(W.mm / 2),
+    id, n, desc: '', place: 'floor', x: cond(c.x), y: cond(c.y),
     wallId, off: cond(1000), z: cond(1000), origin: { kind: 'manual' },
   };
   return { ...p, markers: [...p.markers, o] };
@@ -194,8 +195,8 @@ export interface RowsParams {
 
 /** Две колонки парт с центральным проходом */
 export function addRows(p: Plan, r: RowsParams, newId: () => string): Plan {
-  const { W } = rectSize(p.room);
-  const colW = (W.mm - 2 * r.margin - r.aisle) / 2;
+  const e = roomExtent(p.room);
+  const colW = (e.maxY - e.minY - 2 * r.margin - r.aisle) / 2;
   const desk = (x: Mm, y: Mm): Item => ({
     id: newId(), type: 'desk', label: '', x: cond(x), y: cond(y), w: cond(r.depth), d: cond(colW),
     angle: 0, origin: { kind: 'manual' },
@@ -217,4 +218,102 @@ export const addWallPhoto = (p: Plan, wp: WallPhoto): Plan => ({ ...p, wallPhoto
 /** Убрать снимок из проекта — вместе с его выпрямлениями на стенах */
 export function removePhoto(p: Plan, id: string): Plan {
   return { ...p, photos: p.photos.filter(ph => ph.id !== id), wallPhotos: p.wallPhotos.filter(wp => wp.photoId !== id) };
+}
+
+/* ——— своя комната (этап 12) ——— */
+
+/** Середина габарита пола — куда ставить новый предмет; чистый лист — условная середина 10 × 6 м */
+export function floorCenter(p: Plan): Point {
+  if (!p.room.walls.length) return { x: 5000, y: 3000 };
+  const e = roomExtent(p.room);
+  return { x: Math.round((e.minX + e.maxX) / 2), y: Math.round((e.minY + e.maxY) / 2) };
+}
+
+/** Высота помещения: условные высоты на стенах масштабируются, замеренные остаются */
+export function setHeight(p: Plan, h: Mm): Plan {
+  const kz = ratio(h, p.room.height.mm);
+  return {
+    ...p,
+    room: { ...p.room, height: withMm(p.room.height, h) },
+    wallItems: p.wallItems.map(it => ({ ...it, z: scaleCond(it.z, kz) })),
+    markers: p.markers.map(m => ({ ...m, z: scaleCond(m.z, kz) })),
+  };
+}
+
+/** Убрать всё, что держится за стены, которых больше нет */
+function dropOrphans(p: Plan): Plan {
+  const ok = (id: string) => p.room.walls.some(w => w.id === id);
+  return {
+    ...p,
+    wallItems: p.wallItems.filter(it => ok(it.wallId)),
+    markers: p.markers.filter(m => m.place === 'floor' || ok(m.wallId)),
+    wallPhotos: p.wallPhotos.filter(wp => ok(wp.wallId)),
+  };
+}
+
+/** Нарисованная комната: углы по порядку щелчков; обход и буквы приводятся к правилу листа */
+export function drawRoom(p: Plan, pts: readonly Point[]): Plan {
+  const walls = polygonWalls(pts);
+  if (!walls.length) return p;
+  return dropOrphans({ ...p, room: { walls, height: p.room.height } });
+}
+
+/** Убрать комнату (нарисовать заново): окна, двери и метки на стенах уходят вместе со стенами */
+export const clearRoom = (p: Plan): Plan => dropOrphans({ ...p, room: { walls: [], height: p.room.height } });
+
+/** Заготовка: прямоугольник 10 × 6 м, дальше — как раньше (L, W, h) */
+export const rectTemplate = (p: Plan): Plan => dropOrphans({ ...p, room: { ...createRectRoom(10_000, 6_000, p.room.height.mm), height: p.room.height } });
+
+/** Стены заново по углам: длины пересчитываются; изменившаяся длина — условная */
+function withCorners(p: Plan, pts: readonly Point[]): Plan {
+  const walls = p.room.walls.map((w, i) => {
+    const a = pts[i]!, b = pts[(i + 1) % pts.length]!;
+    const len = Math.round(Math.hypot(b.x - a.x, b.y - a.y));
+    return { ...w, a, b, length: len === w.length.mm ? w.length : cond(len) };
+  });
+  return { ...p, room: { ...p.room, walls } };
+}
+
+/**
+ * Новая длина стены: комната растягивается по линии, перпендикулярной стене, через её середину —
+ * всё, что дальше середины по направлению стены, сдвигается (как L и W у прямоугольника).
+ * Условные предметы и метки на полу за этой линией сдвигаются тоже, замеренные остаются.
+ */
+export function setWallLength(p: Plan, wallId: string, mm: Mm): Plan {
+  const i = p.room.walls.findIndex(w => w.id === wallId);
+  const w = p.room.walls[i];
+  if (!w || mm <= 0) return p;
+  if (isRect(p.room)) return setRoomSize(p, w.id === 'A' || w.id === 'B' ? { L: mm } : { W: mm });
+  const len = wallLength(w), d = mm - len;
+  if (!len || !d) return p;
+  const ux = (w.b.x - w.a.x) / len, uy = (w.b.y - w.a.y) / len;
+  const cut = ((w.a.x + w.b.x) / 2) * ux + ((w.a.y + w.b.y) / 2) * uy;
+  const beyond = (x: Mm, y: Mm) => x * ux + y * uy > cut;
+  const shift = (pt: Point): Point => (beyond(pt.x, pt.y) ? { x: Math.round(pt.x + ux * d), y: Math.round(pt.y + uy * d) } : pt);
+  let q = withCorners(p, p.room.walls.map(k => shift(k.a)));
+  const sx = Math.round(ux * d), sy = Math.round(uy * d);
+  const mv = <T extends { x: Dim; y: Dim }>(o: T): T => (beyond(o.x.mm, o.y.mm) && o.x.status === 'conditional' && o.y.status === 'conditional'
+    ? { ...o, x: withMm(o.x, o.x.mm + sx), y: withMm(o.y, o.y.mm + sy) } : o);
+  q = { ...q, items: q.items.map(mv), markers: q.markers.map(m => (m.place === 'floor' ? mv(m) : m)) };
+  // сама стена — новая длина со статусом, который был
+  return { ...q, room: { ...q.room, walls: q.room.walls.map(k => (k.id === wallId ? { ...k, length: withMm(w.length, mm) } : k)) } };
+}
+
+/** Стена замерена или условна */
+export function setWallStatus(p: Plan, wallId: string, isMeasured: boolean, method?: MeasureMethod): Plan {
+  return {
+    ...p,
+    room: {
+      ...p.room,
+      walls: p.room.walls.map(w => (w.id !== wallId ? w : {
+        ...w, length: isMeasured ? { mm: w.length.mm, status: 'measured', method: method ?? w.length.method ?? 'tape' } : { mm: w.length.mm, status: 'conditional' },
+      })),
+    },
+  };
+}
+
+/** Передвинуть угол комнаты (мышью): две стены у угла меняют длину — она становится условной */
+export function moveCorner(p: Plan, index: number, pt: Point): Plan {
+  if (index < 0 || index >= p.room.walls.length) return p;
+  return withCorners(p, p.room.walls.map((w, i) => (i === index ? { x: Math.round(pt.x), y: Math.round(pt.y) } : w.a)));
 }
