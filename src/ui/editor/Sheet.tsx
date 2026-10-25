@@ -2,8 +2,8 @@
 // Тот же лист в режиме «На месте» (этап 8): только чертёж, схематично, два пальца — масштаб.
 import { signal, type Signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { Callout, Item, Marker, Mm, Plan, SelKind, WallItem } from '../../model/types';
-import { moveTo, patch, setAngle, setSheet } from '../../model/actions';
+import type { Callout, Item, Marker, Mm, Plan, Point, SelKind, WallItem } from '../../model/types';
+import { moveCorner, moveTo, patch, setAngle, setSheet } from '../../model/actions';
 import { drawSheet, sheetGeom, sheetLayout } from '../../render/sheet';
 import type { Box } from '../../render/layout';
 import { locate, segOf, unf, wallDelta, type Spot } from '../../geometry/unfold';
@@ -15,6 +15,9 @@ import { wallImages } from '../rectify';
 import { pickSuggestion, suggSel, suggestions } from '../recognize';
 import { suggestSvg } from '../common/Suggestions';
 import { fullMode } from '../mode';
+import { addCorner, applyShape, cancelDraw, cancelShape, cornerAt, drawHover, drawing, finishDraw, shapeCorner, shaping, startDraw, startShape, takeTemplate, undoCorner } from '../draw';
+import { isRect, noRoom } from '../../model/room';
+import { fmt } from '../../render/svg';
 
 const TAB_FOR: Record<SelKind, TabKey> = { wi: 'walls', it: 'items', mk: 'markers', co: 'callouts' };
 const COL = { wi: 'wallItems', it: 'items', mk: 'markers', co: 'callouts' } as const;
@@ -32,8 +35,12 @@ export const schematicView = (p: Plan): Plan => (p.sheet.mode === 'schematic' ? 
 type Obj = WallItem | Item | Marker | Callout;
 
 interface Drag {
-  /** move — объект; rot — ручка поворота; tip — кончик стрелки выноски; pan — сдвиг листа */
-  mode: 'move' | 'rot' | 'tip' | 'pan';
+  /** move — объект; rot — ручка поворота; tip — кончик стрелки выноски; pan — сдвиг листа; corner — угол комнаты */
+  mode: 'move' | 'rot' | 'tip' | 'pan' | 'corner' | 'shape';
+  /** угол комнаты (этап 12) */
+  corner?: number;
+  /** рисование комнаты: касание без сдвига — новый угол */
+  draw?: boolean;
   kind?: SelKind;
   id?: string;
   key: string;
@@ -58,6 +65,7 @@ let dragN = 0;
 function parseMeasure(s: string): MeasureRef | null {
   const [t, a, b] = s.split(':');
   if (t === 'room' && (a === 'L' || a === 'W' || a === 'h')) return { t: 'room', key: a };
+  if (t === 'wall' && a) return { t: 'wall', id: a };
   if (t === 'tie' && a && (b === 'x' || b === 'y')) return { t: 'tie', id: a, axis: b };
   return null;
 }
@@ -134,10 +142,29 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
     return () => stage.removeEventListener('wheel', onWheel);
   }, [onsite]);
 
+  // рисование комнаты: Esc — отмена, Backspace — убрать последний угол, Enter — замкнуть
+  useEffect(() => {
+    if (!drawing.value && !shaping.value) return;
+    const k = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { cancelDraw(); cancelShape(); }
+      else if (!drawing.value) return;
+      else if (e.key === 'Backspace') { e.preventDefault(); undoCorner(); }
+      else if (e.key === 'Enter') finishDraw();
+    };
+    addEventListener('keydown', k);
+    return () => removeEventListener('keydown', k);
+  }, [!!drawing.value, !!shaping.value]);
+
   const svgPt = (e: PointerEvent) => {
     const m = svgRef.current!.getScreenCTM()!.inverse();
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m);
     return { x: p.x, y: p.y };
+  };
+
+  /** точка листа → мм пола (для рисования комнаты и углов) */
+  const floorMm = (pt: { x: number; y: number }) => {
+    const g = sheetGeom(view(plan.value));
+    return { x: ((pt.x - g.fx) / g.s) * 1000, y: ((pt.y - g.fy) / g.s) * 1000, tol: (4 / g.s) * 1000 };
   };
 
   const twoFingers = () => {
@@ -162,6 +189,20 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
       const st = stageRef.current!;
       return { x: e.clientX, y: e.clientY, left: st.scrollLeft, top: st.scrollTop };
     };
+    if (shaping.value) {
+      // прямоугольник: от точки нажатия до точки отпускания
+      shaping.value = { a: shapeCorner(floorMm(start)) };
+      drag.current = { mode: 'shape', key, start, moved: false };
+      return;
+    }
+    if (drawing.value) {
+      // рисование комнаты: угол — по отпусканию, если лист не сдвигали
+      drag.current = { mode: 'pan', key, start, client: client(), moved: false, draw: true };
+      return;
+    }
+    // угол нарисованной комнаты — тянуть
+    const cEl = target.closest<SVGElement>('[data-corner]');
+    if (cEl) { drag.current = { mode: 'corner', corner: +cEl.dataset.corner!, key, start, moved: false }; return; }
     if (onPlace) {
       // новая метка: место — по отпусканию пальца, если он не сдвигал план
       drag.current = { mode: 'pan', key, start, client: client(), moved: false, place: true };
@@ -209,6 +250,8 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
       return;
     }
     const d = drag.current;
+    // линия-подсказка к следующему углу
+    if (drawing.value && (!d || !d.moved)) { const f = floorMm(svgPt(e)); drawHover.value = cornerAt(f, e.shiftKey, f.tol); }
     if (!d) return;
     if (d.mode === 'pan') {
       const st = stageRef.current!, c = d.client!;
@@ -228,6 +271,16 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
     const sn = (m: number): Mm => snapMm(m * 1000, step);
     const floorM = () => ({ x: (p.x - g.fx) / g.s, y: (p.y - g.fy) / g.s });
 
+    if (d.mode === 'shape') {
+      const a = shaping.value?.a;
+      if (a) shaping.value = { a, b: shapeCorner(floorMm(p)) };
+      return;
+    }
+    if (d.mode === 'corner') {
+      const f = floorMm(p), st = e.altKey ? 10 : Math.max(10, gridStep.value);
+      dispatch(pl => moveCorner(pl, d.corner!, { x: Math.round(f.x / st) * st, y: Math.round(f.y / st) * st }), d.key);
+      return;
+    }
     if (d.mode === 'rot') {
       const it = plan.value.items.find(i => i.id === d.id);
       if (!it) return;
@@ -283,14 +336,49 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
       if (d.mode === 'move') { sel.value = { kind: d.kind!, id: d.id! }; onSelect?.(d.kind!); }
       else if (!d.moved) sel.value = null;
     }
+    if (d?.mode === 'shape') {
+      const sh = shaping.value;
+      if (sh?.a && sh.b && e.type === 'pointerup') applyShape(sh.a, sh.b);
+      else if (sh) shaping.value = {};
+    }
+    if (d?.draw && !d.moved && e.type === 'pointerup' && drawing.value) {
+      const f = floorMm(d.start);
+      addCorner(f, e.shiftKey, f.tol);
+    }
     if (d?.place && !d.moved && e.type === 'pointerup' && onPlace) {
       const spot = locate(sheetGeom(view(plan.value)), d.start.x, d.start.y);
       if (spot) onPlace(spot); else toast('Коснитесь пола или развёртки стены');
     }
   };
 
+  const empty = noRoom(plan.value.room), dr = drawing.value, sh = shaping.value;
   return (
     <div class={'stage' + (onsite ? ' os-stage' : '')} ref={stageRef}>
+      {dr && (
+        <div class="overlay-top"><div class="drawbar" role="toolbar" aria-label="Рисование комнаты">
+          <span>{dr.pts.length < 3 ? 'Щёлкайте по углам комнаты по порядку' : 'Замкнуть — щелчок по первому углу или «Замкнуть»'}{onsite ? '' : '. Shift — без привязки к прямым углам'}</span>
+          <button disabled={!dr.pts.length} onClick={undoCorner}>Убрать угол</button>
+          <button class="primary" disabled={dr.pts.length < 3} onClick={finishDraw}>Замкнуть</button>
+          <button onClick={cancelDraw}>Отмена</button>
+        </div></div>
+      )}
+      {sh && (
+        <div class="overlay-top"><div class="drawbar" role="toolbar" aria-label="Прямоугольник">
+          <span>{empty ? 'Протяните прямоугольник от угла до угла' : 'Протяните прямоугольник так, чтобы он касался комнаты стороной — он сольётся с ней'}</span>
+          <button onClick={cancelShape}>Отмена</button>
+        </div></div>
+      )}
+      {empty && !dr && !sh && (
+        <div class="overlay-mid"><div class="emptycard">
+          <b>Комнаты пока нет</b>
+          <span>Нарисуйте её по углам — или возьмите заготовку-прямоугольник и впишите размеры.</span>
+          <div class="row" style="margin:0;justify-content:center">
+            <button class="primary" onClick={startDraw}>Нарисовать комнату</button>
+            <button onClick={startShape}>Прямоугольником</button>
+            <button onClick={takeTemplate}>Взять заготовку (прямоугольник)</button>
+          </div>
+        </div></div>
+      )}
       <svg
         ref={svgRef}
         class={'sheet' + (onPlace ? ' placing' : '')}
@@ -302,7 +390,7 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
-        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true, touch: onsite, wallImages: fullMode.value ? wallImages.value : undefined }) + (onsite || !fullMode.value ? '' : suggestSvg(shown, suggestions.value, suggSel.value)) + markSvg(shown, mark) }}
+        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true, touch: onsite, wallImages: fullMode.value ? wallImages.value : undefined }) + (onsite || !fullMode.value ? '' : suggestSvg(shown, suggestions.value, suggSel.value)) + markSvg(shown, mark) + (dr ? drawSvg(shown, dr.pts, drawHover.value) : sh?.a && sh.b ? shapeSvg(shown, sh.a, sh.b) : !empty && !isRect(shown.room) ? cornersSvg(shown) : '') }}
       />
       {!onsite && (
         <>
@@ -312,6 +400,38 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
       )}
     </div>
   );
+}
+
+/** Рисование комнаты: отмеченные углы, линия к курсору, длины стен (только на экране) */
+function drawSvg(p: Plan, pts: readonly Point[], hover: Point | null): string {
+  const g = sheetGeom(p), at = (q: Point): [number, number] => [g.fx + (q.x / 1000) * g.s, g.fy + (q.y / 1000) * g.s];
+  const all = hover ? [...pts, hover] : [...pts];
+  let out = '';
+  if (all.length > 1) out += `<polyline points="${all.map(q => at(q).map(v => v.toFixed(2)).join(',')).join(' ')}" fill="none" stroke="#2F6FB3" stroke-width="0.6"/>`;
+  for (let i = 1; i < all.length; i++) {
+    const a = at(all[i - 1]!), b = at(all[i]!), len = Math.hypot(all[i]!.x - all[i - 1]!.x, all[i]!.y - all[i - 1]!.y) / 1000;
+    if (len > 0) out += `<text x="${(a[0] + b[0]) / 2}" y="${(a[1] + b[1]) / 2 - 1.2}" font-size="2.6" text-anchor="middle" fill="#2F6FB3" font-weight="700">${fmt(len)} м</text>`;
+  }
+  pts.forEach((q, i) => { const [x, y] = at(q); out += `<circle cx="${x}" cy="${y}" r="${i === 0 && pts.length >= 3 ? 2.2 : 1.2}" fill="${i === 0 ? '#fff' : '#2F6FB3'}" stroke="#2F6FB3" stroke-width="0.5"/>`; });
+  return `<g pointer-events="none">${out}</g>`;
+}
+
+/** Прямоугольник, который тянут, с длинами сторон (только на экране) */
+function shapeSvg(p: Plan, a: Point, b: Point): string {
+  const g = sheetGeom(p), X = (v: number) => g.fx + (v / 1000) * g.s, Y = (v: number) => g.fy + (v / 1000) * g.s;
+  const x0 = X(Math.min(a.x, b.x)), x1 = X(Math.max(a.x, b.x)), y0 = Y(Math.min(a.y, b.y)), y1 = Y(Math.max(a.y, b.y));
+  const t = (x: number, y: number, v: number) => `<text x="${x}" y="${y}" font-size="2.6" text-anchor="middle" fill="#2F6FB3" font-weight="700">${fmt(v / 1000)} м</text>`;
+  return `<g pointer-events="none"><rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" fill="#2F6FB3" fill-opacity="0.08" stroke="#2F6FB3" stroke-width="0.6" stroke-dasharray="1.5 0.8"/>` +
+    t((x0 + x1) / 2, y0 - 1.2, Math.abs(a.x - b.x)) + t(x1 + 6, (y0 + y1) / 2, Math.abs(a.y - b.y)) + '</g>';
+}
+
+/** Углы нарисованной комнаты — ручки, их можно тянуть (только на экране) */
+function cornersSvg(p: Plan): string {
+  const g = sheetGeom(p);
+  return g.segs.map((sg, i) => {
+    const [x, y] = [g.fx + sg.ax * g.s, g.fy + sg.ay * g.s];
+    return `<circle data-corner="${i}" cx="${x}" cy="${y}" r="1.6" fill="#fff" stroke="#2F6FB3" stroke-width="0.5" style="cursor:move"/>`;
+  }).join('');
 }
 
 /** Крестик в отмеченной точке развёртки (первый угол обводки) */

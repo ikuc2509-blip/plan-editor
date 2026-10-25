@@ -2,8 +2,8 @@
 // на снимке, масштаб по отрезку известной длины.
 import type { Mm, PhotoBox, PhotoPt, Plan, WallPhoto } from './types';
 import { applyH, homography } from '../geometry/homography';
-import { findWall, rectSize, wallLength } from './room';
-import { patch, setRoomSize } from './actions';
+import { findWall, rectSizeOf, wallLength } from './room';
+import { patch, setRoomSize, setWallLength } from './actions';
 import { cond } from './units';
 
 const UNIT = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }];
@@ -82,8 +82,9 @@ export function photoScale(p: Plan, wp: WallPhoto, a: PhotoPt, b: PhotoPt, known
     return { dir: 'v', k, fix: { what: 'height', mm: Math.round(H * k) }, locked: p.room.height.status === 'measured' };
   }
   const k = known / dx, real = Math.round(span * k), len = wallLength(wall);
-  const { L, W } = rectSize(p.room);
-  const wallDim = wp.wallId === 'A' || wp.wallId === 'B' ? L : W;
+  // длина стены: у прямоугольника — L или W, у нарисованной комнаты — сама стена
+  const rs = rectSizeOf(p.room);
+  const wallDim = rs ? (wp.wallId === 'A' || wp.wallId === 'B' ? rs.L : rs.W) : wall.length;
   if (wp.left.kind === 'corner' && wp.right.kind === 'corner') return { dir: 'h', k, fix: { what: 'wall', mm: real }, locked: wallDim.status === 'measured' };
   if (wp.right.kind === 'mark') return { dir: 'h', k, fix: { what: 'right', mm: s.from + real }, locked: wp.right.off.status === 'measured' };
   const left = wp.left as Extract<WallPhoto['left'], { kind: 'mark' }>;
@@ -95,7 +96,7 @@ export function applyScaleFix(p: Plan, wpId: string, fix: ScaleFix): Plan {
   const wp = p.wallPhotos.find(w => w.id === wpId);
   if (!wp) return p;
   if (fix.what === 'height') return setRoomSize(p, { h: fix.mm });
-  if (fix.what === 'wall') return setRoomSize(p, wp.wallId === 'A' || wp.wallId === 'B' ? { L: fix.mm } : { W: fix.mm });
+  if (fix.what === 'wall') return setWallLength(p, wp.wallId, fix.mm);
   return patch(p, 'wallPhotos', wpId, { [fix.what]: { kind: 'mark', off: cond(fix.mm) } });
 }
 

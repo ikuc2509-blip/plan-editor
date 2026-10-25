@@ -22,6 +22,8 @@ test('осмотр аудитории от начала до файла', async 
   // 1. Помещение
   await nav('Помещение').click();
   await page.getByRole('button', { name: 'Новый осмотр' }).click();
+  // чистый лист (этап 12): прямоугольная заготовка
+  await page.getByRole('button', { name: 'Взять заготовку (прямоугольник)' }).first().click();
   await page.getByLabel('Адрес, помещение').fill('ул. Широкая, 33, ауд. 214');
   await page.getByLabel('Составил (роль и ФИО)').fill('специалист Петров П. П.');
   await expect(page.getByLabel('Дата')).toHaveValue(/^\d\d\.\d\d\.\d{4}$/);

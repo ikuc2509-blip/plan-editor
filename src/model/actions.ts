@@ -253,7 +253,8 @@ function dropOrphans(p: Plan): Plan {
 
 /** Нарисованная комната: углы по порядку щелчков; обход и буквы приводятся к правилу листа */
 export function drawRoom(p: Plan, pts: readonly Point[]): Plan {
-  const walls = polygonWalls(pts);
+  // достраиваем комнату — координаты пола не сдвигаем, иначе мебель и метки съедут
+  const walls = polygonWalls(pts, !p.room.walls.length);
   if (!walls.length) return p;
   return dropOrphans({ ...p, room: { walls, height: p.room.height } });
 }

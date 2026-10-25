@@ -261,3 +261,14 @@ header h1 .t-short{display:none}
   header .gridsel .gl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
   header button{padding:6px 9px}
 }
+/* своя комната (этап 12): панель рисования и чистый лист */
+/* поверх листа, места не занимают — лист не сдвигается, когда включают рисование */
+.overlay-top{position:sticky;top:0;height:0;align-self:stretch;z-index:5}
+.overlay-mid{position:sticky;top:30%;height:0;align-self:stretch;z-index:5;display:flex;justify-content:center}
+.drawbar{position:absolute;left:0;right:0;top:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 10px;background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--focus);border-radius:8px;font-size:13px}
+.drawbar span{flex:1;min-width:180px}
+.emptycard{display:flex;flex-direction:column;gap:8px;text-align:center;max-width:440px;height:max-content;padding:16px 18px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 20px rgba(20,30,35,.15)}
+.emptycard span{color:var(--muted);font-size:13px}
+/* промежуток .stage (gap) не должен сдвигать лист, когда появляется полоска */
+.stage>.overlay-top,.stage>.overlay-mid{margin-bottom:-8px}
+.stage.os-stage>.overlay-top,.stage.os-stage>.overlay-mid{margin-bottom:0}

@@ -5,8 +5,8 @@ import type { WallItemType } from '../../model/types';
 import * as A from '../../model/actions';
 import { WI_TYPES } from '../../model/labels';
 import { measureList } from '../../model/measure';
-import { rectSize, wallsByLetter } from '../../model/room';
-import { blank, uid } from '../../model/state';
+import { noRoom, rectSizeOf, wallsByLetter } from '../../model/room';
+import { emptyPlan, uid } from '../../model/state';
 import { formatMeters } from '../../model/units';
 import { shotList, shotPhotos } from '../../photos/shots';
 import { vectorPdf } from '../../export/pdf';
@@ -15,7 +15,7 @@ import { dispatch, dirtySince, fileSavedAt, plan, protect, sel, toast } from '..
 import { Check, Hint, Len, Text } from '../common/fields';
 import { StatusChip } from '../common/MeasureDialog';
 import { openFile, saveToFile, setProtect } from '../project';
-import { MarkerCard, MeasurePanel, WallItemCard, newPlan, wallOpts } from '../editor/Side';
+import { MarkerCard, MeasurePanel, RoomShape, WallItemCard, WallLengths, newPlan, wallOpts } from '../editor/Side';
 import { PhotosPanel } from '../editor/PhotosPanel';
 import { schematicView } from '../editor/Sheet';
 import { TraceBar, WallPhotosList } from '../common/WallPhotos';
@@ -35,12 +35,12 @@ function useScrollToSel() {
 
 export function RoomStep() {
   const st = plan.value, stamp = st.stamp;
-  const { L, W } = rectSize(st.room);
+  const size = rectSizeOf(st.room);
   // дата осмотра по умолчанию — сегодня (decisions.md, этап 8)
   useEffect(() => { if (!plan.value.stamp.date) dispatch(p => A.setStamp(p, { date: today() })); }, []);
   const set = (k: 'object' | 'date' | 'author') => (v: string) => dispatch(p => A.setStamp(p, { [k]: v }), 'stamp:' + k);
   const fresh = () => {
-    const p = blank();
+    const p = emptyPlan();
     void newPlan(A.setStamp(p, { date: today() }), 'Начать новый осмотр с пустого плана? Текущий план сохранится в истории состояний.', 'нового осмотра');
   };
   return (
@@ -56,12 +56,18 @@ export function RoomStep() {
         <Text label="Дата" value={stamp.date} onValue={set('date')} />
         <Text label="Составил (роль и ФИО)" value={stamp.author} placeholder="следователь Иванов И. И." onValue={set('author')} />
       </div>
-      <h3>Размеры, м</h3>
-      <div class="grid">
-        <Len label="Длина L" value={L.mm} positive onCommit chip={<StatusChip status={L.status} mref={{ t: 'room', key: 'L' }} />} onValue={mm => dispatch(p => A.setRoomSize(p, { L: mm }))} />
-        <Len label="Ширина W" value={W.mm} positive onCommit chip={<StatusChip status={W.status} mref={{ t: 'room', key: 'W' }} />} onValue={mm => dispatch(p => A.setRoomSize(p, { W: mm }))} />
-        <Len label="Высота h" value={st.room.height.mm} positive onCommit chip={<StatusChip status={st.room.height.status} mref={{ t: 'room', key: 'h' }} />} onValue={mm => dispatch(p => A.setRoomSize(p, { h: mm }))} />
-      </div>
+      <RoomShape />
+      {size && (
+        <>
+          <h3>Размеры, м</h3>
+          <div class="grid">
+            <Len label="Длина L" value={size.L.mm} positive onCommit chip={<StatusChip status={size.L.status} mref={{ t: 'room', key: 'L' }} />} onValue={mm => dispatch(p => A.setRoomSize(p, { L: mm }))} />
+            <Len label="Ширина W" value={size.W.mm} positive onCommit chip={<StatusChip status={size.W.status} mref={{ t: 'room', key: 'W' }} />} onValue={mm => dispatch(p => A.setRoomSize(p, { W: mm }))} />
+            <Len label="Высота h" value={st.room.height.mm} positive onCommit chip={<StatusChip status={st.room.height.status} mref={{ t: 'room', key: 'h' }} />} onValue={mm => dispatch(p => A.setRoomSize(p, { h: mm }))} />
+          </div>
+        </>
+      )}
+      {!size && !noRoom(st.room) && <WallLengths />}
       <Hint style="margin-top:8px" text="Не замерили — впишите на глаз: на схеме будет пустая строка «____ м».">Это только пропорции. Замер — нажмите «условно» над полем. «125 см» тоже можно.</Hint>
       <NorthField />
       <h3>Режим</h3>
@@ -207,13 +213,13 @@ export function FinishStep() {
   const shots = shotList(p);
   const shot = shots.filter(it => shotPhotos(p, it.key).length).length;
   const noDesc = p.markers.filter(m => !m.desc.trim()).length;
-  const { L, W } = rectSize(p.room);
+  const size = rectSizeOf(p.room);
   const missing = [!p.stamp.object.trim() && 'адрес', !p.stamp.date.trim() && 'дата', !p.stamp.author.trim() && '«Составил»'].filter(Boolean);
   const dirty = dirtySince.value !== null;
   return (
     <>
       <ul class="os-sum">
-        <li>Помещение {formatMeters(L.mm)} × {formatMeters(W.mm)} × {formatMeters(p.room.height.mm)} м</li>
+        <li>{noRoom(p.room) ? 'Комната не нарисована' : size ? `Помещение ${formatMeters(size.L.mm)} × ${formatMeters(size.W.mm)} × ${formatMeters(p.room.height.mm)} м` : `Помещение: стен ${p.room.walls.length}, высота ${formatMeters(p.room.height.mm)} м`}</li>
         <li>Проёмов и элементов стен: {p.wallItems.length}</li>
         <li>Меток: {p.markers.length}{noDesc ? ` (без описания: ${noDesc})` : ''}</li>
         <li>Снимков: {p.photos.length}; по списку съёмки снято {shot} из {shots.length}</li>

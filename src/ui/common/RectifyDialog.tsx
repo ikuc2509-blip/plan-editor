@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { FrameEdge, PhotoPt, WallPhoto } from '../../model/types';
 import * as A from '../../model/actions';
-import { wallsByLetter, findWall, wallLength, rectSize } from '../../model/room';
+import { wallsByLetter, findWall, wallLength } from '../../model/room';
 import { uid } from '../../model/state';
 import { cond, formatMeters, parseLength } from '../../model/units';
 import { applyScaleFix, frameAspect, frameSpan, photoScale } from '../../model/wallPhotos';
@@ -195,8 +195,7 @@ export function RectifyDialog() {
     const aspect = frameAspect(p, existing) ?? 1;
     const k = parseLength(known);
     const res = seg.length === 2 && k.ok ? photoScale(p, existing, seg[0]!, seg[1]!, k.mm) : null;
-    const { L, W } = rectSize(p.room);
-    const wl = existing.wallId === 'A' || existing.wallId === 'B' ? L : W;
+    const wl = { mm: wall ? wallLength(wall) : 0 };
     const fixText = !res ? '' : res.fix.what === 'height'
       ? `высота помещения ≈ ${formatMeters(res.fix.mm)} м (по фото), сейчас ${formatMeters(p.room.height.mm)} м`
       : res.fix.what === 'wall'

@@ -78,9 +78,10 @@ export function signedArea2(pts: readonly Point[]): number {
 
 /**
  * Углы нарисованной комнаты → стены. Обход — по часовой стрелке (помещение справа от стены),
- * начало координат — левый верхний угол габарита, первая стена «А» — верхняя левая.
+ * первая стена «А» — верхняя левая. normalize — начало координат в левый верхний угол габарита
+ * (для новой комнаты; у достроенной координаты не сдвигаются — мебель и метки остаются на местах).
  */
-export function polygonWalls(pts: readonly Point[]): Wall[] {
+export function polygonWalls(pts: readonly Point[], normalize = true): Wall[] {
   let q = pts.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) }));
   // подряд одинаковые точки и точки на одной прямой — лишние углы
   q = q.filter((p, i) => { const n = q[(i + 1) % q.length]!; return p.x !== n.x || p.y !== n.y; });
@@ -90,8 +91,10 @@ export function polygonWalls(pts: readonly Point[]): Wall[] {
   });
   if (q.length < 3) return [];
   if (signedArea2(q) < 0) q.reverse();
-  const minX = Math.min(...q.map(p => p.x)), minY = Math.min(...q.map(p => p.y));
-  q = q.map(p => ({ x: p.x - minX, y: p.y - minY }));
+  if (normalize) {
+    const minX = Math.min(...q.map(p => p.x)), minY = Math.min(...q.map(p => p.y));
+    q = q.map(p => ({ x: p.x - minX, y: p.y - minY }));
+  }
   // стена А — с самой верхней серединой, при равенстве — левее
   const mid = (i: number) => ({ x: (q[i]!.x + q[(i + 1) % q.length]!.x) / 2, y: (q[i]!.y + q[(i + 1) % q.length]!.y) / 2 });
   let first = 0;
