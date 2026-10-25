@@ -1,6 +1,6 @@
 // Этап 12: чистый лист и своя комната — стены по углам, длины, углы, привязки меток, лист.
 import { describe, expect, test } from 'vitest';
-import { addMarker, clearRoom, drawRoom, hasSlanted, moveCorner, patch, rectTemplate, setWallLength, straightenRoom } from '../src/model/actions';
+import { addAnnex, addMarker, addWallItem, allWalls, clearRoom, drawRoom, hasSlanted, makeMain, moveCorner, patch, rectTemplate, setAnnexWallLength, setWallLength, straightenRoom } from '../src/model/actions';
 import { emptyPlan } from '../src/model/state';
 import { isRect, noRoom, polygonWalls, roomExtent, signedArea2 } from '../src/model/room';
 import { applyMeasure, measureList, tieOf } from '../src/model/measure';
@@ -143,4 +143,67 @@ describe('выровнять стены', () => {
   test('треугольник выровнять нельзя', () => {
     expect(straightenRoom(drawRoom(emptyPlan(), [{ x: 0, y: 0 }, { x: 4000, y: 0 }, { x: 0, y: 3000 }]))).toBeNull();
   });
+});
+
+describe('соседние помещения (формат 10)', () => {
+  // кабинет 6 × 3,2 м, справа к стене Б — подсобка 3 × 3,2 м
+  const office = (): Plan => drawRoom(emptyPlan(), [{ x: 0, y: 0 }, { x: 6000, y: 0 }, { x: 6000, y: 3200 }, { x: 0, y: 3200 }]);
+  const withRoom = () => {
+    const r = addAnnex(office(), 'a1', [{ x: 6000, y: 0 }, { x: 9000, y: 0 }, { x: 9000, y: 3200 }, { x: 6000, y: 3200 }], 'подсобка');
+    if (!r.ok) throw new Error(r.why);
+    return r.plan;
+  };
+
+  test('пристроено вплотную — отдельное помещение, кабинет прежний (6 м, а не 9)', () => {
+    const p = withRoom();
+    expect(p.room.walls.map(w => w.length.mm)).toEqual([6000, 3200, 6000, 3200]);
+    expect(p.annexes).toHaveLength(1);
+    expect(p.annexes[0]!.walls.map(w => w.length.mm)).toEqual([3000, 3200, 3000, 3200]);
+    expect(new Set(allWalls(p).map(w => w.id)).size).toBe(8);
+  });
+
+  test('заходит внутрь или не касается — отказ', () => {
+    expect(addAnnex(office(), 'x', [{ x: 5000, y: 0 }, { x: 8000, y: 0 }, { x: 8000, y: 3200 }, { x: 5000, y: 3200 }])).toEqual({ ok: false, why: 'overlap' });
+    expect(addAnnex(office(), 'x', [{ x: 7000, y: 0 }, { x: 9000, y: 0 }, { x: 9000, y: 3200 }, { x: 7000, y: 3200 }])).toEqual({ ok: false, why: 'apart' });
+  });
+
+  test('кабинет длиннее — подсобка сдвигается вместе с перегородкой', () => {
+    const p = setWallLength(withRoom(), 'w1', 7000);
+    expect(p.annexes[0]!.walls[0]!.a).toEqual({ x: 7000, y: 0 });
+    expect(p.annexes[0]!.walls[0]!.length.mm).toBe(3000);
+  });
+
+  test('длина стены подсобки — растягивается только она', () => {
+    const p = setAnnexWallLength(withRoom(), 'a1-w1', 2500);
+    expect(p.annexes[0]!.walls.map(w => w.length.mm)).toEqual([2500, 3200, 2500, 3200]);
+    expect(p.room.walls[0]!.length.mm).toBe(6000);
+  });
+
+  test('на листе: подсобка с названием, у перегородки нет развёртки — сказано в примечаниях', () => {
+    const svg = drawSheet(withRoom());
+    expect(svg).toContain('ПОДСОБКА');
+    expect(svg).not.toContain('СТЕНА Б (развёртка)');
+    expect(svg).toContain('СТЕНА А (развёртка)');
+    expect(svg).toContain('Развёртка стены Б не показана');
+  });
+
+  test('сделать основным: развёртки — у стен подсобки, кабинет — соседний', () => {
+    const p = makeMain(withRoom(), 'a1');
+    expect(p.room.walls.map(w => w.id)).toEqual(['a1-w1', 'a1-w2', 'a1-w3', 'a1-w4']);
+    expect(p.annexes[0]!.walls.map(w => w.id)).toEqual(['w1', 'w2', 'w3', 'w4']);
+  });
+
+  test('метка в подсобке привязывается к её стенам', () => {
+    let p = addMarker(withRoom(), 'm', 'w1');
+    p = patch(p, 'markers', 'm', { x: cond(8000), y: cond(1000) });
+    expect(tieOf(p, p.markers[0]!, 'x')).toMatchObject({ wallId: 'a1-w2', mm: 1000 });
+  });
+});
+
+test('новая дверь и метка в нарисованной комнате — на её первой стене (стены «A» у неё нет)', () => {
+  let p = drawRoom(emptyPlan(), [{ x: 0, y: 0 }, { x: 4000, y: 0 }, { x: 4000, y: 3000 }, { x: 0, y: 3000 }]);
+  p = addWallItem(p, 'd', 'door', 'A');
+  p = addMarker(p, 'm', 'A');
+  expect(p.wallItems[0]!.wallId).toBe('w1');
+  expect(p.markers[0]!.wallId).toBe('w1');
 });

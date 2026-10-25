@@ -63,6 +63,17 @@ export interface Room {
   height: Dim;
 }
 
+/**
+ * Соседнее помещение (формат 10, этап 12): только на плане пола, без развёрток.
+ * Стены — как у основного (по часовой); общая стена-перегородка — на стене основного помещения.
+ */
+export interface Annex {
+  id: string;
+  /** «подсобка», «санузел»…; пусто — «Помещение 2» */
+  name: string;
+  walls: Wall[];
+}
+
 export type WallItemType =
   | 'window' | 'door' | 'radiator' | 'board' | 'screen'
   | 'picture' | 'hanger' | 'camera' | 'other';
@@ -227,7 +238,8 @@ export const FORMAT_ID = 'plan-editor';
  * 6 — этап 9: снимки, выпрямленные на развёртку стен (wallPhotos);
  * 7 — этап 10: у принятого объекта — «предложено моделью» и уверенность (origin.auto);
  * 8 — этап 11: больше мебели (кресло, тумба, комод…) и контур тела человека;
- * 9 — этап 12: комнаты может не быть (чистый лист) или она нарисована — любые стены-отрезки.
+ * 9 — этап 12: комнаты может не быть (чистый лист) или она нарисована — любые стены-отрезки;
+ * 10 — этап 12: соседние помещения (annexes) — на плане пола, развёртки только у основного.
  */
 /** Точка на снимке, в долях ширины и высоты (0…1) */
 export interface PhotoPt {
@@ -255,7 +267,7 @@ export interface WallPhoto {
   opacity: number;
 }
 
-export const FORMAT_VERSION = 9;
+export const FORMAT_VERSION = 10;
 
 export interface Plan {
   format: typeof FORMAT_ID;
@@ -268,6 +280,8 @@ export interface Plan {
   photos: Photo[];
   /** снимки, выпрямленные на развёртку стен (этап 9) */
   wallPhotos: WallPhoto[];
+  /** соседние помещения — на плане пола, без развёрток (этап 12) */
+  annexes: Annex[];
   stamp: Stamp;
   north: string;
   notes: string;

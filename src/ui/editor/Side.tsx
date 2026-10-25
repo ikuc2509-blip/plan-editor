@@ -6,7 +6,7 @@ import { formatMeters } from '../../model/units';
 import { StatusChip, openMeasure } from '../common/MeasureDialog';
 import { IT_TYPES, WI_TYPES } from '../../model/labels';
 import { example, uid, emptyPlan } from '../../model/state';
-import { noRoom, rectSizeOf, wallsByLetter } from '../../model/room';
+import { annexName, noRoom, rectSizeOf, wallsByLetter } from '../../model/room';
 import { drawing, redrawRoom, shaping, startDraw, startShape, straighten, takeTemplate } from '../draw';
 import { hasSlanted } from '../../model/actions';
 import { parseLength } from '../../model/units';
@@ -39,8 +39,11 @@ export async function newPlan(p: Plan, question: string, label: string) {
   await replacePlan(p, { label });
 }
 
-export const wallOpts = (p: Plan): Record<string, string> =>
-  Object.fromEntries(wallsByLetter(p.room).map(w => [w.id, 'Стена ' + w.letter]));
+export const wallOpts = (p: Plan): Record<string, string> => ({
+  ...Object.fromEntries(wallsByLetter(p.room).map(w => [w.id, 'Стена ' + w.letter])),
+  // стены соседних помещений — для дверей и окон на плане (этап 12)
+  ...Object.fromEntries(p.annexes.flatMap(a => a.walls.map(w => [w.id, `${annexName(p, a.id)}: стена ${w.letter}`]))),
+});
 
 export function Side() {
   // простой режим — без подложки (этап 11)
@@ -115,6 +118,7 @@ function RoomPanel() {
         </>
       )}
       {!size && !noRoom(st.room) && <WallLengths />}
+      <AnnexList />
       <Hint style="margin-top:6px" text="Отметка над полем — «замерено» или «условно»; щёлкните её, чтобы записать замер.">Там же — чем мерили. Можно писать «12,5», «1250 см» или «12500 мм». Новый размер применяется, когда вы выходите из поля или нажимаете Enter. Условные окна, метки и мебель при этом сдвигаются пропорционально, замеренные остаются на месте. На листе замеренный размер подписывается числом, условный — пустой строкой.</Hint>
       <h3>Отображение</h3>
       <Check label="Привязки меток к стенам" checked={st.sheet.showTies} onValue={v => dispatch(p => A.setSheet(p, { showTies: v }))} />
@@ -179,7 +183,7 @@ export function RoomShape() {
         <p class="hint">Комнаты пока нет. Нарисуйте её по углам на листе — или возьмите заготовку-прямоугольник.</p>
         <div class="row">
           <button class="primary" onClick={startDraw}>Нарисовать комнату</button>
-          <button onClick={startShape}>Прямоугольником</button>
+          <button onClick={() => startShape()}>Прямоугольником</button>
           <button onClick={takeTemplate}>Взять заготовку (прямоугольник)</button>
         </div>
       </>
@@ -188,9 +192,37 @@ export function RoomShape() {
   return (
     <div class="row" style="margin:10px 0 0">
       {hasSlanted(st) && <button class="primary" onClick={straighten}>Выровнять стены</button>}
-      <button onClick={startShape}>Пристроить прямоугольник</button>
+      <button onClick={() => startShape(true)} title="Отдельная комната рядом: между ними стена-перегородка">Соседнее помещение</button>
+      <button onClick={() => startShape()} title="Ниша, Г-образная комната: прямоугольник сольётся с комнатой">Расширить комнату</button>
       <button class="ghost" onClick={redrawRoom}>Нарисовать комнату заново</button>
     </div>
+  );
+}
+
+/** Соседние помещения: название, длины стен, «сделать основным», «убрать» (этап 12) */
+export function AnnexList() {
+  const st = plan.value;
+  if (!st.annexes.length) return null;
+  return (
+    <>
+      <h3>Соседние помещения</h3>
+      <p class="hint">На плане пола, без развёрток. Развёртки — только у основного помещения; основное можно сменить.</p>
+      {st.annexes.map((a, i) => (
+        <div class="card" key={a.id} data-card={a.id}>
+          <div class="grid">
+            <Text label="Название" value={a.name} placeholder={`Помещение ${i + 2}`} wide onValue={v => dispatch(p => A.renameAnnex(p, a.id, v), 'annex:' + a.id)} />
+            {a.walls.map(w => (
+              <Len key={w.id} label={`Стена ${w.letter}, м`} value={w.length.mm} positive onCommit chip={<StatusChip status={w.length.status} mref={{ t: 'wall', id: w.id }} />}
+                onValue={mm => dispatch(p => A.setAnnexWallLength(p, w.id, mm))} />
+            ))}
+          </div>
+          <div class="row" style="margin:6px 0 0">
+            <button onClick={() => { dispatch(p => A.makeMain(p, a.id)); toast(`Основное помещение — «${annexName(st, a.id)}»: развёртки теперь у его стен`); }}>Сделать основным</button>
+            <button class="del" onClick={() => { if (confirm(`Убрать «${annexName(st, a.id)}»? Отменить можно кнопкой ↶.`)) dispatch(p => A.removeAnnex(p, a.id)); }}>Убрать</button>
+          </div>
+        </div>
+      ))}
+    </>
   );
 }
 

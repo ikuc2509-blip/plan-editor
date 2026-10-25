@@ -2,10 +2,10 @@
 import type { Callout, Dim, Marker, Mm, Plan, Selection, WallPhoto } from '../model/types';
 import { frameSpan } from '../model/wallPhotos';
 import { IT_TYPES, WI_TYPES } from '../model/labels';
-import { isRect, noRoom, rectSizeOf, wallsByLetter } from '../model/room';
+import { annexName, isRect, noRoom, rectSizeOf, wallsByLetter } from '../model/room';
 import { tieOf } from '../model/measure';
 import { toM } from '../model/units';
-import { floorPt, geom, inward, outward, segOf, textRot, unf, unfRect, wallPt, type Geom, type Seg } from '../geometry/unfold';
+import { floorPt, geom, inward, outward, planSegOf, segOf, textRot, unf, unfRect, wallPt, type Geom, type Seg } from '../geometry/unfold';
 import { gridLineStep } from '../geometry/rotate';
 import { measureNote } from '../model/measure';
 import { layoutFor, type Layout } from './layout';
@@ -35,7 +35,7 @@ const measured = (...ds: Dim[]): boolean => ds.every(d => d.status === 'measured
 const gray = (svg: string): string => svg.replace(/#111\b/g, GRAY);
 
 export const sheetLayout = (st: Plan): Layout => layoutFor(st.sheet.paper);
-export const sheetGeom = (st: Plan): Geom => geom(st.room, st.sheet, sheetLayout(st).area);
+export const sheetGeom = (st: Plan): Geom => geom(st.room, st.sheet, sheetLayout(st).area, st.annexes);
 
 /** Метка, положение которой не замерено */
 function markerApprox(m: Marker): boolean {
@@ -73,7 +73,9 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   if (sub) P.push(T(fr.x + 4, 19.6, sub, { size: 2.9 }));
 
   /* развёртка стен */
-  const segs = wallsByLetter(st.room).map(w => segOf(g, w.id)!);
+  // все стены основного помещения — для пола; с развёрткой — без перегородок к соседним помещениям
+  const allSegs = wallsByLetter(st.room).map(w => planSegOf(g, w.id)!);
+  const segs = allSegs.filter(sg => !g.noUnfold.has(sg.wall.id));
   const full = new Map(segs.map(sg => [sg, unfRect(g, sg, 0, 0, sg.len, h)]));
   for (const sg of segs) { const r = full.get(sg)!; P.push(R(r.x, r.y, r.w, r.h, 'fill="#FAFAF8" stroke="#111" stroke-width="0.3"')); }
   // выпрямленные снимки стен — только на экране (decisions.md, этап 9)
@@ -137,6 +139,9 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
 
   /* пол */
   if (floorD) P.push(`<path d="${floorD}" fill="#fff"/>`);
+  // соседние помещения — пол без развёрток (этап 12)
+  const annexD = g.annexSegs.map(segPath(g));
+  for (const d of annexD) P.push(`<path d="${d}" fill="#fff"/>`);
   const u = st.underlay;
   if (u.src && u.show) {
     const k = (u.scale || 100) / 100;
@@ -176,10 +181,24 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   }
   // контур помещения
   if (floorD) P.push(`<path d="${floorD}" fill="none" stroke="#111" stroke-width="0.9"/>`);
+  for (const d of annexD) P.push(`<path d="${d}" fill="none" stroke="#111" stroke-width="0.9"/>`);
+  // название и длины стен соседних помещений
+  st.annexes.forEach((a, k) => {
+    const sgs = g.annexSegs[k]!;
+    const xs = sgs.map(sg => sg.ax), ys = sgs.map(sg => sg.ay);
+    const [cx, cy] = floorPt(g, (Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2);
+    P.push(T(cx, cy, annexName(st, a.id).toUpperCase(), { size: 2.6, anchor: 'middle', base: 'central', weight: 700, fill: '#555' }));
+    for (const sg of sgs) {
+      const w = sg.wall, mid = wallPt(g, sg, sg.len / 2), n = inward(sg);
+      let txt = `${fmt(sg.len)} м`;
+      if (!measured(w.length)) { anyBlank = true; txt = '____ м'; }
+      P.push(clickable(T(mid[0] + n[0] * 2.4, mid[1] + n[1] * 2.4, txt, { size: 2, anchor: 'middle', base: 'central', fill: '#333', rot: isVert(sg) ? -90 : 0 }), 'wall:' + w.id));
+    }
+  });
   // проёмы и радиаторы на плане
   for (const it of st.wallItems) {
     if (!['window', 'door', 'radiator'].includes(it.type)) continue;
-    const sg = segOf(g, it.wallId);
+    const sg = planSegOf(g, it.wallId);
     if (!sg) continue;
     const off = toM(it.off.mm), iw = toM(it.w.mm);
     const p1 = wallPt(g, sg, off), p2 = wallPt(g, sg, off + iw), n = inward(sg);
@@ -231,7 +250,7 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
     P.push(clickable(dimV(fx + L * s + 6, fy - h * s, fy, dimTxt('h', h, st.room.height)), 'room:h'));
   } else if (!noRoom(st.room)) {
     // нарисованная комната: длина у каждой стены — внутри пола вдоль стены; h — у конца стены А
-    for (const sg of segs) {
+    for (const sg of allSegs) {
       const w = sg.wall, mid = wallPt(g, sg, sg.len / 2), n = inward(sg);
       let txt = `${w.letter}: ${fmt(sg.len)} м`;
       if (!measured(w.length)) { anyBlank = true; txt = `${w.letter}: ____ м`; }
@@ -372,6 +391,9 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   if (mNote) notes.push(mNote);
   notes.push(isNaN(nv) ? 'Направление на север: ______________' : 'Направление на север указано стрелкой «С».');
   st.markers.filter(m => m.place === 'outside').forEach(m => notes.push(`Метка № ${m.n} находится вне помещения.`));
+  // перегородки к соседним помещениям — без развёрток (этап 12)
+  const hidden = allSegsOf(st, g).filter(sg => g.noUnfold.has(sg.wall.id)).map(sg => sg.wall.letter);
+  if (hidden.length) notes.push(`${hidden.length > 1 ? 'Развёртки стен ' + hidden.join(', ') + ' не показаны: к ним' : 'Развёртка стены ' + hidden[0] + ' не показана: к ней'} примыкает соседнее помещение.`);
   String(st.notes || '').split('\n').map(t => t.trim()).filter(Boolean).forEach(t => notes.push(t));
   notes.forEach((n, i) => { wrap(`${i + 1}. ${n}`, lay.notesChars).forEach((l, j) => { P.push(T(x0 + (j ? 3 : 0), y, l, { size: 2.4 })); y += 3.1; }); y += 0.5; });
 
@@ -413,11 +435,18 @@ function gridLines(g: Geom, snap: Mm, floorD: string): string {
   return `<clipPath id="floor-clip"><path d="${floorD}"/></clipPath><g pointer-events="none" clip-path="url(#floor-clip)">${out}</g>`;
 }
 
+const allSegsOf = (st: Plan, g: Geom): Seg[] => wallsByLetter(st.room).map(w => planSegOf(g, w.id)).filter((x): x is Seg => !!x);
+
 /** Контур пола на листе — путь по стенам; комнаты нет — пусто */
 function floorPath(g: Geom): string {
-  if (!g.segs.length) return '';
-  return g.segs.map((sg, i) => { const [x, y] = floorPt(g, sg.ax, sg.ay); return `${i ? 'L' : 'M'}${+x.toFixed(3)} ${+y.toFixed(3)}`; }).join(' ') + ' Z';
+  return segPath(g)(g.segs);
 }
+
+/** Путь по стенам одного помещения */
+const segPath = (g: Geom) => (segs: readonly Seg[]): string => {
+  if (!segs.length) return '';
+  return segs.map((sg, i) => { const [x, y] = floorPt(g, sg.ax, sg.ay); return `${i ? 'L' : 'M'}${+x.toFixed(3)} ${+y.toFixed(3)}`; }).join(' ') + ' Z';
+};
 
 /** Ширина строки текста на листе, мм (оценка: средняя буква PT Sans — половина кегля) */
 const textW = (str: string, size: number) => str.length * size * 0.52;

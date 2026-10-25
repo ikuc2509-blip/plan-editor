@@ -6,6 +6,7 @@ import { closes, snapCorner } from '../geometry/draw';
 import { rectPts, unionOrtho } from '../geometry/union';
 import { roomCorners } from '../model/room';
 import { dispatch, gridStep, plan, sel, toast } from './store';
+import { uid } from '../model/state';
 
 /** идёт рисование: углы, отмеченные по порядку */
 export const drawing = signal<{ pts: Point[] } | null>(null);
@@ -77,14 +78,16 @@ export function redrawRoom(): void {
 
 /* ——— фигуры: прямоугольник, слитый с комнатой ——— */
 
-/** идёт рисование прямоугольника: первый угол (мм пола), если уже нажат */
-export const shaping = signal<{ a?: Point; b?: Point } | null>(null);
+/** идёт рисование прямоугольника: первый угол (мм пола), если уже нажат; annex — соседнее помещение, иначе — расширить комнату */
+export const shaping = signal<{ a?: Point; b?: Point; annex?: boolean } | null>(null);
 
-export function startShape(): void {
+export function startShape(annex = false): void {
   cancelDraw();
   sel.value = null;
-  shaping.value = {};
-  toast(plan.value.room.walls.length ? 'Протяните прямоугольник так, чтобы он касался комнаты — он сольётся с ней' : 'Протяните прямоугольник от угла до угла');
+  shaping.value = { annex };
+  toast(!plan.value.room.walls.length ? 'Протяните прямоугольник от угла до угла'
+    : annex ? 'Протяните соседнее помещение вплотную к комнате — между ними будет стена-перегородка'
+      : 'Протяните прямоугольник так, чтобы он касался комнаты — он сольётся с ней');
 }
 
 export const cancelShape = (): void => { shaping.value = null; };
@@ -92,14 +95,22 @@ export const cancelShape = (): void => { shaping.value = null; };
 const WHY = {
   apart: 'Прямоугольник должен касаться комнаты стороной',
   hole: 'Получилась комната с дырой или касание углом — так нельзя',
+  overlap: 'Соседнее помещение заходит внутрь комнаты — протяните его вплотную снаружи',
   slanted: 'У комнаты есть косые стены — нажмите «Выровнять стены» и пристройте ещё раз',
 } as const;
 
 /** Прямоугольник по двум углам: новая комната или пристройка к нарисованной */
-export function applyShape(a: Point, b: Point): void {
+export function applyShape(a: Point, b: Point, annex = false): void {
   shaping.value = null;
-  if (Math.abs(a.x - b.x) < 300 || Math.abs(a.y - b.y) < 300) { toast('Прямоугольник меньше 30 см — протяните ещё раз'); shaping.value = {}; return; }
+  if (Math.abs(a.x - b.x) < 300 || Math.abs(a.y - b.y) < 300) { toast('Прямоугольник меньше 30 см — протяните ещё раз'); shaping.value = { annex }; return; }
   const p = plan.value, r = rectPts(a, b);
+  if (annex && p.room.walls.length) {
+    const res = A.addAnnex(p, 'a' + uid(), r);
+    if (!res.ok) { toast(WHY[res.why]); return; }
+    dispatch(() => res.plan);
+    toast('Соседнее помещение готово. Название и длины стен — на вкладке «Помещение»; развёртки у него нет');
+    return;
+  }
   if (!p.room.walls.length) { dispatch(q => A.drawRoom(q, r)); toast('Комната готова. Можно пристроить ещё прямоугольник или вписать длины стен'); return; }
   const u = unionOrtho([roomCorners(p.room), r]);
   if (!u.ok) { toast(WHY[u.why]); return; }

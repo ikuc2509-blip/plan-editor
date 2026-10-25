@@ -191,7 +191,7 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
     };
     if (shaping.value) {
       // прямоугольник: от точки нажатия до точки отпускания
-      shaping.value = { a: shapeCorner(floorMm(start)) };
+      shaping.value = { a: shapeCorner(floorMm(start)), annex: shaping.value.annex };
       drag.current = { mode: 'shape', key, start, moved: false };
       return;
     }
@@ -273,7 +273,7 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
 
     if (d.mode === 'shape') {
       const a = shaping.value?.a;
-      if (a) shaping.value = { a, b: shapeCorner(floorMm(p)) };
+      if (a) shaping.value = { a, b: shapeCorner(floorMm(p)), annex: shaping.value?.annex };
       return;
     }
     if (d.mode === 'corner') {
@@ -340,8 +340,8 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
     }
     if (d?.mode === 'shape') {
       const sh = shaping.value;
-      if (sh?.a && sh.b && e.type === 'pointerup') applyShape(sh.a, sh.b);
-      else if (sh) shaping.value = {};
+      if (sh?.a && sh.b && e.type === 'pointerup') applyShape(sh.a, sh.b, sh.annex);
+      else if (sh) shaping.value = { annex: sh.annex };
     }
     if (d?.draw && !d.moved && e.type === 'pointerup' && drawing.value) {
       const f = floorMm(d.start);
@@ -366,7 +366,7 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
       )}
       {sh && (
         <div class="overlay-top"><div class="drawbar" role="toolbar" aria-label="Прямоугольник">
-          <span>{empty ? 'Протяните прямоугольник от угла до угла' : 'Протяните прямоугольник так, чтобы он касался комнаты стороной — он сольётся с ней'}</span>
+          <span>{empty ? 'Протяните прямоугольник от угла до угла' : sh.annex ? 'Протяните соседнее помещение вплотную к комнате — между ними будет стена-перегородка' : 'Протяните прямоугольник так, чтобы он касался комнаты стороной — он сольётся с ней'}</span>
           <button onClick={cancelShape}>Отмена</button>
         </div></div>
       )}
@@ -376,7 +376,7 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
           <span>Нарисуйте её по углам — или возьмите заготовку-прямоугольник и впишите размеры.</span>
           <div class="row" style="margin:0;justify-content:center">
             <button class="primary" onClick={startDraw}>Нарисовать комнату</button>
-            <button onClick={startShape}>Прямоугольником</button>
+            <button onClick={() => startShape()}>Прямоугольником</button>
             <button onClick={takeTemplate}>Взять заготовку (прямоугольник)</button>
           </div>
         </div></div>

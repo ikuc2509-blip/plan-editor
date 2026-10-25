@@ -10,7 +10,7 @@ export function blank(): Plan {
     format: FORMAT_ID,
     version: FORMAT_VERSION,
     room: createRectRoom(10_000, 6_000, 3_000),
-    wallItems: [], items: [], markers: [], callouts: [], photos: [], wallPhotos: [],
+    wallItems: [], items: [], markers: [], callouts: [], photos: [], wallPhotos: [], annexes: [],
     stamp: { name: 'План-схема места происшествия', object: '', protocol: '', date: '', author: '', members: '' },
     north: '', notes: '',
     instruments: { tape: '', rangefinder: '' },

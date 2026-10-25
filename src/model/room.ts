@@ -47,6 +47,12 @@ export function rectSize(room: Room): { L: Dim; W: Dim } {
 
 export const findWall = (room: Room, id: string): Wall | undefined => room.walls.find(w => w.id === id);
 
+/** Название соседнего помещения на листе и в списках: «подсобка» или «Помещение 2» */
+export const annexName = (p: { annexes: readonly { id: string; name: string }[] }, id: string): string => {
+  const i = p.annexes.findIndex(a => a.id === id);
+  return p.annexes[i]?.name.trim() || `Помещение ${i + 2}`;
+};
+
 /** Стены в порядке букв (А, Б, В, Г) — для списков и рисования */
 export const wallsByLetter = (room: Room): Wall[] =>
   [...room.walls].sort((p, q) => p.letter.localeCompare(q.letter, 'ru'));

@@ -3,7 +3,8 @@
 import type { Dim, DimStatus, Marker, MeasureMethod, Mm, Plan } from './types';
 import { IT_TYPES, WI_TYPES } from './labels';
 import { findWall, isRect, noRoom, rectSize } from './room';
-import { patch, setRoomDimStatus, setRoomSize, setWallLength, setWallStatus } from './actions';
+import { allWalls, patch, setAnnexWallLength, setRoomDimStatus, setRoomSize, setWallLength, setWallStatus } from './actions';
+import { annexName } from './room';
 
 /** Какой размер замеряем */
 export type MeasureRef =
@@ -30,7 +31,8 @@ export function makeDim(mm: Mm, status: DimStatus, method: MeasureMethod = 'tape
 export function tieOf(p: Plan, m: Marker, axis: 'x' | 'y'): { wallId: string; letter: string; far: boolean; mm: Mm; at: Mm; dir: 1 | -1 } | null {
   const v = axis === 'x' ? m.x.mm : m.y.mm, other = axis === 'x' ? m.y.mm : m.x.mm;
   let best: { wallId: string; letter: string; far: boolean; mm: Mm; at: Mm; dir: 1 | -1 } | null = null;
-  for (const w of p.room.walls) {
+  // стены и соседних помещений (этап 12): метка в подсобке привязывается к её стенам
+  for (const w of allWalls(p)) {
     const along = axis === 'x' ? w.a.x === w.b.x : w.a.y === w.b.y;
     if (!along) continue;
     const at = axis === 'x' ? w.a.x : w.a.y;
@@ -62,7 +64,9 @@ const OBJ_WHAT: Record<string, string> = { off: 'отступ от левого 
 export function readMeasure(p: Plan, ref: MeasureRef): MeasureInfo | null {
   if (ref.t === 'wall') {
     const w = findWall(p.room, ref.id);
-    return w ? { title: 'Помещение', what: `стена ${w.letter}`, mm: w.length.mm, dim: w.length } : null;
+    if (w) return { title: 'Помещение', what: `стена ${w.letter}`, mm: w.length.mm, dim: w.length };
+    const a = p.annexes.find(x => x.walls.some(k => k.id === ref.id)), aw = a?.walls.find(k => k.id === ref.id);
+    return a && aw ? { title: annexName(p, a.id), what: `стена ${aw.letter}`, mm: aw.length.mm, dim: aw.length } : null;
   }
   if (ref.t === 'room') {
     if (ref.key === 'h') return { title: 'Помещение', what: 'высота h', mm: p.room.height.mm, dim: p.room.height };
@@ -105,8 +109,10 @@ export function applyMeasure(p: Plan, ref: MeasureRef, mm: Mm, status: DimStatus
   const d = makeDim(mm, status, method);
   if (ref.t === 'wall') {
     const w = findWall(p.room, ref.id);
-    if (!w) return p;
-    return setWallStatus(w.length.mm !== mm ? setWallLength(p, ref.id, mm) : p, ref.id, status === 'measured', method);
+    if (w) return setWallStatus(w.length.mm !== mm ? setWallLength(p, ref.id, mm) : p, ref.id, status === 'measured', method);
+    const aw = p.annexes.flatMap(a => a.walls).find(k => k.id === ref.id);
+    if (!aw) return p;
+    return setWallStatus(aw.length.mm !== mm ? setAnnexWallLength(p, ref.id, mm) : p, ref.id, status === 'measured', method);
   }
   if (ref.t === 'room') {
     const cur = readMeasure(p, ref)?.mm;
@@ -141,6 +147,7 @@ export function measureList(p: Plan): MeasureRow[] {
   if (isRect(p.room)) for (const key of ['L', 'W'] as const) add({ t: 'room', key }, 'Помещение');
   else for (const w of p.room.walls) add({ t: 'wall', id: w.id }, 'Помещение');
   if (!noRoom(p.room)) add({ t: 'room', key: 'h' }, 'Помещение');
+  for (const a of p.annexes) for (const w of a.walls) add({ t: 'wall', id: w.id }, 'Помещение');
   for (const it of p.wallItems) {
     if (it.type !== 'window' && it.type !== 'door') continue;
     const keys = it.type === 'window' ? (['off', 'w', 'h', 'z'] as const) : (['off', 'w', 'h'] as const);

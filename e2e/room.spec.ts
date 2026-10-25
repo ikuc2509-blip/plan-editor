@@ -75,7 +75,7 @@ test('фигуры: прямоугольник, к нему пристроен �
     await page.mouse.move(box.x + q[0], box.y + q[1]);
     await page.mouse.up();
   };
-  await page.getByRole('button', { name: 'Пристроить прямоугольник' }).click();
+  await page.getByRole('button', { name: 'Расширить комнату' }).click();
   // небольшой, чтобы весь был на экране
   await dragPx(fl(0, 3), fl(4, 4));
   await expect(page.locator('#toast')).toContainText('слит с комнатой');
@@ -84,7 +84,7 @@ test('фигуры: прямоугольник, к нему пристроен �
   await expect(page.getByRole('textbox', { name: /^Стена Е, м/ })).toHaveValue('4');
 
   // не касается комнаты — отказ, комната прежняя
-  await page.getByRole('button', { name: 'Пристроить прямоугольник' }).click();
+  await page.getByRole('button', { name: 'Расширить комнату' }).click();
   await dragPx(fl(5, 4), fl(7, 6));
   await expect(page.locator('#toast')).toContainText('должен касаться комнаты');
   await expect(page.getByRole('textbox', { name: /^Стена Е, м/ })).toHaveValue('4');
@@ -115,4 +115,36 @@ test('выровнять стены: углы стащили вкось — кн
   await expect(page.getByRole('button', { name: 'Выровнять стены' })).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: /^Стена Г, м/ })).toBeVisible();
   await expect(page.getByRole('textbox', { name: /^Стена Д, м/ })).toHaveCount(0);
+});
+
+test('соседнее помещение: кабинет 6 м и подсобка 3 м — отдельно, перегородка без развёртки', async ({ page }) => {
+  page.on('dialog', d => void d.accept());
+  await page.setViewportSize({ width: 1400, height: 1100 });
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Помещение', exact: true }).click();
+  await page.getByRole('button', { name: 'Пустой план' }).click();
+  const sheet = page.getByTestId('sheet');
+  await page.getByRole('button', { name: 'Прямоугольником' }).first().click();
+  const b0 = (await sheet.boundingBox())!, p = await at(page, -3, -1.5), q = await at(page, 3, 1.5);
+  await page.mouse.move(b0.x + p.x, b0.y + p.y); await page.mouse.down();
+  await page.mouse.move(b0.x + q.x, b0.y + q.y); await page.mouse.up();
+
+  // по углам 0 (0; 0) и 2 (6; 3 м) — где пол после перестройки листа
+  await page.getByRole('button', { name: 'Соседнее помещение' }).click();
+  const c0 = (await sheet.locator('[data-corner="0"]').boundingBox())!, c2 = (await sheet.locator('[data-corner="2"]').boundingBox())!;
+  const fl = (x: number, y: number) => ({ x: c0.x + c0.width / 2 + (x / 6) * (c2.x - c0.x), y: c0.y + c0.height / 2 + (y / 3) * (c2.y - c0.y) });
+  const s = fl(6, 0), e = fl(9, 3);
+  await page.mouse.move(s.x, s.y); await page.mouse.down();
+  await page.mouse.move(e.x, e.y, { steps: 3 }); await page.mouse.up();
+
+  await expect(page.locator('#toast')).toContainText('Соседнее помещение готово');
+  await expect(page.getByRole('heading', { name: 'Соседние помещения' })).toBeVisible();
+  // кабинет — прежние 6 м, а не 9
+  await expect(page.getByRole('textbox', { name: /^Стена А, м/ }).first()).toHaveValue('6');
+  await page.getByRole('textbox', { name: 'Название' }).fill('подсобка');
+  await expect(sheet).toContainText('ПОДСОБКА');
+  await expect(sheet).not.toContainText('СТЕНА Б (развёртка)');
+
+  await page.getByRole('button', { name: 'Сделать основным' }).click();
+  await expect(page.locator('#toast')).toContainText('Основное помещение — «подсобка»');
 });

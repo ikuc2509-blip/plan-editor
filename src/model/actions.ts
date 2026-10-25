@@ -2,10 +2,11 @@
 // так старые состояния можно хранить для отмены и повтора.
 // Неизменённые части переиспользуются (подложка-картинка не копируется).
 import type {
-  Callout, Dim, FrameEdge, Item, ItemType, Marker, MeasureMethod, Mm, Origin, Photo, Plan, Point, SheetOptions, Stamp, Underlay, WallItem, WallItemType, WallPhoto,
+  Callout, Dim, FrameEdge, Item, ItemType, Marker, MeasureMethod, Mm, Origin, Photo, Plan, Point, SheetOptions, Stamp, Underlay, Wall, WallItem, WallItemType, WallPhoto,
 } from './types';
 import { IT_SIZE } from './labels';
-import { LETTERS, createRectRoom, findWall, isRect, polygonWalls, rectSize, rectWalls, roomExtent, wallLength } from './room';
+import { LETTERS, createRectRoom, findWall, isRect, polygonWalls, rectSize, rectWalls, roomCorners, roomExtent, signedArea2, wallLength } from './room';
+import { unionOrtho } from '../geometry/union';
 import { cond, withMm } from './units';
 
 type Collection = 'wallItems' | 'items' | 'markers' | 'callouts' | 'photos' | 'wallPhotos';
@@ -36,8 +37,10 @@ export function setRoomSize(p: Plan, size: { L?: Mm; W?: Mm; h?: Mm }): Plan {
     const was = findWall(p.room, wallId), now = walls.find(w => w.id === wallId);
     return was && now ? ratio(wallLength(now), wallLength(was)) : 1;
   };
+  // соседние помещения за серединой помещения сдвигаются вместе со стенами (этап 12)
+  const q0 = shiftAnnexes(shiftAnnexes(p, x => x > L.mm / 2, nL.mm - L.mm, 0), (_x, y) => y > W.mm / 2, 0, nW.mm - W.mm);
   return {
-    ...p,
+    ...q0,
     room: { walls, height: nh },
     wallItems: p.wallItems.map(it => ({ ...it, off: scaleCond(it.off, kWall(it.wallId)), z: scaleCond(it.z, kz) })),
     items: p.items.map(it => ({ ...it, x: scaleCond(it.x, kx), y: scaleCond(it.y, ky) })),
@@ -112,7 +115,7 @@ export function remove(p: Plan, col: Collection, id: string): Plan {
 
 export function addWallItem(p: Plan, id: string, type: WallItemType, wallId: string): Plan {
   const o: WallItem = {
-    id, wallId, type, label: '',
+    id, wallId: wallOr(p, wallId), type, label: '',
     off: cond(500),
     z: cond(type === 'door' ? 0 : type === 'radiator' ? 150 : 900),
     w: cond(type === 'door' ? 1000 : 1200),
@@ -166,7 +169,7 @@ export function addMarker(p: Plan, id: string, wallId: string): Plan {
   const n = String(p.markers.reduce((m, k) => Math.max(m, parseInt(k.n) || 0), 0) + 1);
   const o: Marker = {
     id, n, desc: '', place: 'floor', x: cond(c.x), y: cond(c.y),
-    wallId, off: cond(1000), z: cond(1000), origin: { kind: 'manual' },
+    wallId: wallOr(p, wallId), off: cond(1000), z: cond(1000), origin: { kind: 'manual' },
   };
   return { ...p, markers: [...p.markers, o] };
 }
@@ -242,7 +245,7 @@ export function setHeight(p: Plan, h: Mm): Plan {
 
 /** Убрать всё, что держится за стены, которых больше нет */
 function dropOrphans(p: Plan): Plan {
-  const ok = (id: string) => p.room.walls.some(w => w.id === id);
+  const ok = (id: string) => p.room.walls.some(w => w.id === id) || p.annexes.some(a => a.walls.some(w => w.id === id));
   return {
     ...p,
     wallItems: p.wallItems.filter(it => ok(it.wallId)),
@@ -260,7 +263,7 @@ export function drawRoom(p: Plan, pts: readonly Point[]): Plan {
 }
 
 /** Убрать комнату (нарисовать заново): окна, двери и метки на стенах уходят вместе со стенами */
-export const clearRoom = (p: Plan): Plan => dropOrphans({ ...p, room: { walls: [], height: p.room.height } });
+export const clearRoom = (p: Plan): Plan => dropOrphans({ ...p, room: { walls: [], height: p.room.height }, annexes: [] });
 
 /** Заготовка: прямоугольник 10 × 6 м, дальше — как раньше (L, W, h) */
 export const rectTemplate = (p: Plan): Plan => dropOrphans({ ...p, room: { ...createRectRoom(10_000, 6_000, p.room.height.mm), height: p.room.height } });
@@ -285,14 +288,10 @@ export function setWallLength(p: Plan, wallId: string, mm: Mm): Plan {
   const w = p.room.walls[i];
   if (!w || mm <= 0) return p;
   if (isRect(p.room)) return setRoomSize(p, w.id === 'A' || w.id === 'B' ? { L: mm } : { W: mm });
-  const len = wallLength(w), d = mm - len;
-  if (!len || !d) return p;
-  const ux = (w.b.x - w.a.x) / len, uy = (w.b.y - w.a.y) / len;
-  const cut = ((w.a.x + w.b.x) / 2) * ux + ((w.a.y + w.b.y) / 2) * uy;
-  const beyond = (x: Mm, y: Mm) => x * ux + y * uy > cut;
-  const shift = (pt: Point): Point => (beyond(pt.x, pt.y) ? { x: Math.round(pt.x + ux * d), y: Math.round(pt.y + uy * d) } : pt);
-  let q = withCorners(p, p.room.walls.map(k => shift(k.a)));
-  const sx = Math.round(ux * d), sy = Math.round(uy * d);
+  const st = stretchPts(p.room.walls, w, mm);
+  if (!st) return p;
+  const { beyond, dx: sx, dy: sy } = st;
+  let q = shiftAnnexes(withCorners(p, st.pts), beyond, sx, sy);
   const mv = <T extends { x: Dim; y: Dim }>(o: T): T => (beyond(o.x.mm, o.y.mm) && o.x.status === 'conditional' && o.y.status === 'conditional'
     ? { ...o, x: withMm(o.x, o.x.mm + sx), y: withMm(o.y, o.y.mm + sy) } : o);
   q = { ...q, items: q.items.map(mv), markers: q.markers.map(m => (m.place === 'floor' ? mv(m) : m)) };
@@ -302,15 +301,11 @@ export function setWallLength(p: Plan, wallId: string, mm: Mm): Plan {
 
 /** Стена замерена или условна */
 export function setWallStatus(p: Plan, wallId: string, isMeasured: boolean, method?: MeasureMethod): Plan {
-  return {
-    ...p,
-    room: {
-      ...p.room,
-      walls: p.room.walls.map(w => (w.id !== wallId ? w : {
-        ...w, length: isMeasured ? { mm: w.length.mm, status: 'measured', method: method ?? w.length.method ?? 'tape' } : { mm: w.length.mm, status: 'conditional' },
-      })),
-    },
-  };
+  const mark = (w: Wall): Wall => (w.id !== wallId ? w : {
+    ...w, length: isMeasured ? { mm: w.length.mm, status: 'measured', method: method ?? w.length.method ?? 'tape' } : { mm: w.length.mm, status: 'conditional' },
+  });
+  // стена основного помещения или соседнего (этап 12)
+  return { ...p, room: { ...p.room, walls: p.room.walls.map(mark) }, annexes: p.annexes.map(a => ({ ...a, walls: a.walls.map(mark) })) };
 }
 
 /** Передвинуть угол комнаты (мышью): две стены у угла меняют длину — она становится условной */
@@ -364,3 +359,97 @@ export function straightenRoom(p: Plan): Plan | null {
 
 /** Есть ли косые стены (не по горизонтали и не по вертикали) */
 export const hasSlanted = (p: Plan): boolean => p.room.walls.some(w => w.a.x !== w.b.x && w.a.y !== w.b.y);
+
+/** Такой стены нет (у нарисованной комнаты нет стены «A») — первая стена основного помещения */
+const wallOr = (p: Plan, id: string): string => (allWalls(p).some(w => w.id === id) ? id : p.room.walls[0]?.id ?? id);
+
+/* ——— соседние помещения (этап 12, формат 10) ——— */
+
+/** Все стены плана пола: основного помещения и соседних */
+export const allWalls = (p: Plan): Wall[] => [...p.room.walls, ...p.annexes.flatMap(a => a.walls)];
+
+/** Площадь многоугольника, мм² */
+const area = (pts: readonly Point[]) => Math.abs(signedArea2(pts)) / 2;
+
+export type AnnexResult = { ok: true; plan: Plan } | { ok: false; why: 'apart' | 'overlap' | 'slanted' | 'hole' };
+
+/**
+ * Соседнее помещение из прямоугольника: должно касаться основного (или другого соседнего) стороной
+ * и не заходить внутрь. Координаты пола не сдвигаются.
+ */
+export function addAnnex(p: Plan, id: string, pts: readonly Point[], name = ''): AnnexResult {
+  const polys = [roomCorners(p.room), ...p.annexes.map(a => a.walls.map(w => w.a))].filter(q => q.length);
+  const u = unionOrtho([...polys, pts]);
+  if (!u.ok) return { ok: false, why: u.why };
+  // заходит внутрь — площадь объединения меньше суммы
+  if (Math.abs(area(u.pts) - polys.reduce((s, q) => s + area(q), 0) - area(pts)) > 1) return { ok: false, why: 'overlap' };
+  const walls = polygonWalls(pts, false).map(w => ({ ...w, id: `${id}-${w.id}` }));
+  return { ok: true, plan: { ...p, annexes: [...p.annexes, { id, name, walls }] } };
+}
+
+export const renameAnnex = (p: Plan, id: string, name: string): Plan =>
+  ({ ...p, annexes: p.annexes.map(a => (a.id === id ? { ...a, name } : a)) });
+
+/** Убрать соседнее помещение: окна и двери на его стенах уходят вместе с ним */
+export function removeAnnex(p: Plan, id: string): Plan {
+  const gone = new Set(p.annexes.find(a => a.id === id)?.walls.map(w => w.id) ?? []);
+  return { ...p, annexes: p.annexes.filter(a => a.id !== id), wallItems: p.wallItems.filter(it => !gone.has(it.wallId)), markers: p.markers.filter(m => m.place === 'floor' || !gone.has(m.wallId)) };
+}
+
+/**
+ * Новая длина стены соседнего помещения: растягивается только оно (как у основного —
+ * по линии через середину стены).
+ */
+export function setAnnexWallLength(p: Plan, wallId: string, mm: Mm): Plan {
+  return {
+    ...p,
+    annexes: p.annexes.map(a => {
+      const w = a.walls.find(k => k.id === wallId);
+      if (!w || mm <= 0) return a;
+      const st = stretchPts(a.walls, w, mm);
+      if (!st) return a;
+      const walls = a.walls.map((k, i) => {
+        const aa = st.pts[i]!, bb = st.pts[(i + 1) % st.pts.length]!, len = Math.round(Math.hypot(bb.x - aa.x, bb.y - aa.y));
+        return { ...k, a: aa, b: bb, length: k.id === wallId ? withMm(k.length, mm) : len === k.length.mm ? k.length : cond(len) };
+      });
+      return { ...a, walls };
+    }),
+  };
+}
+
+/** Сделать основным: его стены разворачиваются, прежнее основное становится соседним */
+export function makeMain(p: Plan, id: string): Plan {
+  const a = p.annexes.find(x => x.id === id);
+  if (!a || !p.room.walls.length) return p;
+  const old = { id: 'main-' + id, name: '', walls: p.room.walls };
+  return { ...p, room: { ...p.room, walls: a.walls }, annexes: [...p.annexes.filter(x => x.id !== id), old] };
+}
+
+/** Углы после растяжения по линии через середину стены w (общее для основного и соседних) */
+function stretchPts(walls: readonly Wall[], w: Wall, mm: Mm): { pts: Point[]; beyond: (x: Mm, y: Mm) => boolean; dx: Mm; dy: Mm } | null {
+  const len = wallLength(w), d = mm - len;
+  if (!len || !d) return null;
+  const ux = (w.b.x - w.a.x) / len, uy = (w.b.y - w.a.y) / len;
+  const cut = ((w.a.x + w.b.x) / 2) * ux + ((w.a.y + w.b.y) / 2) * uy;
+  const beyond = (x: Mm, y: Mm) => x * ux + y * uy > cut;
+  const dx = Math.round(ux * d), dy = Math.round(uy * d);
+  return { pts: walls.map(k => (beyond(k.a.x, k.a.y) ? { x: k.a.x + dx, y: k.a.y + dy } : k.a)), beyond, dx, dy };
+}
+
+/** Соседние помещения за линией растяжения основного сдвигаются вместе с ним — перегородки остаются на местах */
+function shiftAnnexes(p: Plan, beyond: (x: Mm, y: Mm) => boolean, dx: Mm, dy: Mm): Plan {
+  if (!p.annexes.length) return p;
+  return {
+    ...p,
+    annexes: p.annexes.map(a => {
+      const pts = a.walls.map(k => (beyond(k.a.x, k.a.y) ? { x: k.a.x + dx, y: k.a.y + dy } : k.a));
+      return {
+        ...a,
+        walls: a.walls.map((k, i) => {
+          const aa = pts[i]!, bb = pts[(i + 1) % pts.length]!, len = Math.round(Math.hypot(bb.x - aa.x, bb.y - aa.y));
+          return { ...k, a: aa, b: bb, length: len === k.length.mm ? k.length : cond(len) };
+        }),
+      };
+    }),
+  };
+}
