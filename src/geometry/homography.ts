@@ -76,3 +76,10 @@ export function orderQuad(q: readonly Pt2[]): Pt2[] {
   byAngle.forEach((p, i) => { if (p.x + p.y < byAngle[first]!.x + byAngle[first]!.y) first = i; });
   return [...byAngle.slice(first), ...byAngle.slice(0, first)];
 }
+
+/**
+ * Углы из окна «Выпрямить»: когда отмечены все четыре — всегда по порядку «вверху слева …».
+ * Обход по кругу, начатый не с левого верхнего угла, тоже даёт правильный четырёхугольник,
+ * но кадр вышел бы повёрнутым (верх кадра — всегда потолок).
+ */
+export const tidyQuad = <T extends Pt2>(q: readonly T[]): T[] => (q.length === 4 ? orderQuad(q) as T[] : [...q]);

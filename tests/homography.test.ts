@@ -1,6 +1,6 @@
 // Этап 9: гомография на известных точках.
 import { describe, expect, test } from 'vitest';
-import { applyH, homography, orderQuad, quadOk, type Pt2 } from '../src/geometry/homography';
+import { applyH, homography, orderQuad, quadOk, tidyQuad, type Pt2 } from '../src/geometry/homography';
 import { outSize, warp } from '../src/photos/rectify';
 
 const near = (p: Pt2, q: Pt2, digits = 6) => { expect(p.x).toBeCloseTo(q.x, digits); expect(p.y).toBeCloseTo(q.y, digits); };
@@ -86,5 +86,18 @@ describe('порядок углов', () => {
   test.each([[0, 1, 2, 3], [2, 0, 3, 1], [3, 2, 1, 0], [1, 3, 0, 2]])('отмечены в порядке %i %i %i %i', (...idx) => {
     expect(orderQuad(idx.map(i => ok[i]!))).toEqual(ok);
     expect(quadOk(orderQuad(idx.map(i => ok[i]!)))).toBe(true);
+  });
+});
+
+describe('углы из окна «Выпрямить» (исправлено в 0.11.1)', () => {
+  const ok: Pt2[] = [{ x: 0.1, y: 0.15 }, { x: 0.92, y: 0.25 }, { x: 0.9, y: 0.8 }, { x: 0.12, y: 0.9 }];
+  test.each([[3, 0, 1, 2], [1, 2, 3, 0], [2, 3, 0, 1]])('по кругу, начиная не с левого верхнего: %i %i %i %i', (...idx) => {
+    const q = idx.map(i => ok[i]!);
+    // такой обход — правильный четырёхугольник, раньше он оставался как есть и кадр поворачивался
+    expect(quadOk(q)).toBe(true);
+    expect(tidyQuad(q)).toEqual(ok);
+  });
+  test('меньше четырёх — как есть', () => {
+    expect(tidyQuad(ok.slice(0, 3))).toEqual(ok.slice(0, 3));
   });
 });

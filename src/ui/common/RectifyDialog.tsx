@@ -7,7 +7,7 @@ import { wallsByLetter, findWall, wallLength, rectSize } from '../../model/room'
 import { uid } from '../../model/state';
 import { cond, formatMeters, parseLength } from '../../model/units';
 import { applyScaleFix, frameAspect, frameSpan, photoScale } from '../../model/wallPhotos';
-import { orderQuad, quadOk } from '../../geometry/homography';
+import { quadOk, tidyQuad } from '../../geometry/homography';
 import type { WorkImage } from '../../photos/rectify';
 import { dispatch, plan, toast } from '../store';
 import { Len } from './fields';
@@ -148,7 +148,8 @@ export function RectifyDialog() {
     if (!req) return;
     const ex = req.wpId ? plan.value.wallPhotos.find(w => w.id === req.wpId) : undefined;
     const photo = plan.value.photos.find(x => x.id === req.photoId);
-    setPts(ex?.quad ?? []);
+    // кадры, выпрямленные до 0.11.1, могли лечь повёрнутыми — «Готово» сохранит углы по порядку
+    setPts(tidyQuad(ex?.quad ?? []));
     setWallId(ex?.wallId ?? req.wallId ?? (photo?.link.kind === 'wall' ? photo.link.wallId : 'A'));
     setLeft(ex?.left ?? { kind: 'corner' });
     setRight(ex?.right ?? { kind: 'corner' });
@@ -168,7 +169,7 @@ export function RectifyDialog() {
   const spanOk = !!frameSpan(p, draft);
   const ready = pts.length === 4 && quadOk(pts) && spanOk;
 
-  const onPts = (q: PhotoPt[]) => setPts(q.length === 4 && !quadOk(q) ? orderQuad(q) : q);
+  const onPts = (q: PhotoPt[]) => setPts(tidyQuad(q));
 
   const save = (toScale: boolean) => {
     if (!ready) return;
