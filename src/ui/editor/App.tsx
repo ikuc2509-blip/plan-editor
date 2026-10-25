@@ -20,7 +20,7 @@ import { BIG_PROJECT, formatSize } from '../../photos/meta';
 import { photosBytes } from '../photos';
 import { Side } from './Side';
 import { PRINT_HINT, Sheet, ZOOM_MAX, ZOOM_MIN } from './Sheet';
-import { setMode } from '../mode';
+import { fullMode, setFull, setMode } from '../mode';
 import { traceTap, tracing } from '../trace';
 
 const fname = (ext: string): string => {
@@ -111,6 +111,8 @@ export function App() {
       <header>
         <h1><span class="dot">1</span><span class="t-full">План места происшествия</span><span class="t-short" aria-hidden="true">План ОМП</span></h1>
         <button class="ghost" title="Пошаговый режим для телефона" onClick={() => setMode('onsite')}>На месте</button>
+        <button class="ghost" aria-pressed={fullMode.value} title={fullMode.value ? 'Сейчас полный режим: снимки на стенах, выпрямление, распознавание, подложка. Нажмите — простой' : 'Сейчас простой режим. Нажмите — полный: снимки на стенах, выпрямление, распознавание, подложка'}
+          onClick={() => setFull(!fullMode.value)}>{fullMode.value ? 'Полный' : 'Простой'}</button>
         <SaveStatus />
         {plan.value.photos.length > 0 && (
           <span class={'weight' + (photosBytes.value > BIG_PROJECT ? ' big' : '')} title="Снимки проекта; больше 500 МБ — файл переносить и сохранять медленно">
@@ -123,7 +125,7 @@ export function App() {
         <button class="ghost" title="Уменьшить" onClick={() => { zoom.value = Math.max(ZOOM_MIN, zoom.value / 1.25); }}>−</button>
         <button class="ghost" onClick={() => { zoom.value = 1; }}>По размеру</button>
         <button class="ghost" title="Увеличить" onClick={() => { zoom.value = Math.min(ZOOM_MAX, zoom.value * 1.25); }}>+</button>
-        <label class="gridsel" title="Привязка к сетке при перетаскивании; Alt — без привязки">Сетка
+        <label class="gridsel" title="Привязка к сетке при перетаскивании; Alt — без привязки"><span class="gl">Сетка</span>
           <select value={gridStep.value} onChange={e => { gridStep.value = +e.currentTarget.value; }}>
             {GRID_STEPS.map(v => <option key={v} value={v}>{GRID_NAMES[v]}</option>)}
           </select>

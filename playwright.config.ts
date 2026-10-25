@@ -4,8 +4,9 @@ import { defineConfig, devices } from '@playwright/test';
 
 const PORT = 5180;
 
-/** окно «С чего начать» уже видели — в сценариях оно не мешает (само окно — e2e/start.spec.ts) */
-const welcomed = { cookies: [], origins: [{ origin: `http://localhost:${PORT}`, localStorage: [{ name: 'plan-editor:pref:welcomed', value: 'true' }] }] };
+/** окно «С чего начать» уже видели, режим — полный: сценарии проверяют все инструменты (простой режим и само окно — e2e/start.spec.ts) */
+const pref = (full: boolean) => ({ cookies: [], origins: [{ origin: `http://localhost:${PORT}`, localStorage: [{ name: 'plan-editor:pref:welcomed', value: 'true' }, { name: 'plan-editor:pref:full', value: String(full) }] }] });
+const welcomed = pref(true);
 
 export default defineConfig({
   testDir: 'e2e',

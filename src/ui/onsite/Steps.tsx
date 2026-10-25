@@ -21,6 +21,7 @@ import { schematicView } from '../editor/Sheet';
 import { TraceBar, WallPhotosList } from '../common/WallPhotos';
 import { placing, step, today } from './state';
 import { openWelcome } from '../common/Welcome';
+import { fullMode, setFull } from '../mode';
 import { northArrow } from '../../geometry/compass';
 import { compassSupported, readHeading } from './compass';
 
@@ -63,6 +64,8 @@ export function RoomStep() {
       </div>
       <Hint style="margin-top:8px" text="Не замерили — впишите на глаз: на схеме будет пустая строка «____ м».">Это только пропорции. Замер — нажмите «условно» над полем. «125 см» тоже можно.</Hint>
       <NorthField />
+      <h3>Режим</h3>
+      <Check label="Полный режим: снимки на стенах, выпрямление, компас" checked={fullMode.value} onValue={setFull} />
     </>
   );
 }
@@ -88,7 +91,7 @@ function NorthField() {
       <h3>Север</h3>
       <div class="grid two">
         <Text label="Север, градусы" value={plan.value.north} placeholder="пусто — вписать от руки" onValue={v => dispatch(p => A.setNorth(p, v), 'north')} />
-        {compassSupported() && <button style="margin-top:18px" disabled={busy} onClick={() => void byCompass()}>{busy ? 'Слушаю компас…' : 'По компасу'}</button>}
+        {fullMode.value && compassSupported() && <button style="margin-top:18px" disabled={busy} onClick={() => void byCompass()}>{busy ? 'Слушаю компас…' : 'По компасу'}</button>}
       </div>
       <Hint text="«По компасу»: телефон экраном вверх, верхним краем к стене А.">Встаньте в помещении лицом к стене А и держите телефон ровно полторы секунды. 0° — стена А на севере, 90° — север справа на листе. Компас телефона ошибается на 5–10°, рядом с металлом — сильнее.</Hint>
     </>
@@ -127,7 +130,7 @@ export function OpeningsStep() {
       <div class="row">
         {ADD_WI.map(([t, label]) => <button key={t} onClick={() => add(t)}>{label}</button>)}
       </div>
-      <TraceBar />
+      {fullMode.value && <TraceBar />}
       {onWall.length === 0 && <p class="hint">На этой стене пока ничего нет.</p>}
       {onWall.length > 0 && (
         <div class="os-pick" role="group" aria-label="Что на стене">
@@ -140,8 +143,12 @@ export function OpeningsStep() {
       )}
       {cur && cur.wallId === wall && <WallItemCard it={cur} walls={wallOpts(st)} />}
       {!cur && onWall.length > 0 && <p class="hint">Нажмите на проём выше или на плане, чтобы поправить размеры.</p>}
-      <h3>Снимки на этой стене</h3>
-      <WallPhotosList wallId={wall} />
+      {fullMode.value && (
+        <>
+          <h3>Снимки на этой стене</h3>
+          <WallPhotosList wallId={wall} />
+        </>
+      )}
     </>
   );
 }

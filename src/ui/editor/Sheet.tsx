@@ -14,6 +14,7 @@ import { openMeasure } from '../common/MeasureDialog';
 import { wallImages } from '../rectify';
 import { pickSuggestion, suggSel, suggestions } from '../recognize';
 import { suggestSvg } from '../common/Suggestions';
+import { fullMode } from '../mode';
 
 const TAB_FOR: Record<SelKind, TabKey> = { wi: 'walls', it: 'items', mk: 'markers', co: 'callouts' };
 const COL = { wi: 'wallItems', it: 'items', mk: 'markers', co: 'callouts' } as const;
@@ -301,7 +302,7 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
-        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true, touch: onsite, wallImages: wallImages.value }) + (onsite ? '' : suggestSvg(shown, suggestions.value, suggSel.value)) + markSvg(shown, mark) }}
+        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true, touch: onsite, wallImages: fullMode.value ? wallImages.value : undefined }) + (onsite || !fullMode.value ? '' : suggestSvg(shown, suggestions.value, suggSel.value)) + markSvg(shown, mark) }}
       />
       {!onsite && (
         <>

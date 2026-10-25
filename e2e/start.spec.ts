@@ -80,3 +80,24 @@ test('кнопка «экран не гаснет» в шапке, по умол
   await page.reload();
   await expect(page.getByRole('button', { name: 'Экран не гаснет' })).toHaveAttribute('aria-pressed', 'false');
 });
+
+test.describe('простой режим', () => {
+  test.use({ storageState: { cookies: [], origins: [{ origin: 'http://localhost:5180', localStorage: [{ name: 'plan-editor:pref:welcomed', value: 'true' }] }] } });
+
+  test('по умолчанию простой: нет снимков на стенах, обводки, компаса; включается галочкой', async ({ page }) => {
+    await page.goto('/');
+    const nav = (name: string) => page.getByRole('navigation', { name: 'Шаги осмотра' }).getByRole('button', { name });
+    await nav('Помещение').click();
+    await expect(page.getByLabel('Север, градусы')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'По компасу' })).toHaveCount(0);
+    await nav('Проёмы').click();
+    await expect(page.getByText('Обвести по снимку:')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Снимки на этой стене' })).toHaveCount(0);
+
+    await nav('Помещение').click();
+    await page.getByLabel(/Полный режим/).check();
+    await expect(page.getByRole('button', { name: 'По компасу' })).toBeVisible();
+    await nav('Проёмы').click();
+    await expect(page.getByText('Обвести по снимку:')).toBeVisible();
+  });
+});

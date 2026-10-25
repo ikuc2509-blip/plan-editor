@@ -256,3 +256,8 @@ header h1 .t-short{display:none}
   header h1 .t-short{display:inline}
   header{gap:8px}
 }
+@media (max-width:1400px){
+  header{gap:6px}
+  header .gridsel .gl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  header button{padding:6px 9px}
+}
