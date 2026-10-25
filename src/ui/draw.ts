@@ -92,7 +92,7 @@ export const cancelShape = (): void => { shaping.value = null; };
 const WHY = {
   apart: 'Прямоугольник должен касаться комнаты стороной',
   hole: 'Получилась комната с дырой или касание углом — так нельзя',
-  slanted: 'У комнаты есть косые стены — пристроить прямоугольник нельзя, нарисуйте комнату заново по углам',
+  slanted: 'У комнаты есть косые стены — нажмите «Выровнять стены» и пристройте ещё раз',
 } as const;
 
 /** Прямоугольник по двум углам: новая комната или пристройка к нарисованной */
@@ -111,3 +111,26 @@ export function applyShape(a: Point, b: Point): void {
 
 /** угол прямоугольника — по сетке */
 export const shapeCorner = (raw: Point): Point => { const st = Math.max(10, gridStep.value); return { x: Math.round(raw.x / st) * st, y: Math.round(raw.y / st) * st }; };
+
+/** «Выровнять стены»: косые — по горизонтали и вертикали; сливаются — окна и двери на них уберутся */
+export function straighten(): void {
+  const p = plan.value, q = A.straightenRoom(p);
+  if (!q) { toast('Выровнять нельзя: нужно хотя бы четыре стены, примерно по горизонтали и вертикали'); return; }
+  const lost = p.wallItems.length - q.wallItems.length + p.markers.length - q.markers.length;
+  if (lost > 0 && !confirm(`Несколько стен сольются в одну: окна, двери и метки на них (${lost}) уберутся. Продолжить? Отменить можно кнопкой ↶.`)) return;
+  dispatch(() => q);
+  toast('Стены выровнены по прямым углам. Изменившиеся длины — «условно»');
+}
+
+/** Угол, который тянут, прилипает к линиям соседних углов — косые стены не получатся случайно */
+export function cornerSnap(i: number, pt: Point, tol: number): Point {
+  const ws = plan.value.room.walls, n = ws.length;
+  if (!n) return pt;
+  const prev = ws[(i - 1 + n) % n]!.a, next = ws[(i + 1) % n]!.a;
+  let { x, y } = pt;
+  for (const q of [prev, next]) {
+    if (Math.abs(x - q.x) <= tol) x = q.x;
+    if (Math.abs(y - q.y) <= tol) y = q.y;
+  }
+  return { x, y };
+}

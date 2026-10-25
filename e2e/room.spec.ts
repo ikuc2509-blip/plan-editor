@@ -89,3 +89,30 @@ test('фигуры: прямоугольник, к нему пристроен �
   await expect(page.locator('#toast')).toContainText('должен касаться комнаты');
   await expect(page.getByRole('textbox', { name: /^Стена Е, м/ })).toHaveValue('4');
 });
+
+test('выровнять стены: углы стащили вкось — кнопка возвращает прямые углы', async ({ page }) => {
+  page.on('dialog', d => void d.accept());
+  await page.setViewportSize({ width: 1400, height: 1100 });
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Помещение', exact: true }).click();
+  await page.getByRole('button', { name: 'Пустой план' }).click();
+  const sheet = page.getByTestId('sheet');
+  await page.getByRole('button', { name: 'Прямоугольником' }).first().click();
+  const box = (await sheet.boundingBox())!, p = await at(page, -3, -2), q = await at(page, 3, 2);
+  await page.mouse.move(box.x + p.x, box.y + p.y); await page.mouse.down();
+  await page.mouse.move(box.x + q.x, box.y + q.y); await page.mouse.up();
+  await expect(page.getByRole('button', { name: 'Выровнять стены' })).toHaveCount(0);
+  // угол 2 — вкось, с Alt (без прилипания к соседям)
+  const c = (await sheet.locator('[data-corner="2"]').boundingBox())!;
+  await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2);
+  await page.keyboard.down('Alt');
+  await page.mouse.down();
+  await page.mouse.move(c.x + 40, c.y + 25, { steps: 4 });
+  await page.mouse.up();
+  await page.keyboard.up('Alt');
+  await page.getByRole('button', { name: 'Выровнять стены' }).click();
+  await expect(page.locator('#toast')).toContainText('Стены выровнены');
+  await expect(page.getByRole('button', { name: 'Выровнять стены' })).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: /^Стена Г, м/ })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: /^Стена Д, м/ })).toHaveCount(0);
+});

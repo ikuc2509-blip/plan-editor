@@ -7,7 +7,8 @@ import { StatusChip, openMeasure } from '../common/MeasureDialog';
 import { IT_TYPES, WI_TYPES } from '../../model/labels';
 import { example, uid, emptyPlan } from '../../model/state';
 import { noRoom, rectSizeOf, wallsByLetter } from '../../model/room';
-import { drawing, redrawRoom, shaping, startDraw, startShape, takeTemplate } from '../draw';
+import { drawing, redrawRoom, shaping, startDraw, startShape, straighten, takeTemplate } from '../draw';
+import { hasSlanted } from '../../model/actions';
 import { parseLength } from '../../model/units';
 import * as A from '../../model/actions';
 import { SCALES, fitsAt, smallerScaleThatFits } from '../../geometry/unfold';
@@ -186,6 +187,7 @@ export function RoomShape() {
   }
   return (
     <div class="row" style="margin:10px 0 0">
+      {hasSlanted(st) && <button class="primary" onClick={straighten}>Выровнять стены</button>}
       <button onClick={startShape}>Пристроить прямоугольник</button>
       <button class="ghost" onClick={redrawRoom}>Нарисовать комнату заново</button>
     </div>

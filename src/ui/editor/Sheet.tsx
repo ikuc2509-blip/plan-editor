@@ -15,7 +15,7 @@ import { wallImages } from '../rectify';
 import { pickSuggestion, suggSel, suggestions } from '../recognize';
 import { suggestSvg } from '../common/Suggestions';
 import { fullMode } from '../mode';
-import { addCorner, applyShape, cancelDraw, cancelShape, cornerAt, drawHover, drawing, finishDraw, shapeCorner, shaping, startDraw, startShape, takeTemplate, undoCorner } from '../draw';
+import { addCorner, applyShape, cornerSnap, cancelDraw, cancelShape, cornerAt, drawHover, drawing, finishDraw, shapeCorner, shaping, startDraw, startShape, takeTemplate, undoCorner } from '../draw';
 import { isRect, noRoom } from '../../model/room';
 import { fmt } from '../../render/svg';
 
@@ -278,7 +278,9 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
     }
     if (d.mode === 'corner') {
       const f = floorMm(p), st = e.altKey ? 10 : Math.max(10, gridStep.value);
-      dispatch(pl => moveCorner(pl, d.corner!, { x: Math.round(f.x / st) * st, y: Math.round(f.y / st) * st }), d.key);
+      const raw = { x: Math.round(f.x / st) * st, y: Math.round(f.y / st) * st };
+      // Alt — без привязки к соседним углам
+      dispatch(pl => moveCorner(pl, d.corner!, e.altKey ? raw : cornerSnap(d.corner!, raw, f.tol)), d.key);
       return;
     }
     if (d.mode === 'rot') {
