@@ -36,6 +36,10 @@ export interface Geom {
   /** помещается ли развёртка в область чертежа */
   fits: boolean;
   segs: Seg[];
+  /** стены соседних помещений — только на плане пола, без развёрток (этап 12) */
+  annexSegs: Seg[][];
+  /** стены-перегородки основного помещения: к ним примыкает соседнее — развёртка легла бы на его пол */
+  noUnfold: ReadonlySet<string>;
 }
 
 /** Прямоугольник на листе, мм */
@@ -67,42 +71,68 @@ export function toSeg(w: Wall): Seg {
   return { wall: w, ax, ay, len, ux, uy, nx, ny, side: sideOf(nx, ny) };
 }
 
-/** Габарит развёртки, м: пол плюс высота стены во все стороны */
-function unfoldedSize(room: Room) {
+/** Стены соседних помещений (у них свои стены, высота — общая) */
+type Annexes = readonly { walls: Wall[] }[];
+
+/** Габарит развёртки, м: пол плюс высота стены во все стороны; соседние помещения — без развёрток */
+function unfoldedSize(room: Room, annexes: Annexes = []) {
   const e = roomExtent(room);
   const h = toM(room.height.mm);
-  const minX = toM(e.minX) - h, maxX = toM(e.maxX) + h, minY = toM(e.minY) - h, maxY = toM(e.maxY) + h;
+  let minX = toM(e.minX) - h, maxX = toM(e.maxX) + h, minY = toM(e.minY) - h, maxY = toM(e.maxY) + h;
+  for (const a of annexes) {
+    for (const w of a.walls) {
+      minX = Math.min(minX, toM(w.a.x)); maxX = Math.max(maxX, toM(w.a.x));
+      minY = Math.min(minY, toM(w.a.y)); maxY = Math.max(maxY, toM(w.a.y));
+    }
+  }
   return { e, h, minX, minY, totW: maxX - minX, totH: maxY - minY };
 }
 
 /** Помещается ли развёртка в область листа в масштабе 1:scale */
-export function fitsAt(room: Room, area: Area, scale: number): boolean {
-  const { totW, totH } = unfoldedSize(room), s = 1000 / scale;
+export function fitsAt(room: Room, area: Area, scale: number, annexes: Annexes = []): boolean {
+  const { totW, totH } = unfoldedSize(room, annexes), s = 1000 / scale;
   return totW * s <= area.w - 2 * PAD + 0.01 && totH * s <= area.h - 2 * PAD + 0.01;
 }
 
 /** Ближайший более мелкий масштаб, в котором план помещается; null — не помещается ни в каком */
-export function smallerScaleThatFits(room: Room, area: Area, scale: number): number | null {
-  return SCALES.find(k => k > scale && fitsAt(room, area, k)) ?? null;
+export function smallerScaleThatFits(room: Room, area: Area, scale: number, annexes: Annexes = []): number | null {
+  return SCALES.find(k => k > scale && fitsAt(room, area, k, annexes)) ?? null;
 }
 
-export function geom(room: Room, sheet: SheetOptions, area: Area): Geom {
+export function geom(room: Room, sheet: SheetOptions, area: Area, annexes: Annexes = []): Geom {
   const segs = room.walls.map(toSeg);
+  const annexSegs = annexes.map(a => a.walls.map(toSeg));
   if (!segs.length) {
     // чистый лист (этап 12): масштаб для рисования — 1:100 (или масштаб листа), начало координат — середина чертежа
     const k = 1000 / (sheet.mode === 'scale' ? sheet.scale : 100);
-    return { L: 0, W: 0, h: toM(room.height.mm), s: k, fx: area.x + area.w / 2, fy: area.y + area.h / 2, fits: true, segs };
+    return { L: 0, W: 0, h: toM(room.height.mm), s: k, fx: area.x + area.w / 2, fy: area.y + area.h / 2, fits: true, segs, annexSegs, noUnfold: new Set() };
   }
-  const { e, h, minX, minY, totW, totH } = unfoldedSize(room);
+  const { e, h, minX, minY, totW, totH } = unfoldedSize(room, annexes);
   const pad = PAD;
   const s = sheet.mode === 'scale' ? 1000 / sheet.scale : Math.min((area.w - 2 * pad) / totW, (area.h - 2 * pad) / totH);
   const fits = totW * s <= area.w - 2 * pad + 0.01 && totH * s <= area.h - 2 * pad + 0.01;
   const fx = area.x + (area.w - totW * s) / 2 - minX * s, fy = area.y + (area.h - totH * s) / 2 - minY * s;
-  return { L: toM(e.maxX - e.minX), W: toM(e.maxY - e.minY), h, s, fx, fy, fits, segs };
+  const noUnfold = new Set(segs.filter(sg => annexSegs.some(a => a.some(o => touches(sg, o)))).map(sg => sg.wall.id));
+  return { L: toM(e.maxX - e.minX), W: toM(e.maxY - e.minY), h, s, fx, fy, fits, segs, annexSegs, noUnfold };
 }
 
+/** Стена основного помещения с развёрткой; у перегородки к соседнему помещению развёртки нет */
 export function segOf(g: Geom, wallId: string): Seg | undefined {
-  return g.segs.find(sg => sg.wall.id === wallId);
+  return g.noUnfold.has(wallId) ? undefined : g.segs.find(sg => sg.wall.id === wallId);
+}
+
+/** Две стены на одной линии и перекрываются по длине — общая стена-перегородка */
+function touches(a: Seg, b: Seg): boolean {
+  const cross = (x: number, y: number) => a.ux * (y - a.ay) - a.uy * (x - a.ax);
+  const bx = b.ax + b.ux * b.len, by = b.ay + b.uy * b.len;
+  if (Math.abs(cross(b.ax, b.ay)) > 1e-3 || Math.abs(cross(bx, by)) > 1e-3) return false;
+  const t1 = (b.ax - a.ax) * a.ux + (b.ay - a.ay) * a.uy, t2 = (bx - a.ax) * a.ux + (by - a.ay) * a.uy;
+  return Math.min(a.len, Math.max(t1, t2)) - Math.max(0, Math.min(t1, t2)) > 1e-3;
+}
+
+/** Стена на плане пола: основного помещения или соседнего (окна и двери рисуются и там) */
+export function planSegOf(g: Geom, wallId: string): Seg | undefined {
+  return [...g.segs, ...g.annexSegs.flat()].find(sg => sg.wall.id === wallId);
 }
 
 /** Точка пола (м) → лист */
@@ -161,8 +191,9 @@ function inFloor(segs: Seg[], x: number, y: number): boolean {
 export function locate(g: Geom, px: number, py: number): Spot | null {
   const x = (px - g.fx) / g.s, y = (py - g.fy) / g.s;
   const mm = (m: number) => Math.round(m * 1000);
-  if (inFloor(g.segs, x, y)) return { place: 'floor', x: mm(x), y: mm(y) };
+  if (inFloor(g.segs, x, y) || g.annexSegs.some(a => inFloor(a, x, y))) return { place: 'floor', x: mm(x), y: mm(y) };
   for (const sg of g.segs) {
+    if (g.noUnfold.has(sg.wall.id)) continue;
     const o = unf(g, sg, 0, 0);
     const [off, z] = wallDelta(sg, px - o[0], py - o[1], g.s);
     if (off >= 0 && off <= sg.len && z >= 0 && z <= g.h) return { place: 'wall', wallId: sg.wall.id, off: mm(off), z: mm(z) };

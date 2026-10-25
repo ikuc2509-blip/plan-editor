@@ -15,8 +15,10 @@ export type PlanV1 = Omit<PlanV3, 'version' | 'sheet'> & {
   sheet: { mode: 'schematic' | 'scale'; scale: number; showDims: boolean; showTies: boolean };
 };
 
+/** Формат версии 9 (этап 12): без соседних помещений */
+export type PlanV9 = Omit<Plan, 'version' | 'annexes'> & { version: 9 };
 /** Формат версии 8 (этап 11): как версия 9, только помещение — всегда прямоугольник */
-export type PlanV8 = Omit<Plan, 'version'> & { version: 8 };
+export type PlanV8 = Omit<PlanV9, 'version'> & { version: 8 };
 /** Формат версии 7 (этап 10): как версия 8, только без новых видов мебели и контура тела */
 export type PlanV7 = Omit<PlanV8, 'version'> & { version: 7 };
 /** Формат версии 6 (этап 9): как версия 7, только у объектов нет пометки «предложено моделью» */
@@ -42,6 +44,7 @@ const UPGRADES: Record<number, (o: Record<string, unknown>) => Record<string, un
   6: o => v6to7(o as unknown as PlanV6) as unknown as Record<string, unknown>,
   7: o => v7to8(o as unknown as PlanV7) as unknown as Record<string, unknown>,
   8: o => v8to9(o as unknown as PlanV8) as unknown as Record<string, unknown>,
+  9: o => v9to10(o as unknown as PlanV9) as unknown as Record<string, unknown>,
 };
 
 /** Распознать сохранённый план и привести к текущей версии формата */
@@ -117,8 +120,13 @@ export function v7to8(p: PlanV7): PlanV8 {
 }
 
 /** 8 → 9: прямоугольник остаётся прямоугольником; новое — только чистый лист и нарисованные комнаты */
-export function v8to9(p: PlanV8): Plan {
+export function v8to9(p: PlanV8): PlanV9 {
   return { ...p, version: 9 };
+}
+
+/** 9 → 10: соседних помещений ещё нет */
+export function v9to10(p: PlanV9): Plan {
+  return { ...p, version: 10, annexes: [] };
 }
 
 function checkShape(o: Record<string, unknown>): boolean {

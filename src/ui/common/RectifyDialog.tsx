@@ -150,7 +150,7 @@ export function RectifyDialog() {
     const photo = plan.value.photos.find(x => x.id === req.photoId);
     // кадры, выпрямленные до 0.11.1, могли лечь повёрнутыми — «Готово» сохранит углы по порядку
     setPts(tidyQuad(ex?.quad ?? []));
-    setWallId(ex?.wallId ?? req.wallId ?? (photo?.link.kind === 'wall' ? photo.link.wallId : 'A'));
+    setWallId(ex?.wallId ?? req.wallId ?? (photo?.link.kind === 'wall' ? photo.link.wallId : plan.value.room.walls[0]?.id ?? 'A'));
     setLeft(ex?.left ?? { kind: 'corner' });
     setRight(ex?.right ?? { kind: 'corner' });
     setSeg([]); setKnown('');

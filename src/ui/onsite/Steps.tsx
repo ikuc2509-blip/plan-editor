@@ -15,7 +15,7 @@ import { dispatch, dirtySince, fileSavedAt, plan, protect, sel, toast } from '..
 import { Check, Hint, Len, Text } from '../common/fields';
 import { StatusChip } from '../common/MeasureDialog';
 import { openFile, saveToFile, setProtect } from '../project';
-import { MarkerCard, MeasurePanel, RoomShape, WallItemCard, WallLengths, newPlan, wallOpts } from '../editor/Side';
+import { AnnexList, MarkerCard, MeasurePanel, RoomShape, WallItemCard, WallLengths, newPlan, wallOpts } from '../editor/Side';
 import { PhotosPanel } from '../editor/PhotosPanel';
 import { schematicView } from '../editor/Sheet';
 import { TraceBar, WallPhotosList } from '../common/WallPhotos';
@@ -68,6 +68,7 @@ export function RoomStep() {
         </>
       )}
       {!size && !noRoom(st.room) && <WallLengths />}
+      <AnnexList />
       <Hint style="margin-top:8px" text="Не замерили — впишите на глаз: на схеме будет пустая строка «____ м».">Это только пропорции. Замер — нажмите «условно» над полем. «125 см» тоже можно.</Hint>
       <NorthField />
       <h3>Режим</h3>

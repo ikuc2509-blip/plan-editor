@@ -1,6 +1,6 @@
 {
  "format": "plan-editor",
- "version": 9,
+ "version": 10,
  "room": {
   "walls": [
    {
@@ -1411,5 +1411,6 @@
   "tape": "",
   "rangefinder": ""
  },
- "wallPhotos": []
+ "wallPhotos": [],
+ "annexes": []
 }
