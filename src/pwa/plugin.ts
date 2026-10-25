@@ -9,7 +9,8 @@ import { LIST_FILE, makeAppFiles } from './precache';
  */
 export const CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  // 'wasm-unsafe-eval' — запуск WebAssembly (движок распознавания, этап 10) из файлов приложения; сеть не открывает
+  "script-src 'self' 'wasm-unsafe-eval'",
   // атрибуты style= в листе и интерфейсе
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data:",
@@ -41,6 +42,9 @@ export function pwaPlugin(version: string): Plugin {
       },
     },
     generateBundle(_opts, bundle) {
+      // движок распознавания приходит в пакете по кнопке (этап 10); копию, которую сборка берёт
+      // из onnxruntime-web, убираем — иначе её качал бы при установке каждый телефон (28 МБ)
+      for (const k of Object.keys(bundle)) if (/(^|\/)ort-wasm[^/]*\.wasm$/.test(k)) delete bundle[k];
       const index = bundle['index.html'];
       if (!index || index.type !== 'asset') return this.error('В сборке нет index.html');
       const list = makeAppFiles(version, Object.keys(bundle), String(index.source));

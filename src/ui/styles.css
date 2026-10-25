@@ -218,3 +218,10 @@ dialog.rect::backdrop{background:#000}
 dialog.viewer .vw{position:relative;display:block;width:fit-content;margin:0 auto}
 dialog.viewer .vbox{position:absolute;border:3px solid #E2B007;box-shadow:0 0 0 2000px rgba(0,0,0,.35);pointer-events:none}
 .origin{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:var(--muted)}
+/* предложения модели (этап 10): свой цвет, ни с чем на листе не путается */
+.suggs{border-left:3px solid #7B3FBF;padding:0 0 4px 9px;margin:10px 0}
+.card.sugg{border-color:color-mix(in srgb,#7B3FBF 45%,var(--line));cursor:pointer}
+.card.sugg.sel{box-shadow:0 0 0 2px #7B3FBF}
+.cmp{flex:1;min-height:0;display:grid;grid-template-rows:1fr 1fr;gap:6px;padding:6px;background:#111}
+.cmp svg{width:100%;height:100%;min-height:0}
+.cmp .cmp-sheet{background:#3a3f42}

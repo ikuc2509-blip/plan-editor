@@ -59,10 +59,12 @@ describe('CSP', () => {
     expect(CSP).toContain("default-src 'self'");
     expect(CSP).not.toMatch(/https?:|\*|'unsafe-eval'/);
     const sources = CSP.split(';').flatMap(d => d.trim().split(/\s+/).slice(1));
-    for (const s of sources) expect(["'self'", "'none'", "'unsafe-inline'", 'data:', 'blob:']).toContain(s);
+    for (const s of sources) expect(["'self'", "'none'", "'unsafe-inline'", "'wasm-unsafe-eval'", 'data:', 'blob:']).toContain(s);
   });
   it('скрипты — только свои, без вставок в страницу', () => {
-    expect(CSP).toContain("script-src 'self'");
+    expect(CSP).toContain("script-src 'self' 'wasm-unsafe-eval'");
+    // eval для JavaScript по-прежнему запрещён; WebAssembly — только движок распознавания
+    expect(CSP.split(';').find(d => d.trim().startsWith('script-src'))).not.toContain('unsafe-inline');
     expect(CSP).toContain("object-src 'none'");
   });
 });

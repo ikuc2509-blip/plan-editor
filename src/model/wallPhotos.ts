@@ -98,3 +98,16 @@ export function applyScaleFix(p: Plan, wpId: string, fix: ScaleFix): Plan {
   if (fix.what === 'wall') return setRoomSize(p, wp.wallId === 'A' || wp.wallId === 'B' ? { L: fix.mm } : { W: fix.mm });
   return patch(p, 'wallPhotos', wpId, { [fix.what]: { kind: 'mark', off: cond(fix.mm) } });
 }
+
+/**
+ * Рамка на выпрямленном кадре (доли: x — слева направо по участку, y — от потолка вниз) →
+ * участок стены, мм, с точностью до сантиметра (этап 10, находки модели).
+ */
+export function wallRectOfFrame(p: Plan, wp: WallPhoto, b: { x0: number; y0: number; x1: number; y1: number }): { off: Mm; z: Mm; w: Mm; h: Mm } | null {
+  const s = frameSpan(p, wp), H = p.room.height.mm;
+  if (!s || H <= 0) return null;
+  const cm = (mm: number) => Math.round(mm / 10) * 10, span = s.to - s.from;
+  const off = cm(s.from + b.x0 * span), right = cm(s.from + b.x1 * span);
+  const z = cm(H * (1 - b.y1)), top = cm(H * (1 - b.y0));
+  return { off, z, w: right - off, h: top - z };
+}

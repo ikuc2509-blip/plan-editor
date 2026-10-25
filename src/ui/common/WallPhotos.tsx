@@ -11,8 +11,10 @@ import { startTrace, tracing } from '../trace';
 import { WI_TYPES } from '../../model/labels';
 import type { WallItemType } from '../../model/types';
 import { useEffect } from 'preact/hooks';
+import { RecognizeButtons } from './Suggestions';
 
-export function WallPhotosList({ wallId }: { wallId?: string }) {
+/** recognize — кнопки распознавания (только «Чистовик», этап 10) */
+export function WallPhotosList({ wallId, recognize }: { wallId?: string; recognize?: boolean }) {
   const p = plan.value;
   const order = wallsByLetter(p.room).map(w => w.id);
   const list = p.wallPhotos
@@ -44,6 +46,7 @@ export function WallPhotosList({ wallId }: { wallId?: string }) {
               <button onClick={() => openRectify(wp.photoId, { wpId: wp.id })}>Углы и края</button>
               <button onClick={() => openRectify(wp.photoId, { wpId: wp.id, scale: true })}>Масштаб по фото</button>
             </div>
+            {recognize && <RecognizeButtons wpId={wp.id} />}
           </div>
         );
       })}

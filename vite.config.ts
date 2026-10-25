@@ -18,6 +18,8 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: false,
   },
+  // фоновый поток распознавания — модуль: движок модели написан как ES-модуль
+  worker: { format: 'es' },
   test: {
     include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
     environment: 'node',

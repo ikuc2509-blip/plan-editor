@@ -1,5 +1,5 @@
 // Рабочая копия проекта в браузере (IndexedDB): текущий план, история состояний,
-// файл для автосохранения, снимки (оригиналы и уменьшенные копии). Если IndexedDB недоступна — запасной вариант localStorage.
+// файл для автосохранения, снимки (оригиналы и уменьшенные копии), пакет распознавания. Если IndexedDB недоступна — запасной вариант localStorage.
 import { openDB, type IDBPDatabase } from 'idb';
 import type { Plan } from '../model/types';
 import type { ProjectMeta } from './omp';
@@ -31,7 +31,7 @@ let dbp: Promise<IDBPDatabase> | null = null;
 let broken = false;
 
 function db(): Promise<IDBPDatabase> {
-  dbp ??= openDB(DB, 2, {
+  dbp ??= openDB(DB, 3, {
     upgrade(d, old) {
       if (old < 1) {
         d.createObjectStore('work');
@@ -43,6 +43,8 @@ function db(): Promise<IDBPDatabase> {
         d.createObjectStore('photos');
         d.createObjectStore('previews');
       }
+      // этап 10: куски пакета распознавания; от версий приложения не зависят
+      if (old < 3) d.createObjectStore('pack');
     },
   });
   return dbp;
@@ -149,4 +151,22 @@ export async function prunePhotos(keep: ReadonlySet<string>): Promise<void> {
       for (const k of (await d.getAllKeys(store)) as string[]) if (!keep.has(k)) await d.delete(store, k);
     }
   } catch { /* нечего чистить */ }
+}
+
+/* пакет распознавания (этап 10): куски по ключу «пакет/файл/номер» */
+export async function putPackPart(key: string, blob: Blob): Promise<void> {
+  await (await db()).put('pack', blob, key);
+}
+
+export async function getPackPart(key: string): Promise<Blob | null> {
+  return ((await (await db()).get('pack', key)) as Blob | undefined) ?? null;
+}
+
+export async function packKeys(): Promise<string[]> {
+  try { return (await (await db()).getAllKeys('pack')) as string[]; } catch { return []; }
+}
+
+export async function deletePackParts(keys: readonly string[]): Promise<void> {
+  const d = await db();
+  for (const k of keys) await d.delete('pack', k);
 }
