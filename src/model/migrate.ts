@@ -15,8 +15,10 @@ export type PlanV1 = Omit<PlanV3, 'version' | 'sheet'> & {
   sheet: { mode: 'schematic' | 'scale'; scale: number; showDims: boolean; showTies: boolean };
 };
 
+/** Формат версии 8 (этап 11): как версия 9, только помещение — всегда прямоугольник */
+export type PlanV8 = Omit<Plan, 'version'> & { version: 8 };
 /** Формат версии 7 (этап 10): как версия 8, только без новых видов мебели и контура тела */
-export type PlanV7 = Omit<Plan, 'version'> & { version: 7 };
+export type PlanV7 = Omit<PlanV8, 'version'> & { version: 7 };
 /** Формат версии 6 (этап 9): как версия 7, только у объектов нет пометки «предложено моделью» */
 export type PlanV6 = Omit<PlanV7, 'version'> & { version: 6 };
 /** Формат версии 5 (этапы 7–8): без снимков на развёртке стен */
@@ -39,6 +41,7 @@ const UPGRADES: Record<number, (o: Record<string, unknown>) => Record<string, un
   5: o => v5to6(o as unknown as PlanV5) as unknown as Record<string, unknown>,
   6: o => v6to7(o as unknown as PlanV6) as unknown as Record<string, unknown>,
   7: o => v7to8(o as unknown as PlanV7) as unknown as Record<string, unknown>,
+  8: o => v8to9(o as unknown as PlanV8) as unknown as Record<string, unknown>,
 };
 
 /** Распознать сохранённый план и привести к текущей версии формата */
@@ -109,13 +112,19 @@ export function v6to7(p: PlanV6): PlanV7 {
 }
 
 /** 7 → 8: появились новые виды мебели; старые данные подходят без изменений */
-export function v7to8(p: PlanV7): Plan {
+export function v7to8(p: PlanV7): PlanV8 {
   return { ...p, version: 8 };
+}
+
+/** 8 → 9: прямоугольник остаётся прямоугольником; новое — только чистый лист и нарисованные комнаты */
+export function v8to9(p: PlanV8): Plan {
+  return { ...p, version: 9 };
 }
 
 function checkShape(o: Record<string, unknown>): boolean {
   const room = o.room as { walls?: unknown; height?: unknown } | undefined;
-  return !!room && Array.isArray(room.walls) && room.walls.length >= 3 && !!room.height &&
+  // стен нет — чистый лист (формат 9); иначе — хотя бы треугольник
+  return !!room && Array.isArray(room.walls) && (room.walls.length === 0 || room.walls.length >= 3) && !!room.height &&
     ['wallItems', 'items', 'markers'].every(k => Array.isArray(o[k])) && !!o.stamp && !!o.sheet;
 }
 

@@ -2,14 +2,16 @@
 // чек-лист незамеренного, строка «Замеры произведены…» для примечаний.
 import type { Dim, DimStatus, Marker, MeasureMethod, Mm, Plan } from './types';
 import { IT_TYPES, WI_TYPES } from './labels';
-import { findWall, rectSize } from './room';
-import { patch, setRoomDimStatus, setRoomSize } from './actions';
+import { findWall, isRect, noRoom, rectSize } from './room';
+import { patch, setRoomDimStatus, setRoomSize, setWallLength, setWallStatus } from './actions';
 
 /** Какой размер замеряем */
 export type MeasureRef =
   | { t: 'room'; key: 'L' | 'W' | 'h' }
+  /** длина стены нарисованной комнаты (этап 12) */
+  | { t: 'wall'; id: string }
   | { t: 'obj'; col: 'wallItems' | 'items' | 'markers'; id: string; key: 'off' | 'z' | 'w' | 'h' | 'x' | 'y' | 'd' }
-  /** привязка метки на полу к ближайшей стене: по X — к стене В или Г, по Y — к А или Б */
+  /** привязка метки на полу к ближайшей стене: по X — к ближайшей вертикальной, по Y — к горизонтальной */
   | { t: 'tie'; id: string; axis: 'x' | 'y' };
 
 export const METHODS: Record<MeasureMethod, string> = { tape: 'рулетка', rangefinder: 'лазерный дальномер', ar: 'камера телефона (AR)' };
@@ -20,13 +22,28 @@ export function makeDim(mm: Mm, status: DimStatus, method: MeasureMethod = 'tape
   return status === 'measured' ? { mm: Math.round(mm), status, method } : { mm: Math.round(mm), status: 'conditional' };
 }
 
-/** К какой стене привязка метки и расстояние до неё — так же, как рисуется на листе */
-export function tieOf(p: Plan, m: Marker, axis: 'x' | 'y'): { wallId: string; letter: string; far: boolean; mm: Mm } {
-  const { L, W } = rectSize(p.room);
-  const v = axis === 'x' ? m.x.mm : m.y.mm, size = axis === 'x' ? L.mm : W.mm;
-  const far = v > size / 2;
-  const wallId = axis === 'x' ? (far ? 'G' : 'V') : (far ? 'B' : 'A');
-  return { wallId, letter: findWall(p.room, wallId)?.letter ?? '', far, mm: far ? size - v : v };
+/**
+ * К какой стене привязка метки и расстояние до неё — так же, как рисуется на листе:
+ * по X — ближайшая вертикальная стена напротив метки, по Y — горизонтальная.
+ * dir — в какую сторону от стены метка (+1 — дальше от начала координат). null — подходящей стены нет.
+ */
+export function tieOf(p: Plan, m: Marker, axis: 'x' | 'y'): { wallId: string; letter: string; far: boolean; mm: Mm; at: Mm; dir: 1 | -1 } | null {
+  const v = axis === 'x' ? m.x.mm : m.y.mm, other = axis === 'x' ? m.y.mm : m.x.mm;
+  let best: { wallId: string; letter: string; far: boolean; mm: Mm; at: Mm; dir: 1 | -1 } | null = null;
+  for (const w of p.room.walls) {
+    const along = axis === 'x' ? w.a.x === w.b.x : w.a.y === w.b.y;
+    if (!along) continue;
+    const at = axis === 'x' ? w.a.x : w.a.y;
+    const lo = axis === 'x' ? Math.min(w.a.y, w.b.y) : Math.min(w.a.x, w.b.x), hi = axis === 'x' ? Math.max(w.a.y, w.b.y) : Math.max(w.a.x, w.b.x);
+    if (other < lo || other > hi) continue;
+    const dist = Math.abs(v - at);
+    // при равенстве — ближняя к началу координат стена (как раньше у прямоугольника)
+    if (!best || dist < best.mm || (dist === best.mm && at < best.at)) {
+      const dir = v >= at ? 1 : -1;
+      best = { wallId: w.id, letter: w.letter, far: dir < 0, mm: dist, at, dir };
+    }
+  }
+  return best;
 }
 
 export interface MeasureInfo {
@@ -43,16 +60,22 @@ const OBJ_WHAT: Record<string, string> = { off: 'отступ от левого 
 
 /** Сведения о размере; null — объекта уже нет */
 export function readMeasure(p: Plan, ref: MeasureRef): MeasureInfo | null {
+  if (ref.t === 'wall') {
+    const w = findWall(p.room, ref.id);
+    return w ? { title: 'Помещение', what: `стена ${w.letter}`, mm: w.length.mm, dim: w.length } : null;
+  }
   if (ref.t === 'room') {
+    if (ref.key === 'h') return { title: 'Помещение', what: 'высота h', mm: p.room.height.mm, dim: p.room.height };
+    if (!isRect(p.room)) return null;
     const { L, W } = rectSize(p.room);
     if (ref.key === 'L') return { title: 'Помещение', what: 'длина L (стены А и Б)', mm: L.mm, dim: L };
-    if (ref.key === 'W') return { title: 'Помещение', what: 'ширина W (стены В и Г)', mm: W.mm, dim: W };
-    return { title: 'Помещение', what: 'высота h', mm: p.room.height.mm, dim: p.room.height };
+    return { title: 'Помещение', what: 'ширина W (стены В и Г)', mm: W.mm, dim: W };
   }
   if (ref.t === 'tie') {
     const m = p.markers.find(k => k.id === ref.id);
     if (!m) return null;
     const tie = tieOf(p, m, ref.axis);
+    if (!tie) return null;
     return { title: `Метка № ${m.n}`, what: `до стены ${tie.letter}`, mm: tie.mm, dim: ref.axis === 'x' ? m.x : m.y };
   }
   const list = p[ref.col] as unknown as ({ id: string } & Record<string, unknown>)[];
@@ -80,8 +103,14 @@ export function readMeasure(p: Plan, ref: MeasureRef): MeasureInfo | null {
  */
 export function applyMeasure(p: Plan, ref: MeasureRef, mm: Mm, status: DimStatus, method: MeasureMethod = 'tape'): Plan {
   const d = makeDim(mm, status, method);
+  if (ref.t === 'wall') {
+    const w = findWall(p.room, ref.id);
+    if (!w) return p;
+    return setWallStatus(w.length.mm !== mm ? setWallLength(p, ref.id, mm) : p, ref.id, status === 'measured', method);
+  }
   if (ref.t === 'room') {
-    const cur = readMeasure(p, ref)!.mm;
+    const cur = readMeasure(p, ref)?.mm;
+    if (cur === undefined) return p;
     const q = cur !== mm ? setRoomSize(p, { [ref.key]: mm }) : p;
     return setRoomDimStatus(q, ref.key, status === 'measured', method);
   }
@@ -89,9 +118,8 @@ export function applyMeasure(p: Plan, ref: MeasureRef, mm: Mm, status: DimStatus
     const m = p.markers.find(k => k.id === ref.id);
     if (!m) return p;
     const tie = tieOf(p, m, ref.axis);
-    const { L, W } = rectSize(p.room);
-    const size = ref.axis === 'x' ? L.mm : W.mm;
-    return patch(p, 'markers', m.id, { [ref.axis]: makeDim(tie.far ? size - mm : mm, status, method) });
+    if (!tie) return p;
+    return patch(p, 'markers', m.id, { [ref.axis]: makeDim(tie.at + tie.dir * mm, status, method) });
   }
   return patch(p, ref.col, ref.id, { [ref.key]: d });
 }
@@ -110,7 +138,9 @@ export function measureList(p: Plan): MeasureRow[] {
     const info = readMeasure(p, ref);
     if (info) rows.push({ ...info, ref, group, ...(sel ? { sel } : {}) });
   };
-  for (const key of ['L', 'W', 'h'] as const) add({ t: 'room', key }, 'Помещение');
+  if (isRect(p.room)) for (const key of ['L', 'W'] as const) add({ t: 'room', key }, 'Помещение');
+  else for (const w of p.room.walls) add({ t: 'wall', id: w.id }, 'Помещение');
+  if (!noRoom(p.room)) add({ t: 'room', key: 'h' }, 'Помещение');
   for (const it of p.wallItems) {
     if (it.type !== 'window' && it.type !== 'door') continue;
     const keys = it.type === 'window' ? (['off', 'w', 'h', 'z'] as const) : (['off', 'w', 'h'] as const);

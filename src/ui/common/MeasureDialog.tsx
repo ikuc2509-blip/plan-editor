@@ -4,7 +4,7 @@ import { signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { DimStatus, MeasureMethod } from '../../model/types';
 import { METHODS, METHODS_V1, applyMeasure, readMeasure, tieOf, type MeasureRef } from '../../model/measure';
-import { rectSize } from '../../model/room';
+import { rectSizeOf } from '../../model/room';
 import { formatMeters, parseLength } from '../../model/units';
 import { loadPref, savePref } from '../../storage/prefs';
 import { dispatch, plan } from '../store';
@@ -58,8 +58,8 @@ export function MeasureDialog() {
   let farHint: string | null = null;
   if (ref?.t === 'tie') {
     const m = plan.value.markers.find(k => k.id === ref.id);
-    const size = rectSize(plan.value.room)[ref.axis === 'x' ? 'L' : 'W'];
-    if (m && tieOf(plan.value, m, ref.axis).far && size.status !== 'measured') {
+    const size = rectSizeOf(plan.value.room)?.[ref.axis === 'x' ? 'L' : 'W'];
+    if (m && size && tieOf(plan.value, m, ref.axis)?.far && size.status !== 'measured') {
       farHint = `Сначала замерьте ${ref.axis === 'x' ? 'длину L' : 'ширину W'} помещения: положение метки от дальней стены считается от неё.`;
     }
   }

@@ -226,7 +226,8 @@ export const FORMAT_ID = 'plan-editor';
  * 5 — этап 7: снимки (файл, SHA-256, вид съёмки, привязка, время из EXIF);
  * 6 — этап 9: снимки, выпрямленные на развёртку стен (wallPhotos);
  * 7 — этап 10: у принятого объекта — «предложено моделью» и уверенность (origin.auto);
- * 8 — этап 11: больше мебели (кресло, тумба, комод…) и контур тела человека.
+ * 8 — этап 11: больше мебели (кресло, тумба, комод…) и контур тела человека;
+ * 9 — этап 12: комнаты может не быть (чистый лист) или она нарисована — любые стены-отрезки.
  */
 /** Точка на снимке, в долях ширины и высоты (0…1) */
 export interface PhotoPt {
@@ -254,7 +255,7 @@ export interface WallPhoto {
   opacity: number;
 }
 
-export const FORMAT_VERSION = 8;
+export const FORMAT_VERSION = 9;
 
 export interface Plan {
   format: typeof FORMAT_ID;
