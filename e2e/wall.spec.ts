@@ -125,3 +125,42 @@ test.describe('камера «Снять стену»', () => {
     await expect(page.locator('.shot', { hasText: 'Стена А' })).toHaveClass(/done/);
   });
 });
+
+test('длинная стена из двух кадров: до ориентира 4,2 м и от него', async ({ page }) => {
+  await page.goto('/');
+  const nav = (name: string) => page.getByRole('navigation', { name: 'Шаги осмотра' }).getByRole('button', { name });
+  await nav('Помещение').click();
+  await page.getByRole('button', { name: 'Новый осмотр' }).click();
+  await nav('Фото').click();
+  await fakeWallPhoto(page);
+  await page.getByRole('button', { name: '+ Из файлов' }).click();
+  await page.locator('.thumbs .thumb').first().click();
+
+  const dlg = page.locator('dialog.rect[open]');
+  /** один кадр: четыре угла и край, который кончается на ориентире */
+  const frame = async (edge: 'Левый край кадра' | 'Правый край кадра') => {
+    await page.getByRole('button', { name: 'Выпрямить на стену' }).click();
+    const pad = dlg.getByTestId('pointpad');
+    await expect(pad).toBeVisible();
+    const box = (await pad.boundingBox())!;
+    for (const q of QUAD) await pad.tap({ position: { x: q.x * box.width, y: q.y * box.height } });
+    await dlg.getByRole('group', { name: edge }).getByRole('button', { name: 'Ориентир' }).click();
+    const off = dlg.getByRole('textbox', { name: /От левого угла стены/ });
+    await off.fill('4,2');
+    await off.press('Enter');
+    await dlg.getByRole('button', { name: 'Готово' }).click();
+    await expect(dlg).toHaveCount(0);
+  };
+  await frame('Правый край кадра');
+  await frame('Левый край кадра');
+
+  const imgs = page.getByTestId('sheet').locator('image');
+  await expect(imgs).toHaveCount(2);
+  // кадры встали рядом: ширины — как 4,2 к 5,8
+  const [a, b] = [(await imgs.nth(0).boundingBox())!, (await imgs.nth(1).boundingBox())!];
+  expect(a.width / b.width).toBeCloseTo(4.2 / 5.8, 1);
+  expect(b.x).toBeCloseTo(a.x + a.width, 0);
+  await nav('Проёмы').click();
+  await expect(page.locator('.os-panel .card').filter({ hasText: '0–4,2 м' })).toBeVisible();
+  await expect(page.locator('.os-panel .card').filter({ hasText: '4,2–10 м' })).toBeVisible();
+});
