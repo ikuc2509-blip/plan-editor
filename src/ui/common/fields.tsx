@@ -9,6 +9,16 @@ import { endGesture } from '../store';
 export const parseNum = (t: string): number => parseFloat(String(t).replace(',', '.'));
 const showNum = (v: number): string => String(v).replace('.', ',');
 
+/** Пояснение: короткая строка видна сразу, подробности — под «Подробнее» (этап 11) */
+export function Hint({ text, children, style }: { text: ComponentChildren; children?: ComponentChildren; style?: string }) {
+  return (
+    <div class="hint" style={style}>
+      {text}{' '}
+      {children && <details><summary>Подробнее</summary><div>{children}</div></details>}
+    </div>
+  );
+}
+
 interface FieldProps {
   label: string;
   wide?: boolean;

@@ -7,7 +7,7 @@ import { wallsByLetter } from '../../model/room';
 import { BIG_PROJECT, formatSize, showTaken } from '../../photos/meta';
 import { SHOT_KINDS, linkText, shotList, shotPhotos, type ShotItem } from '../../photos/shots';
 import { dispatch, plan, tab } from '../store';
-import { Select, Text } from '../common/fields';
+import { Hint, Select, Text } from '../common/fields';
 import { openCameraDialog } from '../common/CameraDialog';
 import { originalUrl, photosBytes, pickPhotos, previewUrl, selPhoto } from '../photos';
 import { openRectify } from '../rectify';
@@ -148,7 +148,7 @@ export function PhotosPanel() {
         <button class="primary" onClick={() => openCameraDialog()}>Снять</button>
         <button onClick={() => void pickPhotos()}>+ Из файлов</button>
       </div>
-      <p class="hint">Оригиналы хранятся без изменений; у каждого — отпечаток SHA-256, он подтверждает неизменность с момента добавления в проект. Снимки сохраняются в файле .omp.</p>
+      <Hint text="Оригиналы хранятся без изменений и сохраняются в файле .omp.">У каждого — отпечаток SHA-256: он подтверждает неизменность с момента добавления в проект.</Hint>
       {big && <p class="warn">Проект весит {formatSize(photosBytes.value)} — больше 500 МБ. Сохранение и перенос файла будут медленными.</p>}
 
       <details class="shots" open>

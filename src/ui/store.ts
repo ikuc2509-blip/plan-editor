@@ -152,7 +152,8 @@ export function markSavedToFile(m: ProjectMeta): void {
 }
 
 /** Загрузка рабочей копии при запуске */
-export async function initStore(): Promise<void> {
+/** Загрузить рабочую копию; true — первый запуск: в браузере ничего нет, открыт учебный пример */
+export async function initStore(): Promise<boolean> {
   const w = await loadWork();
   if (w && 'legacy' in w) {
     // план из localStorage (этапы 0–2) — в файл он ещё не сохранялся
@@ -176,6 +177,7 @@ export async function initStore(): Promise<void> {
   setInterval(() => {
     if (snapshotDue(changedSinceSnap, lastSnapAt, Date.now())) void snapshot('автоматически');
   }, 60_000);
+  return !w;
 }
 
 /* всплывающее сообщение внизу экрана */

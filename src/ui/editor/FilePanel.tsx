@@ -3,7 +3,7 @@ import { fsaSupported } from '../../storage/fsa';
 import type { Snapshot } from '../../storage/db';
 import { HISTORY_MAX } from '../../storage/history';
 import { PASSWORD_WARNING } from '../common/PasswordDialog';
-import { Check } from '../common/fields';
+import { Check, Hint } from '../common/fields';
 import { PackPanel } from '../common/Suggestions';
 import { autosave, changePassword, openFile, resumeAutosave, saveToFile, setProtect, stopAutosave } from '../project';
 import { meta, persisted, protect, replacePlan, snapshots } from '../store';
@@ -20,7 +20,7 @@ export function FilePanel() {
   const a = autosave.value;
   return (
     <>
-      <p class="hint">Проект — один файл <b>.omp</b>. Его переносят на флешке или по USB-кабелю. Внутри обычный ZIP-архив: план и снимки (папка photos/ — оригиналы без изменений).</p>
+      <Hint text={<>Проект — один файл <b>.omp</b>: его переносят на флешке или по USB-кабелю.</>}>Внутри обычный ZIP-архив: план и снимки (папка photos/ — оригиналы без изменений).</Hint>
       <div class="row">
         <button class="primary" onClick={saveToFile}>Сохранить в файл</button>
         <button onClick={openFile}>Открыть файл</button>

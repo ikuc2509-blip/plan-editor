@@ -93,6 +93,11 @@ test('осмотр аудитории от начала до файла', async 
   await page.getByRole('button', { name: 'PDF-схема' }).click();
   expect((await pdf).suggestedFilename()).toMatch(/\.pdf$/);
 
+  // на «Итоге» план свёрнут в полоску (этап 11) — развернуть
+  await expect(sheet).toHaveCount(0);
+  await page.getByRole('button', { name: 'Показать план' }).click();
+  await expect(sheet).toBeVisible();
+
   // два пальца врозь — план крупнее; щипок, начатый на метке, не переключает шаг
   const c = (await sheet.boundingBox())!, cx = c.x + c.width / 2, cy = c.y + c.height / 2;
   const two = (d: number) => [{ x: cx - d, y: cy }, { x: cx + d, y: cy }];

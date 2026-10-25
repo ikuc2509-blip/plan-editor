@@ -24,4 +24,19 @@ test('файл с телефона открывается в «Чистовик�
 
   await page.getByRole('tab', { name: 'Стены' }).click();
   await expect(page.locator('.side [data-card]')).toHaveCount(1);
+
+  // этап 11: вкладка «Выноски»; PDF, PNG, SVG — в одной кнопке «Скачать ▾»
+  await expect(page.getByRole('tab', { name: 'Выноски' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Подписи' })).toHaveCount(0);
+  await page.getByText('Скачать ▾').click();
+  const menu = page.getByRole('menu');
+  await expect(menu.getByRole('menuitem')).toHaveCount(3);
+  const pdf = page.waitForEvent('download');
+  await menu.getByRole('menuitem', { name: /PDF/ }).click();
+  expect((await pdf).suggestedFilename()).toMatch(/\.pdf$/);
+  await expect(menu).toBeHidden();
+  // шапка — в одну строку на экране ноутбука
+  await page.setViewportSize({ width: 1366, height: 768 });
+  const h = (await page.getByRole('banner').boundingBox())!.height;
+  expect(h).toBeLessThan(60);
 });

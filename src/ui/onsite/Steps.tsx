@@ -12,7 +12,7 @@ import { shotList, shotPhotos } from '../../photos/shots';
 import { vectorPdf } from '../../export/pdf';
 import { saveFile } from '../../storage/files';
 import { dispatch, dirtySince, fileSavedAt, plan, protect, sel, toast } from '../store';
-import { Check, Len, Text } from '../common/fields';
+import { Check, Hint, Len, Text } from '../common/fields';
 import { StatusChip } from '../common/MeasureDialog';
 import { openFile, saveToFile, setProtect } from '../project';
 import { MarkerCard, MeasurePanel, WallItemCard, newPlan, wallOpts } from '../editor/Side';
@@ -20,6 +20,9 @@ import { PhotosPanel } from '../editor/PhotosPanel';
 import { schematicView } from '../editor/Sheet';
 import { TraceBar, WallPhotosList } from '../common/WallPhotos';
 import { placing, step, today } from './state';
+import { openWelcome } from '../common/Welcome';
+import { northArrow } from '../../geometry/compass';
+import { compassSupported, readHeading } from './compass';
 
 /** выделенная карточка — прокрутить к ней (выбрали касанием плана) */
 function useScrollToSel() {
@@ -44,6 +47,7 @@ export function RoomStep() {
       <div class="row">
         <button onClick={fresh}>Новый осмотр</button>
         <button class="ghost" onClick={openFile}>Открыть файл</button>
+        <button class="ghost" onClick={openWelcome}>С чего начать</button>
       </div>
       <h3>Для штампа</h3>
       <div class="grid one">
@@ -57,7 +61,36 @@ export function RoomStep() {
         <Len label="Ширина W" value={W.mm} positive onCommit chip={<StatusChip status={W.status} mref={{ t: 'room', key: 'W' }} />} onValue={mm => dispatch(p => A.setRoomSize(p, { W: mm }))} />
         <Len label="Высота h" value={st.room.height.mm} positive onCommit chip={<StatusChip status={st.room.height.status} mref={{ t: 'room', key: 'h' }} />} onValue={mm => dispatch(p => A.setRoomSize(p, { h: mm }))} />
       </div>
-      <p class="hint" style="margin-top:8px">Пока не замерили — впишите на глаз: это только пропорции, на схеме будет пустая строка «____ м». Замер — нажмите «условно» над полем. «125 см» тоже можно.</p>
+      <Hint style="margin-top:8px" text="Не замерили — впишите на глаз: на схеме будет пустая строка «____ м».">Это только пропорции. Замер — нажмите «условно» над полем. «125 см» тоже можно.</Hint>
+      <NorthField />
+    </>
+  );
+}
+
+/** Север: градусы вручную или по компасу телефона (этап 11) */
+function NorthField() {
+  const [busy, setBusy] = useState(false);
+  const byCompass = async () => {
+    setBusy(true);
+    toast('Держите телефон ровно, экраном вверх, верхним краем к стене А…');
+    try {
+      const deg = northArrow(await readHeading());
+      dispatch(p => A.setNorth(p, String(deg)));
+      toast(`Север: ${deg}° — по компасу телефона, примерно. Рядом с металлом и техникой компас ошибается`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Компас недоступен');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <h3>Север</h3>
+      <div class="grid two">
+        <Text label="Север, градусы" value={plan.value.north} placeholder="пусто — вписать от руки" onValue={v => dispatch(p => A.setNorth(p, v), 'north')} />
+        {compassSupported() && <button style="margin-top:18px" disabled={busy} onClick={() => void byCompass()}>{busy ? 'Слушаю компас…' : 'По компасу'}</button>}
+      </div>
+      <Hint text="«По компасу»: телефон экраном вверх, верхним краем к стене А.">Встаньте в помещении лицом к стене А и держите телефон ровно полторы секунды. 0° — стена А на севере, 90° — север справа на листе. Компас телефона ошибается на 5–10°, рядом с металлом — сильнее.</Hint>
     </>
   );
 }
@@ -80,7 +113,7 @@ export function OpeningsStep() {
   };
   return (
     <>
-      <p class="hint">Выберите стену, затем добавьте, что на ней есть. Отступ — от левого угла стены, если стоять в помещении лицом к ней. Положение можно поправить пальцем на плане.</p>
+      <Hint text="Выберите стену и добавьте, что на ней есть.">Отступ — от левого угла стены, если стоять в помещении лицом к ней. Положение можно поправить пальцем на плане.</Hint>
       <div class="os-pick" role="group" aria-label="Стена">
         {walls.map(w => {
           const n = st.wallItems.filter(i => i.wallId === w.id).length;

@@ -15,9 +15,11 @@ import { UpdateBar } from '../common/UpdateBar';
 import { MeasureDialog } from '../common/MeasureDialog';
 import { CameraDialog } from '../common/CameraDialog';
 import { RectifyDialog } from '../common/RectifyDialog';
+import { WelcomeDialog } from '../common/Welcome';
 import { PhotoViewer } from '../editor/PhotosPanel';
 import { Sheet, ZOOM_MAX, ZOOM_MIN, onsiteZoom } from '../editor/Sheet';
 import { STEPS, fullSheet, placing, step, type StepKey } from './state';
+import { keepAwake, startWake, wakeSupported } from './wake';
 import { FinishStep, MarkersStep, MeasureStep, OpeningsStep, PhotosStep, RoomStep } from './Steps';
 
 const PANELS: Record<StepKey, () => preact.JSX.Element> = {
@@ -38,6 +40,9 @@ function placeMarker(s: Spot) {
   toast(`Метка № ${m?.n ?? ''} поставлена — впишите описание`);
 }
 
+/** шаги, где план почти не нужен: он свёрнут в полоску, панели больше места (этап 11) */
+const PLAN_MIN: readonly StepKey[] = ['photos', 'measure', 'finish'];
+
 function SaveStatus() {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
@@ -54,6 +59,12 @@ export function OnsiteApp() {
   const cur = STEPS[i]!;
   const Panel = PANELS[cur.key];
   const panelRef = useRef<HTMLElement>(null);
+  // свёрнутый план можно развернуть; на другом шаге — снова по правилу шага
+  const [planShown, setPlanShown] = useState(false);
+  useEffect(() => setPlanShown(false), [step.value]);
+  const planMin = PLAN_MIN.includes(cur.key) && !planShown;
+  // экран не гаснет, пока открыт режим «На месте»
+  useEffect(() => startWake(), []);
 
   // карточка метки ведёт к её снимку («Фото» в «Чистовике» — вкладка)
   const first = useRef(true);
@@ -70,14 +81,25 @@ export function OnsiteApp() {
   return (
     <div class="onsite">
       <header class="os-top">
-        <h1><span class="dot">1</span>На месте</h1>
+        <h1><span class="dot">1</span><span class="os-title">На месте</span></h1>
         <SaveStatus />
         <span class="grow" />
         <button class="ghost" aria-label="Отменить" title="Отменить" disabled={!canUndo.value} onClick={undo}>↶</button>
         <button class="ghost" aria-label="Повторить" title="Повторить" disabled={!canRedo.value} onClick={redo}>↷</button>
+        {wakeSupported && (
+          <button class="ghost" aria-label="Экран не гаснет" aria-pressed={keepAwake.value} title={keepAwake.value ? 'Экран не гаснет — нажмите, чтобы гас как обычно' : 'Экран гаснет как обычно — нажмите, чтобы не гас'}
+            onClick={() => { keepAwake.value = !keepAwake.value; toast(keepAwake.value ? 'Экран не будет гаснуть, пока открыт режим «На месте»' : 'Экран гаснет как обычно'); }}>
+            {keepAwake.value ? '☀' : '☾'}
+          </button>
+        )}
         <button class="ghost" title="Полный редактор" onClick={() => setMode('editor')}>Чистовик</button>
         <UpdateBar />
       </header>
+      {planMin ? (
+        <div class="os-plan os-plan-min">
+          <button onClick={() => setPlanShown(true)}>Показать план</button>
+        </div>
+      ) : (
       <div class="os-plan">
         <Sheet
           onsite
@@ -90,8 +112,10 @@ export function OnsiteApp() {
           <button aria-label="Уменьшить план" onClick={() => zoomBy(1 / 1.3)}>−</button>
           <button aria-label="Увеличить план" onClick={() => zoomBy(1.3)}>+</button>
           <button onClick={() => { fullSheet.value = !fullSheet.value; onsiteZoom.value = 1; }}>{fullSheet.value ? 'Чертёж' : 'Весь лист'}</button>
+          {PLAN_MIN.includes(cur.key) && <button onClick={() => setPlanShown(false)}>Скрыть</button>}
         </div>
       </div>
+      )}
       <section class="os-panel" ref={panelRef} aria-label={cur.title}>
         <h2>{cur.title} <small>шаг {i + 1} из {STEPS.length}</small></h2>
         <Panel />
@@ -112,6 +136,7 @@ export function OnsiteApp() {
       <MeasureDialog />
       <CameraDialog />
       <RectifyDialog />
+      <WelcomeDialog />
       <PhotoViewer />
     </div>
   );

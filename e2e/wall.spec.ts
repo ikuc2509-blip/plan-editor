@@ -66,9 +66,9 @@ test('снимок стены выпрямляется и ложится на р
   await dlg.getByRole('button', { name: 'Готово' }).click();
   await expect(dlg).toHaveCount(0);
 
-  // на развёртке стены А — выпрямленная картинка
-  await expect(page.getByTestId('sheet').locator('image')).toHaveCount(1);
+  // на развёртке стены А — выпрямленная картинка (на шаге «Фото» план свёрнут — смотрим на «Проёмах»)
   await nav('Проёмы').click();
+  await expect(page.getByTestId('sheet').locator('image')).toHaveCount(1);
   await expect(page.getByText('Стена А: снимок № 1')).toBeVisible();
 
   // обвести окно по снимку: два угла на развёртке; «окно» на выпрямленном снимке — примерно 0,30…0,50 × 0,30…0,60
@@ -154,13 +154,13 @@ test('длинная стена из двух кадров: до ориенти�
   await frame('Правый край кадра');
   await frame('Левый край кадра');
 
+  await nav('Проёмы').click();
   const imgs = page.getByTestId('sheet').locator('image');
   await expect(imgs).toHaveCount(2);
   // кадры встали рядом: ширины — как 4,2 к 5,8
   const [a, b] = [(await imgs.nth(0).boundingBox())!, (await imgs.nth(1).boundingBox())!];
   expect(a.width / b.width).toBeCloseTo(4.2 / 5.8, 1);
   expect(b.x).toBeCloseTo(a.x + a.width, 0);
-  await nav('Проёмы').click();
   await expect(page.locator('.os-panel .card').filter({ hasText: '0–4,2 м' })).toBeVisible();
   await expect(page.locator('.os-panel .card').filter({ hasText: '4,2–10 м' })).toBeVisible();
 });
