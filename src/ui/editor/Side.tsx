@@ -5,8 +5,9 @@ import { measureList, type MeasureRef, type MeasureRow } from '../../model/measu
 import { formatMeters } from '../../model/units';
 import { StatusChip, openMeasure } from '../common/MeasureDialog';
 import { IT_TYPES, WI_TYPES } from '../../model/labels';
-import { blank, example, uid } from '../../model/state';
-import { rectSize, wallsByLetter } from '../../model/room';
+import { example, uid, emptyPlan } from '../../model/state';
+import { noRoom, rectSizeOf, wallsByLetter } from '../../model/room';
+import { drawing, redrawRoom, shaping, startDraw, startShape, takeTemplate } from '../draw';
 import { parseLength } from '../../model/units';
 import * as A from '../../model/actions';
 import { SCALES, fitsAt, smallerScaleThatFits } from '../../geometry/unfold';
@@ -83,7 +84,7 @@ function RoomPanel() {
   const st = plan.value, lay = layoutFor(st.sheet.paper), sc = st.sheet.mode === 'scale';
   const fits = !sc || fitsAt(st.room, lay.area, st.sheet.scale);
   const better = fits ? null : smallerScaleThatFits(st.room, lay.area, st.sheet.scale);
-  const { L, W } = rectSize(st.room);
+  const size = rectSizeOf(st.room);
   return (
     <>
       <Hint text="Пока замеров нет — режим «Схематично»: незамеренное на листе будет пустой строкой.">Её впишете от руки. Длины ниже задают только пропорции.</Hint>
@@ -101,17 +102,23 @@ function RoomPanel() {
             : <>План не помещается на лист {st.sheet.paper} даже в 1:{SCALES[SCALES.length - 1]}. {st.sheet.paper === 'A4' ? 'Выберите лист A3 или режим «Схематично».' : 'Выберите режим «Схематично».'}</>}
         </div>
       )}
-      <h3>{sc ? 'Размеры помещения, м' : 'Пропорции помещения (условно), м'}</h3>
-      <div class="grid">
-        <Len label="Длина L" value={L.mm} positive onCommit chip={chip(L, { t: 'room', key: 'L' })} onValue={mm => dispatch(p => A.setRoomSize(p, { L: mm }))} />
-        <Len label="Ширина W" value={W.mm} positive onCommit chip={chip(W, { t: 'room', key: 'W' })} onValue={mm => dispatch(p => A.setRoomSize(p, { W: mm }))} />
-        <Len label="Высота h" value={st.room.height.mm} positive onCommit chip={chip(st.room.height, { t: 'room', key: 'h' })} onValue={mm => dispatch(p => A.setRoomSize(p, { h: mm }))} />
-      </div>
+      <RoomShape />
+      {size && (
+        <>
+          <h3>{sc ? 'Размеры помещения, м' : 'Пропорции помещения (условно), м'}</h3>
+          <div class="grid">
+            <Len label="Длина L" value={size.L.mm} positive onCommit chip={chip(size.L, { t: 'room', key: 'L' })} onValue={mm => dispatch(p => A.setRoomSize(p, { L: mm }))} />
+            <Len label="Ширина W" value={size.W.mm} positive onCommit chip={chip(size.W, { t: 'room', key: 'W' })} onValue={mm => dispatch(p => A.setRoomSize(p, { W: mm }))} />
+            <Len label="Высота h" value={st.room.height.mm} positive onCommit chip={chip(st.room.height, { t: 'room', key: 'h' })} onValue={mm => dispatch(p => A.setRoomSize(p, { h: mm }))} />
+          </div>
+        </>
+      )}
+      {!size && !noRoom(st.room) && <WallLengths />}
       <Hint style="margin-top:6px" text="Отметка над полем — «замерено» или «условно»; щёлкните её, чтобы записать замер.">Там же — чем мерили. Можно писать «12,5», «1250 см» или «12500 мм». Новый размер применяется, когда вы выходите из поля или нажимаете Enter. Условные окна, метки и мебель при этом сдвигаются пропорционально, замеренные остаются на месте. На листе замеренный размер подписывается числом, условный — пустой строкой.</Hint>
       <h3>Отображение</h3>
       <Check label="Привязки меток к стенам" checked={st.sheet.showTies} onValue={v => dispatch(p => A.setSheet(p, { showTies: v }))} />
       <h3>Названия стен</h3>
-      <p class="hint">А — сверху, Б — снизу, В — слева, Г — справа от плана пола.</p>
+      {size && <p class="hint">А — сверху, Б — снизу, В — слева, Г — справа от плана пола.</p>}
       <div class="grid two">
         {wallsByLetter(st.room).map(w => (
           <Text key={w.id} label={'Стена ' + w.letter} value={w.name} placeholder="напр. оконная" onValue={v => dispatch(p => A.setWallName(p, w.id, v), 'name:' + w.id)} />
@@ -120,7 +127,7 @@ function RoomPanel() {
       <h3>Шаблон</h3>
       <div class="row">
         <button onClick={() => void newPlan(example(), 'Заменить текущий план примером аудитории? Текущий сохранится в истории (вкладка «Файл»).', 'примера аудитории')}>Пример: наша аудитория</button>
-        <button onClick={() => void newPlan(blank(), 'Начать пустой план? Текущий сохранится в истории (вкладка «Файл»).', 'пустого плана')}>Пустой план</button>
+        <button onClick={() => void newPlan(emptyPlan(), 'Начать пустой план? Текущий сохранится в истории (вкладка «Файл»).', 'пустого плана')}>Пустой план</button>
         <button class="ghost" onClick={openWelcome}>С чего начать</button>
       </div>
     </>
@@ -155,6 +162,50 @@ function WallsPanel() {
           <WallPhotosList recognize />
         </>
       )}
+    </>
+  );
+}
+
+/** Комната: нарисовать, взять заготовку, нарисовать заново (этап 12) */
+export function RoomShape() {
+  const st = plan.value;
+  if (drawing.value) return <p class="warn">Рисуете комнату: щёлкайте по углам на листе. Замкнуть — щелчок по первому углу.</p>;
+  if (shaping.value) return <p class="warn">Протяните прямоугольник на листе от угла до угла.</p>;
+  if (noRoom(st.room)) {
+    return (
+      <>
+        <h3>Комната</h3>
+        <p class="hint">Комнаты пока нет. Нарисуйте её по углам на листе — или возьмите заготовку-прямоугольник.</p>
+        <div class="row">
+          <button class="primary" onClick={startDraw}>Нарисовать комнату</button>
+          <button onClick={startShape}>Прямоугольником</button>
+          <button onClick={takeTemplate}>Взять заготовку (прямоугольник)</button>
+        </div>
+      </>
+    );
+  }
+  return (
+    <div class="row" style="margin:10px 0 0">
+      <button onClick={startShape}>Пристроить прямоугольник</button>
+      <button class="ghost" onClick={redrawRoom}>Нарисовать комнату заново</button>
+    </div>
+  );
+}
+
+/** Длины стен нарисованной комнаты и высота (этап 12) */
+export function WallLengths() {
+  const st = plan.value;
+  return (
+    <>
+      <h3>Длины стен</h3>
+      <div class="grid">
+        {st.room.walls.map(w => (
+          <Len key={w.id} label={`Стена ${w.letter}, м`} value={w.length.mm} positive onCommit chip={<StatusChip status={w.length.status} mref={{ t: 'wall', id: w.id }} />}
+            onValue={mm => dispatch(p => A.setWallLength(p, w.id, mm))} />
+        ))}
+        <Len label="Высота h" value={st.room.height.mm} positive onCommit chip={<StatusChip status={st.room.height.status} mref={{ t: 'room', key: 'h' }} />} onValue={mm => dispatch(p => A.setRoomSize(p, { h: mm }))} />
+      </div>
+      <Hint style="margin-top:6px" text="Новая длина стены растягивает комнату; углы можно тянуть мышью на листе.">Комната растягивается по линии через середину стены: всё, что за ней, сдвигается. Условные метки и мебель за этой линией сдвигаются тоже, замеренные остаются на месте.</Hint>
     </>
   );
 }

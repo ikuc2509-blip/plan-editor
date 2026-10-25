@@ -56,6 +56,8 @@ test('модель предлагает окна, дверь и радиатор
   const tabBtn = (name: string) => page.getByRole('tab', { name, exact: true });
   await tabBtn('Помещение').click();
   await page.getByRole('button', { name: 'Пустой план' }).click();
+  // чистый лист (этап 12): прямоугольная заготовка 10 × 6 × 3 м
+  await page.getByRole('button', { name: 'Взять заготовку (прямоугольник)' }).first().click();
 
   // пакет: скачать по кнопке, проверка отпечатков
   await tabBtn('Файл').click();

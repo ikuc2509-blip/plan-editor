@@ -46,6 +46,8 @@ test('снимок стены выпрямляется и ложится на р
   const nav = (name: string) => page.getByRole('navigation', { name: 'Шаги осмотра' }).getByRole('button', { name });
   await nav('Помещение').click();
   await page.getByRole('button', { name: 'Новый осмотр' }).click();
+  // чистый лист (этап 12): прямоугольная заготовка
+  await page.getByRole('button', { name: 'Взять заготовку (прямоугольник)' }).first().click();
 
   // снимок из «файла»
   await nav('Фото').click();
@@ -111,6 +113,8 @@ test.describe('камера «Снять стену»', () => {
     const nav = (name: string) => page.getByRole('navigation', { name: 'Шаги осмотра' }).getByRole('button', { name });
     await nav('Помещение').click();
     await page.getByRole('button', { name: 'Новый осмотр' }).click();
+    // чистый лист (этап 12): прямоугольная заготовка
+    await page.getByRole('button', { name: 'Взять заготовку (прямоугольник)' }).first().click();
     await nav('Фото').click();
     await page.locator('.shot', { hasText: 'Стена А' }).getByRole('button', { name: 'Снять' }).click();
     const cam = page.locator('dialog.camera[open]');
@@ -131,6 +135,8 @@ test('длинная стена из двух кадров: до ориенти�
   const nav = (name: string) => page.getByRole('navigation', { name: 'Шаги осмотра' }).getByRole('button', { name });
   await nav('Помещение').click();
   await page.getByRole('button', { name: 'Новый осмотр' }).click();
+  // чистый лист (этап 12): прямоугольная заготовка
+  await page.getByRole('button', { name: 'Взять заготовку (прямоугольник)' }).first().click();
   await nav('Фото').click();
   await fakeWallPhoto(page);
   await page.getByRole('button', { name: '+ Из файлов' }).click();

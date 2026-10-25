@@ -1,6 +1,6 @@
 // Список съёмки по плану (decisions.md, этап 7): что снять и как. Без DOM.
 import type { Photo, PhotoLink, Plan, ShotKind } from '../model/types';
-import { findWall, wallsByLetter } from '../model/room';
+import { findWall, isRect, wallsByLetter } from '../model/room';
 
 export const SHOT_KINDS: Record<Exclude<ShotKind, ''>, string> = {
   orienting: 'ориентирующая', overview: 'обзорная', nodal: 'узловая', detail: 'детальная',
@@ -25,7 +25,10 @@ export function shotList(p: Plan): ShotItem[] {
     key: 'orienting', title: 'Ориентирующая', kind: 'orienting', link: { kind: 'none' },
     hint: 'Здание и вход снаружи — так, чтобы было понятно, где находится помещение.',
   }];
-  for (const [a, b] of CORNERS) {
+  // у нарисованной комнаты — первые четыре угла по обходу; комнаты нет — обзорных из углов нет
+  const ws = p.room.walls, n = ws.length;
+  const corners: [string, string][] = isRect(p.room) ? CORNERS : ws.map((w, i): [string, string] => [ws[(i - 1 + n) % n]!.id, w.id]).slice(0, 4);
+  for (const [a, b] of corners) {
     items.push({
       key: `overview:${a}${b}`, title: `Обзорная из угла ${L(a)}/${L(b)}`, kind: 'overview', link: { kind: 'none' },
       hint: 'Помещение целиком из угла по диагонали. Снимайте до того, как что-либо трогать.',

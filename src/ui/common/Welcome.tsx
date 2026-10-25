@@ -3,7 +3,7 @@
 import { signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import * as A from '../../model/actions';
-import { blank } from '../../model/state';
+import { emptyPlan } from '../../model/state';
 import { savePref } from '../../storage/prefs';
 import { replacePlan, tab } from '../store';
 import { newPlan } from '../editor/Side';
@@ -23,7 +23,7 @@ function close() {
 /** «Начать новый осмотр»: пустой план с сегодняшней датой, первый шаг */
 async function startNew(first: boolean) {
   close();
-  const p = A.setStamp(blank(), { date: today() });
+  const p = A.setStamp(emptyPlan(), { date: today() });
   // на экране пример — заменяем молча; иначе — с вопросом, как кнопка «Новый осмотр»
   if (first) await replacePlan(p, { label: 'нового осмотра' });
   else await newPlan(p, 'Начать новый осмотр с пустого плана? Текущий план сохранится в истории состояний.', 'нового осмотра');

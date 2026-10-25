@@ -30,7 +30,7 @@ export default defineConfig({
         permissions: ['camera'],
       },
     },
-    { name: 'desktop', testMatch: /editor\.spec\.ts/, use: { ...devices['Desktop Edge'], channel: 'msedge', storageState: welcomed }, dependencies: ['phone'] },
+    { name: 'desktop', testMatch: /(editor|room)\.spec\.ts/, use: { ...devices['Desktop Edge'], channel: 'msedge', storageState: welcomed }, dependencies: ['phone'] },
     // распознавание (этап 10): видеокарта через WebGPU и в браузере без окна
     { name: 'recognize', testMatch: /recognize\.spec\.ts/, use: { ...devices['Desktop Edge'], channel: 'msedge', storageState: welcomed, launchOptions: { args: ['--enable-unsafe-webgpu'] } } },
   ],
