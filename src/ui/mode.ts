@@ -27,3 +27,14 @@ export function setMode(m: UiMode): void {
   uiMode.value = m;
   savePref('mode', m);
 }
+
+/**
+ * Полный режим (этап 11): снимки на стенах, выпрямление, распознавание, масштаб по фото, компас,
+ * подложка. По умолчанию — простой: «много кнопок» мешали при проверке.
+ */
+export const fullMode = signal<boolean>(loadPref('full', false, (v): v is boolean => typeof v === 'boolean'));
+
+export function setFull(v: boolean): void {
+  fullMode.value = v;
+  savePref('full', v);
+}

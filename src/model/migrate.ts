@@ -15,8 +15,10 @@ export type PlanV1 = Omit<PlanV3, 'version' | 'sheet'> & {
   sheet: { mode: 'schematic' | 'scale'; scale: number; showDims: boolean; showTies: boolean };
 };
 
+/** Формат версии 7 (этап 10): как версия 8, только без новых видов мебели и контура тела */
+export type PlanV7 = Omit<Plan, 'version'> & { version: 7 };
 /** Формат версии 6 (этап 9): как версия 7, только у объектов нет пометки «предложено моделью» */
-export type PlanV6 = Omit<Plan, 'version'> & { version: 6 };
+export type PlanV6 = Omit<PlanV7, 'version'> & { version: 6 };
 /** Формат версии 5 (этапы 7–8): без снимков на развёртке стен */
 export type PlanV5 = Omit<PlanV6, 'version' | 'wallPhotos'> & { version: 5 };
 /** Формат версии 4 (этап 6): снимок — только id и номер (заготовка) */
@@ -36,6 +38,7 @@ const UPGRADES: Record<number, (o: Record<string, unknown>) => Record<string, un
   4: o => v4to5(o as unknown as PlanV4) as unknown as Record<string, unknown>,
   5: o => v5to6(o as unknown as PlanV5) as unknown as Record<string, unknown>,
   6: o => v6to7(o as unknown as PlanV6) as unknown as Record<string, unknown>,
+  7: o => v7to8(o as unknown as PlanV7) as unknown as Record<string, unknown>,
 };
 
 /** Распознать сохранённый план и привести к текущей версии формата */
@@ -101,8 +104,13 @@ export function v5to6(p: PlanV5): PlanV6 {
 }
 
 /** 6 → 7: пометка «предложено моделью» необязательная — старые объекты созданы человеком */
-export function v6to7(p: PlanV6): Plan {
+export function v6to7(p: PlanV6): PlanV7 {
   return { ...p, version: 7 };
+}
+
+/** 7 → 8: появились новые виды мебели; старые данные подходят без изменений */
+export function v7to8(p: PlanV7): Plan {
+  return { ...p, version: 8 };
 }
 
 function checkShape(o: Record<string, unknown>): boolean {

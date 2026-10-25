@@ -1,6 +1,6 @@
 // Открытие старых файлов: прототип → формат версии 1.
 import { describe, expect, test } from 'vitest';
-import { fromPrototype, loadPlan, v1to2, v2to3, v3to4, v4to5, v5to6, v6to7, type PlanV1, type PlanV2, type PlanV3, type PlanV4, type PlanV5, type PlanV6 } from '../src/model/migrate';
+import { fromPrototype, loadPlan, v1to2, v2to3, v3to4, v4to5, v5to6, v6to7, v7to8, type PlanV1, type PlanV2, type PlanV3, type PlanV4, type PlanV5, type PlanV6, type PlanV7 } from '../src/model/migrate';
 import type { ProtoPlan } from '../src/model/prototype';
 import { FORMAT_VERSION, type Plan } from '../src/model/types';
 import proto from '../examples/auditorium.prototype.json';
@@ -10,6 +10,7 @@ import v3file from '../examples/old/auditorium.v3.json';
 import v4file from '../examples/old/auditorium.v4.json';
 import v5file from '../examples/old/auditorium.v5.json';
 import v6file from '../examples/old/auditorium.v6.json';
+import v7file from '../examples/old/auditorium.v7.json';
 
 const old = proto as unknown as ProtoPlan;
 const v1 = v1file as unknown as PlanV1;
@@ -18,6 +19,7 @@ const v3 = v3file as unknown as PlanV3;
 const v4 = v4file as unknown as PlanV4;
 const v5 = v5file as unknown as PlanV5;
 const v6 = v6file as unknown as PlanV6;
+const v7 = v7file as unknown as PlanV7;
 
 /** Пример в текущем формате получается переводом файла прототипа и лежит в examples/ */
 test('пример аудитории в текущем формате — это переведённый файл прототипа', async () => {
@@ -108,7 +110,7 @@ describe('файл версии 1 (этап 1)', () => {
   });
 
   test('прототип переводится через версию 1', () => {
-    expect(loadPlan(structuredClone(old))).toEqual({ ok: true, plan: v6to7(v5to6(v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old)))))))), migratedFrom: 'prototype' });
+    expect(loadPlan(structuredClone(old))).toEqual({ ok: true, plan: v7to8(v6to7(v5to6(v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old))))))))), migratedFrom: 'prototype' });
   });
 });
 
@@ -166,9 +168,9 @@ describe('файл версии 5 (этапы 7–8)', () => {
 describe('файл версии 6 (этап 9)', () => {
   const r = loadPlan(structuredClone(v6));
 
-  test('открывается и переводится в версию 7', () => {
+  test('открывается и переводится в текущую версию', () => {
     expect(r.ok && r.migratedFrom).toBe('v6');
-    expect(r.ok && r.plan.version).toBe(7);
+    expect(r.ok && r.plan.version).toBe(FORMAT_VERSION);
   });
 
   test('данные без изменений, пометок «предложено моделью» нет', () => {
@@ -176,6 +178,18 @@ describe('файл версии 6 (этап 9)', () => {
     const { version: _b, ...rest7 } = (r as { plan: Plan }).plan;
     expect(rest7).toEqual(rest6);
     expect(JSON.stringify(rest7)).not.toContain('"auto"');
+  });
+});
+
+describe('файл версии 7 (этап 10)', () => {
+  const r = loadPlan(structuredClone(v7));
+
+  test('открывается и переводится в версию 8, данные без изменений', () => {
+    expect(r.ok && r.migratedFrom).toBe('v7');
+    expect(r.ok && r.plan.version).toBe(8);
+    const { version: _a, ...rest7 } = v7;
+    const { version: _b, ...rest8 } = (r as { plan: Plan }).plan;
+    expect(rest8).toEqual(rest7);
   });
 });
 
@@ -196,7 +210,7 @@ describe('файл версии 3 (этап 5)', () => {
 });
 
 describe('loadPlan', () => {
-  const p = v6to7(v5to6(v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old))))))));
+  const p = v7to8(v6to7(v5to6(v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old)))))))));
 
   test('файл текущей версии открывается как есть', () => {
     const r = loadPlan(JSON.parse(JSON.stringify(p)));

@@ -5,6 +5,7 @@ import { HISTORY_MAX } from '../../storage/history';
 import { PASSWORD_WARNING } from '../common/PasswordDialog';
 import { Check, Hint } from '../common/fields';
 import { PackPanel } from '../common/Suggestions';
+import { fullMode } from '../mode';
 import { autosave, changePassword, openFile, resumeAutosave, saveToFile, setProtect, stopAutosave } from '../project';
 import { meta, persisted, protect, replacePlan, snapshots } from '../store';
 import { APP_VERSION, checkState, checkUpdates, install, installPrompt, offlineReady, standalone, updateVersion } from '../../pwa/register';
@@ -64,7 +65,7 @@ export function FilePanel() {
         </div>
       ))}
 
-      <PackPanel />
+      {fullMode.value && <PackPanel />}
 
       <h3>Хранение в браузере</h3>
       <p class="hint">

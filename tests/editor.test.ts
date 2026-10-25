@@ -7,7 +7,7 @@ import { blank } from '../src/model/state';
 import { cond } from '../src/model/units';
 import type { Item, ItemType, Plan } from '../src/model/types';
 import { drawSheet, sheetSvg } from '../src/render/sheet';
-import { SYMBOL_TYPES } from '../src/render/symbols';
+import { LEGEND_BOX, SYMBOL_TYPES, itemSymbol } from '../src/render/symbols';
 import { dispatch, plan, redo, undo } from '../src/ui/store';
 
 const item = (x: number, y: number, w: number, d: number, angle: number): Item => ({
@@ -73,6 +73,16 @@ describe('предметы квартиры', () => {
     expect([b.w.mm, b.d.mm]).toEqual([1600, 2000]);
     expect([b.x.mm, b.y.mm]).toEqual([(10_000 - 1600) / 2, (6_000 - 2000) / 2]);
     expect(b.x.status).toBe('conditional');
+  });
+
+  test('этап 11: новая мебель и контур тела — свои знаки и место в легенде', () => {
+    const fresh: ItemType[] = ['armchair', 'nightstand', 'dresser', 'shelf', 'wardrobe', 'writingDesk', 'tv', 'computer', 'carpet', 'mirror', 'washer', 'shower', 'safe', 'body'];
+    for (const t of fresh) {
+      expect(SYMBOL_TYPES).toContain(t);
+      expect(LEGEND_BOX[t]).toHaveLength(2);
+    }
+    // контур тела — голова у стороны Y = 0, штриховая линия
+    expect(itemSymbol('body', 0, 0, 6, 18)).toContain('stroke-dasharray');
   });
 
   test('у каждого вида есть название и размер', () => {

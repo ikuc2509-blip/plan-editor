@@ -93,7 +93,10 @@ export type ItemType =
   | 'desk' | 'chair' | 'teacher' | 'lectern' | 'table'
   | 'cabinet' | 'projector' | 'other'
   // квартира (формат 3)
-  | 'bed' | 'sofa' | 'fridge' | 'stove' | 'bath' | 'sink' | 'toilet' | 'column';
+  | 'bed' | 'sofa' | 'fridge' | 'stove' | 'bath' | 'sink' | 'toilet' | 'column'
+  // больше мебели и контур тела (формат 8)
+  | 'armchair' | 'nightstand' | 'dresser' | 'shelf' | 'wardrobe' | 'writingDesk' | 'tv' | 'computer'
+  | 'carpet' | 'mirror' | 'washer' | 'shower' | 'safe' | 'body';
 
 /** Предмет на полу */
 export interface Item {
@@ -222,7 +225,8 @@ export const FORMAT_ID = 'plan-editor';
  * 4 — этап 6: названия приборов для замеров (instruments);
  * 5 — этап 7: снимки (файл, SHA-256, вид съёмки, привязка, время из EXIF);
  * 6 — этап 9: снимки, выпрямленные на развёртку стен (wallPhotos);
- * 7 — этап 10: у принятого объекта — «предложено моделью» и уверенность (origin.auto).
+ * 7 — этап 10: у принятого объекта — «предложено моделью» и уверенность (origin.auto);
+ * 8 — этап 11: больше мебели (кресло, тумба, комод…) и контур тела человека.
  */
 /** Точка на снимке, в долях ширины и высоты (0…1) */
 export interface PhotoPt {
@@ -250,7 +254,7 @@ export interface WallPhoto {
   opacity: number;
 }
 
-export const FORMAT_VERSION = 7;
+export const FORMAT_VERSION = 8;
 
 export interface Plan {
   format: typeof FORMAT_ID;

@@ -6,6 +6,7 @@ import type { ShotItem } from '../../photos/shots';
 import { capture, openCamera, stopCamera } from '../../photos/image';
 import { addCameraShot, selPhoto } from '../photos';
 import { openRectify } from '../rectify';
+import { fullMode } from '../mode';
 
 /** открыта камера: для какого пункта (null — просто снимок) */
 const cameraFor = signal<{ shot: ShotItem | null } | null>(null);
@@ -84,7 +85,7 @@ export function CameraDialog() {
           <div class="cam-bar">
             <span>{count ? `Снято: ${count}` : 'Снимок сразу попадёт в проект, в галерею — нет'}</span>
             <button class="shoot" aria-label="Снять" disabled={!!err || busy || !ready} onClick={() => void shoot()} />
-            {wallShot && last
+            {wallShot && last && fullMode.value
               ? <button onClick={() => { const id = last; close(); openRectify(id, { wallId: wallShot }); }}>Выпрямить</button>
               : <button onClick={close}>Готово</button>}
           </div>

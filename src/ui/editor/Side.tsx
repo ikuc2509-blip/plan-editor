@@ -20,6 +20,7 @@ import { FilePanel } from './FilePanel';
 import { PhotosPanel, Thumb, showPhoto, showPhotoBox } from './PhotosPanel';
 import { TraceBar, WallPhotosList } from '../common/WallPhotos';
 import { openWelcome } from '../common/Welcome';
+import { fullMode } from '../mode';
 import { SuggestPanel } from '../common/Suggestions';
 
 const TABS: [TabKey, string][] = [['room', 'Помещение'], ['walls', 'Стены'], ['items', 'Мебель'], ['markers', 'Метки'], ['callouts', 'Выноски'], ['measure', 'Замеры'], ['photos', 'Фото'], ['under', 'Подложка'], ['stamp', 'Штамп'], ['file', 'Файл']];
@@ -40,6 +41,8 @@ export const wallOpts = (p: Plan): Record<string, string> =>
   Object.fromEntries(wallsByLetter(p.room).map(w => [w.id, 'Стена ' + w.letter]));
 
 export function Side() {
+  // простой режим — без подложки (этап 11)
+  useEffect(() => { if (!fullMode.value && tab.value === 'under') tab.value = 'room'; }, [fullMode.value]);
   // выделенный на листе объект — прокрутить к его карточке
   useEffect(() => {
     const id = sel.value?.id;
@@ -49,7 +52,7 @@ export function Side() {
   return (
     <aside>
       <div class="tabs" role="tablist">
-        {TABS.map(([k, n]) => (
+        {TABS.filter(([k]) => k !== 'under' || fullMode.value).map(([k, n]) => (
           <button key={k} role="tab" aria-selected={k === tab.value} onClick={() => { tab.value = k; }}>{n}</button>
         ))}
       </div>
@@ -61,7 +64,7 @@ export function Side() {
         {tab.value === 'callouts' && <CalloutsPanel />}
         {tab.value === 'measure' && <MeasurePanel />}
         {tab.value === 'photos' && <PhotosPanel />}
-        {tab.value === 'under' && <UnderlayPanel />}
+        {tab.value === 'under' && fullMode.value && <UnderlayPanel />}
         {tab.value === 'stamp' && <StampPanel />}
         {tab.value === 'file' && <FilePanel />}
       </div>
@@ -143,11 +146,15 @@ function WallsPanel() {
         <button onClick={() => addWallItem('radiator')}>+ Радиатор</button>
         <button onClick={() => addWallItem('other')}>+ Другое</button>
       </div>
-      <TraceBar />
-      <SuggestPanel />
+      {fullMode.value && <TraceBar />}
+      {fullMode.value && <SuggestPanel />}
       {items.map(it => <WallItemCard key={it.id} it={it} walls={wallOpts(st)} />)}
-      <h3>Снимки на развёртке</h3>
-      <WallPhotosList recognize />
+      {fullMode.value && (
+        <>
+          <h3>Снимки на развёртке</h3>
+          <WallPhotosList recognize />
+        </>
+      )}
     </>
   );
 }
