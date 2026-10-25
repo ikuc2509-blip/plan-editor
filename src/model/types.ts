@@ -26,7 +26,15 @@ export interface PhotoBox {
 /** Откуда взялся объект */
 export type Origin =
   | { kind: 'manual' }
-  | { kind: 'photo'; photoId: string; box: PhotoBox };
+  | { kind: 'photo'; photoId: string; box: PhotoBox; auto?: AutoFound };
+
+/** Объект предложила модель распознавания, человек принял (формат 7, этап 10) */
+export interface AutoFound {
+  /** какая модель */
+  model: string;
+  /** уверенность модели, 0…1, две цифры после запятой */
+  score: number;
+}
 
 export interface Point {
   x: Mm;
@@ -212,7 +220,9 @@ export const FORMAT_ID = 'plan-editor';
  * 2 — этап 2: формат листа (sheet.paper), убрана галочка sheet.showDims;
  * 3 — этап 5: предметы квартиры (кровать, диван, плита…), рисуется поворот предметов;
  * 4 — этап 6: названия приборов для замеров (instruments);
- * 5 — этап 7: снимки (файл, SHA-256, вид съёмки, привязка, время из EXIF).
+ * 5 — этап 7: снимки (файл, SHA-256, вид съёмки, привязка, время из EXIF);
+ * 6 — этап 9: снимки, выпрямленные на развёртку стен (wallPhotos);
+ * 7 — этап 10: у принятого объекта — «предложено моделью» и уверенность (origin.auto).
  */
 /** Точка на снимке, в долях ширины и высоты (0…1) */
 export interface PhotoPt {
@@ -240,7 +250,7 @@ export interface WallPhoto {
   opacity: number;
 }
 
-export const FORMAT_VERSION = 6;
+export const FORMAT_VERSION = 7;
 
 export interface Plan {
   format: typeof FORMAT_ID;

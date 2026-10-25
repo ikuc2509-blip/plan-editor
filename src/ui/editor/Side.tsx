@@ -1,6 +1,6 @@
 // Боковая панель: вкладки Помещение / Стены / Мебель / Метки / Подложка / Штамп.
 import { useEffect, useState } from 'preact/hooks';
-import type { Callout, Dim, Item, ItemType, Marker, MarkerPlace, Mm, PhotoBox, Plan, WallItem, WallItemType } from '../../model/types';
+import type { AutoFound, Callout, Dim, Item, ItemType, Marker, MarkerPlace, Mm, PhotoBox, Plan, WallItem, WallItemType } from '../../model/types';
 import { measureList, type MeasureRef, type MeasureRow } from '../../model/measure';
 import { formatMeters } from '../../model/units';
 import { StatusChip, openMeasure } from '../common/MeasureDialog';
@@ -19,6 +19,7 @@ import { clearPhotos } from '../photos';
 import { FilePanel } from './FilePanel';
 import { PhotosPanel, Thumb, showPhoto, showPhotoBox } from './PhotosPanel';
 import { TraceBar, WallPhotosList } from '../common/WallPhotos';
+import { SuggestPanel } from '../common/Suggestions';
 
 const TABS: [TabKey, string][] = [['room', 'Помещение'], ['walls', 'Стены'], ['items', 'Мебель'], ['markers', 'Метки'], ['callouts', 'Подписи'], ['measure', 'Замеры'], ['photos', 'Фото'], ['under', 'Подложка'], ['stamp', 'Штамп'], ['file', 'Файл']];
 
@@ -141,9 +142,10 @@ function WallsPanel() {
         <button onClick={() => addWallItem('other')}>+ Другое</button>
       </div>
       <TraceBar />
+      <SuggestPanel />
       {items.map(it => <WallItemCard key={it.id} it={it} walls={wallOpts(st)} />)}
       <h3>Снимки на развёртке</h3>
-      <WallPhotosList />
+      <WallPhotosList recognize />
     </>
   );
 }
@@ -179,17 +181,21 @@ export function WallItemCard({ it, walls }: { it: WallItem; walls: Record<string
             : <span />}
         </div>
       )}
-      {it.origin.kind === 'photo' && <OriginRow photoId={it.origin.photoId} box={it.origin.box} />}
+      {it.origin.kind === 'photo' && <OriginRow photoId={it.origin.photoId} box={it.origin.box} auto={it.origin.auto} />}
     </div>
   );
 }
 
 /** Откуда взят объект: снимок и рамка на нём (этап 9) */
-function OriginRow({ photoId, box }: { photoId: string; box: PhotoBox }) {
+function OriginRow({ photoId, box, auto }: { photoId: string; box: PhotoBox; auto?: AutoFound }) {
   const ph = plan.value.photos.find(x => x.id === photoId);
   return (
     <div class="origin">
-      <span>{ph ? `Обведено по снимку № ${ph.n}` : 'Обведено по снимку, которого уже нет в проекте'}</span>
+      <span>
+        {ph ? `${auto ? 'По снимку' : 'Обведено по снимку'} № ${ph.n}` : `${auto ? 'По снимку' : 'Обведено по снимку'}, которого уже нет в проекте`}
+        {/* этап 10: принято из предложений модели */}
+        {auto && ` · предложено моделью, ${Math.round(auto.score * 100)} %`}
+      </span>
       {ph && <button class="inline" onClick={() => void showPhotoBox(photoId, box)}>Показать</button>}
     </div>
   );

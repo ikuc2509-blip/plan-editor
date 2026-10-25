@@ -12,6 +12,8 @@ import { dispatch, endGesture, gridStep, plan, sel, tab, toast, zoom, type TabKe
 import type { MeasureRef } from '../../model/measure';
 import { openMeasure } from '../common/MeasureDialog';
 import { wallImages } from '../rectify';
+import { pickSuggestion, suggSel, suggestions } from '../recognize';
+import { suggestSvg } from '../common/Suggestions';
 
 const TAB_FOR: Record<SelKind, TabKey> = { wi: 'walls', it: 'items', mk: 'markers', co: 'callouts' };
 const COL = { wi: 'wallItems', it: 'items', mk: 'markers', co: 'callouts' } as const;
@@ -164,6 +166,9 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
       drag.current = { mode: 'pan', key, start, client: client(), moved: false, place: true };
       return;
     }
+    // предложение модели (этап 10) — выбрать его в списке
+    const sEl = onsite ? null : target.closest<SVGElement>('[data-sugg]');
+    if (sEl) { pickSuggestion(sEl.dataset.sugg!); return; }
     // размер на листе — окно замера
     const mEl = target.closest<SVGElement>('[data-measure]');
     const mref = mEl && parseMeasure(mEl.dataset.measure!);
@@ -296,7 +301,7 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
-        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true, touch: onsite, wallImages: wallImages.value }) + markSvg(shown, mark) }}
+        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true, touch: onsite, wallImages: wallImages.value }) + (onsite ? '' : suggestSvg(shown, suggestions.value, suggSel.value)) + markSvg(shown, mark) }}
       />
       {!onsite && (
         <>

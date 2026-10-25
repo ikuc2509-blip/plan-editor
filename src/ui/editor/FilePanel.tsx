@@ -4,6 +4,7 @@ import type { Snapshot } from '../../storage/db';
 import { HISTORY_MAX } from '../../storage/history';
 import { PASSWORD_WARNING } from '../common/PasswordDialog';
 import { Check } from '../common/fields';
+import { PackPanel } from '../common/Suggestions';
 import { autosave, changePassword, openFile, resumeAutosave, saveToFile, setProtect, stopAutosave } from '../project';
 import { meta, persisted, protect, replacePlan, snapshots } from '../store';
 import { APP_VERSION, checkState, checkUpdates, install, installPrompt, offlineReady, standalone, updateVersion } from '../../pwa/register';
@@ -62,6 +63,8 @@ export function FilePanel() {
           <button class="ghost" onClick={() => void restore(s)}>Вернуть</button>
         </div>
       ))}
+
+      <PackPanel />
 
       <h3>Хранение в браузере</h3>
       <p class="hint">

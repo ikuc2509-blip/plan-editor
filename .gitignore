@@ -28,3 +28,7 @@ e2e/.out/
 .DS_Store
 Thumbs.db
 *.log
+
+# Пакет распознавания: собирается scripts/pack.mjs, в git не попадает (decisions.md, этап 10)
+.pack-cache/
+public/pack/

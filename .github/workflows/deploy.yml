@@ -27,6 +27,12 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      # пакет распознавания (этап 10): модель с Hugging Face по закреплённой версии, сверка отпечатков
+      - uses: actions/cache@v4
+        with:
+          path: .pack-cache
+          key: pack-${{ hashFiles('src/recognize/packInfo.ts') }}
+      - run: node scripts/pack.mjs
       - run: npm run build
       - uses: actions/upload-pages-artifact@v4
         with:

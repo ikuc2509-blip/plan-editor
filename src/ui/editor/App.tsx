@@ -13,6 +13,7 @@ import { UpdateBar } from '../common/UpdateBar';
 import { MeasureDialog } from '../common/MeasureDialog';
 import { CameraDialog } from '../common/CameraDialog';
 import { RectifyDialog } from '../common/RectifyDialog';
+import { CompareDialog } from '../common/Suggestions';
 import { PhotoViewer } from './PhotosPanel';
 import { BIG_PROJECT, formatSize } from '../../photos/meta';
 import { photosBytes } from '../photos';
@@ -120,6 +121,7 @@ export function App() {
       <MeasureDialog />
       <CameraDialog />
       <RectifyDialog />
+      <CompareDialog />
       <PhotoViewer />
     </div>
   );
