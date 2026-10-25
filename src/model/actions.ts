@@ -5,7 +5,7 @@ import type {
   Callout, Dim, FrameEdge, Item, ItemType, Marker, MeasureMethod, Mm, Origin, Photo, Plan, Point, SheetOptions, Stamp, Underlay, WallItem, WallItemType, WallPhoto,
 } from './types';
 import { IT_SIZE } from './labels';
-import { createRectRoom, findWall, isRect, polygonWalls, rectSize, rectWalls, roomExtent, wallLength } from './room';
+import { LETTERS, createRectRoom, findWall, isRect, polygonWalls, rectSize, rectWalls, roomExtent, wallLength } from './room';
 import { cond, withMm } from './units';
 
 type Collection = 'wallItems' | 'items' | 'markers' | 'callouts' | 'photos' | 'wallPhotos';
@@ -318,3 +318,49 @@ export function moveCorner(p: Plan, index: number, pt: Point): Plan {
   if (index < 0 || index >= p.room.walls.length) return p;
   return withCorners(p, p.room.walls.map((w, i) => (i === index ? { x: Math.round(pt.x), y: Math.round(pt.y) } : w.a)));
 }
+
+/**
+ * «Выровнять стены»: каждая стена — по горизонтали или вертикали (что ближе), положение — среднее
+ * её концов; подряд идущие стены одного направления сливаются в одну. Углы — пересечения соседних
+ * стен, поэтому комната остаётся замкнутой. null — выровнять нельзя (меньше четырёх стен по осям).
+ * id и названия стен сохраняются (окна и двери остаются на своих стенах), буквы — по порядку.
+ */
+export function straightenRoom(p: Plan): Plan | null {
+  const ws = p.room.walls, n = ws.length;
+  if (n < 4) return null;
+  const horiz = ws.map(w => Math.abs(w.b.x - w.a.x) >= Math.abs(w.b.y - w.a.y));
+  // начать с места, где направление меняется, — чтобы группа не разрывалась через конец списка
+  const s = horiz.findIndex((h, i) => h !== horiz[(i - 1 + n) % n]);
+  if (s < 0) return null;
+  const groups: { h: boolean; idx: number[] }[] = [];
+  for (let k = 0; k < n; k++) {
+    const i = (s + k) % n, last = groups[groups.length - 1];
+    if (last && last.h === horiz[i]) last.idx.push(i); else groups.push({ h: horiz[i]!, idx: [i] });
+  }
+  if (groups.length < 4 || groups.length % 2) return null;
+  // линия группы: у горизонтальной — y, у вертикальной — x (среднее концов)
+  const line = groups.map(g => {
+    const vals = g.idx.flatMap(i => (g.h ? [ws[i]!.a.y, ws[i]!.b.y] : [ws[i]!.a.x, ws[i]!.b.x]));
+    return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+  });
+  // конец группы k = пересечение её линии с линией следующей группы
+  const end = (k: number): Point => {
+    const k2 = (k + 1) % groups.length;
+    return groups[k]!.h ? { x: line[k2]!, y: line[k]! } : { x: line[k]!, y: line[k2]! };
+  };
+  const walls = groups.map((g, k) => {
+    const w = ws[g.idx[0]!]!, a = end((k - 1 + groups.length) % groups.length), b = end(k);
+    const len = Math.round(Math.hypot(b.x - a.x, b.y - a.y));
+    return { ...w, a, b, length: g.idx.length === 1 && len === w.length.mm ? w.length : cond(len) };
+  });
+  if (walls.some(w => w.length.mm <= 0)) return null;
+  // буквы по порядку обхода, первая — верхняя левая (как у нарисованной комнаты)
+  let first = 0;
+  const mid = (w: { a: Point; b: Point }) => ({ x: (w.a.x + w.b.x) / 2, y: (w.a.y + w.b.y) / 2 });
+  walls.forEach((w, i) => { const m = mid(w), f = mid(walls[first]!); if (m.y < f.y || (m.y === f.y && m.x < f.x)) first = i; });
+  const ordered = [...walls.slice(first), ...walls.slice(0, first)].map((w, i) => ({ ...w, letter: LETTERS[i] ?? String(i + 1) }));
+  return dropOrphans({ ...p, room: { ...p.room, walls: ordered } });
+}
+
+/** Есть ли косые стены (не по горизонтали и не по вертикали) */
+export const hasSlanted = (p: Plan): boolean => p.room.walls.some(w => w.a.x !== w.b.x && w.a.y !== w.b.y);

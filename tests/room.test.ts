@@ -1,6 +1,6 @@
 // Этап 12: чистый лист и своя комната — стены по углам, длины, углы, привязки меток, лист.
 import { describe, expect, test } from 'vitest';
-import { addMarker, clearRoom, drawRoom, moveCorner, patch, rectTemplate, setWallLength } from '../src/model/actions';
+import { addMarker, clearRoom, drawRoom, hasSlanted, moveCorner, patch, rectTemplate, setWallLength, straightenRoom } from '../src/model/actions';
 import { emptyPlan } from '../src/model/state';
 import { isRect, noRoom, polygonWalls, roomExtent, signedArea2 } from '../src/model/room';
 import { applyMeasure, measureList, tieOf } from '../src/model/measure';
@@ -116,5 +116,31 @@ describe('лист', () => {
     expect(svg).toContain('А: ____ м');
     expect(svg).toContain('data-measure="wall:w1"');
     expect(svg).not.toContain('L (длина помещения)');
+  });
+});
+
+describe('выровнять стены', () => {
+  test('косые после перетаскивания углов — снова по осям, комната замкнута, id стен прежние', () => {
+    let p = drawRoom(emptyPlan(), [{ x: 0, y: 0 }, { x: 6000, y: 0 }, { x: 6000, y: 4000 }, { x: 0, y: 4000 }]);
+    p = moveCorner(p, 1, { x: 6100, y: 150 });
+    p = moveCorner(p, 2, { x: 5900, y: 4080 });
+    expect(hasSlanted(p)).toBe(true);
+    const q = straightenRoom(p)!;
+    expect(hasSlanted(q)).toBe(false);
+    expect(q.room.walls.map(w => w.id)).toEqual(p.room.walls.map(w => w.id));
+    q.room.walls.forEach((w, i) => expect(q.room.walls[(i + 1) % 4]!.a).toEqual(w.b));
+    // правая стена — посередине между 6100 и 5900
+    expect(q.room.walls[1]!.a.x).toBe(6000);
+  });
+
+  test('две подряд почти горизонтальные стены сливаются в одну', () => {
+    const p = drawRoom(emptyPlan(), [{ x: 0, y: 0 }, { x: 3000, y: 100 }, { x: 6000, y: 0 }, { x: 6000, y: 4000 }, { x: 0, y: 4000 }]);
+    const q = straightenRoom(p)!;
+    expect(q.room.walls).toHaveLength(4);
+    expect(q.room.walls.map(w => w.letter).join('')).toBe('АБВГ');
+  });
+
+  test('треугольник выровнять нельзя', () => {
+    expect(straightenRoom(drawRoom(emptyPlan(), [{ x: 0, y: 0 }, { x: 4000, y: 0 }, { x: 0, y: 3000 }]))).toBeNull();
   });
 });
