@@ -13,15 +13,16 @@ import { SCALES, fitsAt, smallerScaleThatFits } from '../../geometry/unfold';
 import { PAPERS, layoutFor } from '../../render/layout';
 import { pickFile, readDataUrl } from '../../storage/files';
 import { dispatch, endGesture, plan, replacePlan, sel, tab, toast, type TabKey } from '../store';
-import { Check, Field, Len, Num, Select, Text, parseNum } from '../common/fields';
+import { Check, Field, Hint, Len, Num, Select, Text, parseNum } from '../common/fields';
 import { stopAutosave } from '../project';
 import { clearPhotos } from '../photos';
 import { FilePanel } from './FilePanel';
 import { PhotosPanel, Thumb, showPhoto, showPhotoBox } from './PhotosPanel';
 import { TraceBar, WallPhotosList } from '../common/WallPhotos';
+import { openWelcome } from '../common/Welcome';
 import { SuggestPanel } from '../common/Suggestions';
 
-const TABS: [TabKey, string][] = [['room', 'Помещение'], ['walls', 'Стены'], ['items', 'Мебель'], ['markers', 'Метки'], ['callouts', 'Подписи'], ['measure', 'Замеры'], ['photos', 'Фото'], ['under', 'Подложка'], ['stamp', 'Штамп'], ['file', 'Файл']];
+const TABS: [TabKey, string][] = [['room', 'Помещение'], ['walls', 'Стены'], ['items', 'Мебель'], ['markers', 'Метки'], ['callouts', 'Выноски'], ['measure', 'Замеры'], ['photos', 'Фото'], ['under', 'Подложка'], ['stamp', 'Штамп'], ['file', 'Файл']];
 
 /** Новый план вместо текущего: автосохранение выключаем, чтобы не записать пример поверх файла осмотра */
 export async function newPlan(p: Plan, question: string, label: string) {
@@ -82,7 +83,7 @@ function RoomPanel() {
   const { L, W } = rectSize(st.room);
   return (
     <>
-      <p class="hint">Пока замеров нет, оставьте «схематично»: незамеренные размеры на листе будут пустыми строками, впишете от руки. Длины ниже задают только пропорции.</p>
+      <Hint text="Пока замеров нет — режим «Схематично»: незамеренное на листе будет пустой строкой.">Её впишете от руки. Длины ниже задают только пропорции.</Hint>
       <div class="grid">
         <Select label="Лист" value={st.sheet.paper} options={PAPERS} onValue={v => dispatch(p => A.setSheet(p, { paper: v }))} />
         <Select label="Режим" value={st.sheet.mode} options={{ schematic: 'Схематично', scale: 'В масштабе' }} onValue={v => dispatch(p => A.setSheet(p, { mode: v }))} />
@@ -103,7 +104,7 @@ function RoomPanel() {
         <Len label="Ширина W" value={W.mm} positive onCommit chip={chip(W, { t: 'room', key: 'W' })} onValue={mm => dispatch(p => A.setRoomSize(p, { W: mm }))} />
         <Len label="Высота h" value={st.room.height.mm} positive onCommit chip={chip(st.room.height, { t: 'room', key: 'h' })} onValue={mm => dispatch(p => A.setRoomSize(p, { h: mm }))} />
       </div>
-      <p class="hint" style="margin-top:6px">Отметка над полем — «замерено» или «условно»; щёлкните её, чтобы записать замер и чем мерили. Можно писать «12,5», «1250 см» или «12500 мм». Новый размер применяется, когда вы выходите из поля или нажимаете Enter. Условные окна, метки и мебель при этом сдвигаются пропорционально, замеренные остаются на месте. На листе замеренный размер подписывается числом, условный — пустой строкой.</p>
+      <Hint style="margin-top:6px" text="Отметка над полем — «замерено» или «условно»; щёлкните её, чтобы записать замер.">Там же — чем мерили. Можно писать «12,5», «1250 см» или «12500 мм». Новый размер применяется, когда вы выходите из поля или нажимаете Enter. Условные окна, метки и мебель при этом сдвигаются пропорционально, замеренные остаются на месте. На листе замеренный размер подписывается числом, условный — пустой строкой.</Hint>
       <h3>Отображение</h3>
       <Check label="Привязки меток к стенам" checked={st.sheet.showTies} onValue={v => dispatch(p => A.setSheet(p, { showTies: v }))} />
       <h3>Названия стен</h3>
@@ -117,6 +118,7 @@ function RoomPanel() {
       <div class="row">
         <button onClick={() => void newPlan(example(), 'Заменить текущий план примером аудитории? Текущий сохранится в истории (вкладка «Файл»).', 'примера аудитории')}>Пример: наша аудитория</button>
         <button onClick={() => void newPlan(blank(), 'Начать пустой план? Текущий сохранится в истории (вкладка «Файл»).', 'пустого плана')}>Пустой план</button>
+        <button class="ghost" onClick={openWelcome}>С чего начать</button>
       </div>
     </>
   );
@@ -167,7 +169,7 @@ export function WallItemCard({ it, walls }: { it: WallItem; walls: Record<string
       </div>
       <div class="grid">
         <Select label="Стена" value={it.wallId} options={walls} onValue={v => set({ wallId: v })} />
-        <Text label="Подпись" value={it.label} onValue={v => dispatch(p => A.patch(p, 'wallItems', it.id, { label: v }), `wi:${it.id}:label`)} />
+        <Text label="Надпись на элементе" value={it.label} onValue={v => dispatch(p => A.patch(p, 'wallItems', it.id, { label: v }), `wi:${it.id}:label`)} />
         <Len label="Отступ, м" value={it.off.mm} chip={pchip(it.off, wiRef('off'))} onValue={len('off')} />
         <Len label="Ширина, м" value={it.w.mm} positive chip={pchip(it.w, wiRef('w'))} onValue={len('w')} />
         <Len label="От пола, м" value={it.z.mm} chip={pchip(it.z, wiRef('z'))} onValue={len('z')} />
@@ -216,7 +218,7 @@ function ItemCard({ it }: { it: Item }) {
         <button class="del" onClick={() => removeObj('items', it.id)}>Удалить</button>
       </div>
       <div class="grid">
-        <Text label="Подпись" value={it.label} onValue={v => dispatch(p => A.patch(p, 'items', it.id, { label: v }), `it:${it.id}:label`)} />
+        <Text label="Надпись на предмете" value={it.label} onValue={v => dispatch(p => A.patch(p, 'items', it.id, { label: v }), `it:${it.id}:label`)} />
         <Len label="X, м" value={it.x.mm} chip={chip(it.x, itRef('x'))} onValue={len('x')} />
         <Len label="Y, м" value={it.y.mm} chip={chip(it.y, itRef('y'))} onValue={len('y')} />
         <Len label="По X, м" value={it.w.mm} positive chip={chip(it.w, itRef('w'))} onValue={len('w')} />
@@ -257,7 +259,7 @@ function ItemsPanel() {
   const desks = st.items.filter(i => i.type === 'desk').length;
   return (
     <>
-      <p class="hint">X, Y — левый верхний угол предмета до поворота: X — от стены В (слева), Y — от стены А (сверху). Поворот — вокруг центра, по часовой стрелке; изголовье кровати, спинка дивана, бачок унитаза — со стороны верхнего края.</p>
+      <Hint text="X, Y — левый верхний угол предмета до поворота.">X — от стены В (слева), Y — от стены А (сверху). Поворот — вокруг центра, по часовой стрелке; изголовье кровати, спинка дивана, бачок унитаза — со стороны верхнего края.</Hint>
       <div class="row" style="align-items:flex-end">
         <Select<ItemType> label="Новый предмет" value={newType} options={IT_TYPES} onValue={setNewType} />
         <button onClick={addItem}>+ Добавить</button>
@@ -341,7 +343,7 @@ function CalloutCard({ c }: { c: Callout }) {
   return (
     <div class={cardClass(c.id)} data-card={c.id}>
       <div class="card-h">
-        <span style="flex:1;font-size:12.5px;color:var(--muted)">Подпись со стрелкой</span>
+        <span style="flex:1;font-size:12.5px;color:var(--muted)">Выноска</span>
         <button class="del" onClick={() => removeObj('callouts', c.id)}>Удалить</button>
       </div>
       <Text label="Текст" value={c.text} wide area placeholder="напр. следы волочения" onValue={v => dispatch(p => A.patch(p, 'callouts', c.id, { text: v }), `co:${c.id}:text`)} />
@@ -357,8 +359,8 @@ function CalloutsPanel() {
   };
   return (
     <>
-      <p class="hint">Подпись со стрелкой к любому месту плана, в том числе к развёртке стен. На листе перетаскивайте текст, а кончик стрелки — за синий кружок.</p>
-      <div class="row"><button onClick={add}>+ Подпись со стрелкой</button></div>
+      <p class="hint">Выноска — текст со стрелкой к любому месту плана, в том числе к развёртке стен. На листе перетаскивайте текст, а кончик стрелки — за синий кружок.</p>
+      <div class="row"><button onClick={add}>+ Выноска</button></div>
       {plan.value.callouts.map(c => <CalloutCard key={c.id} c={c} />)}
     </>
   );

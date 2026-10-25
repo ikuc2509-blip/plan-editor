@@ -20,6 +20,8 @@ export default defineConfig({
   },
   // фоновый поток распознавания — модуль: движок модели написан как ES-модуль
   worker: { format: 'es' },
+  // движок готовится при запуске сервера разработки — иначе первое распознавание перезагружает страницу
+  optimizeDeps: { include: ['onnxruntime-web'] },
   test: {
     include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
     environment: 'node',

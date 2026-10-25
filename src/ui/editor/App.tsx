@@ -1,5 +1,5 @@
 // Режим «Чистовик» (компьютер): шапка с файлом, экспортом, отменой, масштабом и сеткой.
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { vectorPdf } from '../../export/pdf';
 import { sheetPng, sheetSvgFile } from '../../export/image';
 import { saveFile } from '../../storage/files';
@@ -13,6 +13,7 @@ import { UpdateBar } from '../common/UpdateBar';
 import { MeasureDialog } from '../common/MeasureDialog';
 import { CameraDialog } from '../common/CameraDialog';
 import { RectifyDialog } from '../common/RectifyDialog';
+import { WelcomeDialog } from '../common/Welcome';
 import { CompareDialog } from '../common/Suggestions';
 import { PhotoViewer } from './PhotosPanel';
 import { BIG_PROJECT, formatSize } from '../../photos/meta';
@@ -76,6 +77,28 @@ function onKey(e: KeyboardEvent) {
   }
 }
 
+/** «Скачать ▾»: PDF, PNG, SVG одной кнопкой — шапка помещается в одну строку (этап 11) */
+function DownloadMenu() {
+  const ref = useRef<HTMLDetailsElement>(null);
+  // щелчок мимо меню — закрыть
+  useEffect(() => {
+    const off = (e: PointerEvent) => { const d = ref.current; if (d?.open && !d.contains(e.target as Node)) d.open = false; };
+    addEventListener('pointerdown', off);
+    return () => removeEventListener('pointerdown', off);
+  }, []);
+  const pick = (ext: 'pdf' | 'png' | 'svg') => { if (ref.current) ref.current.open = false; void exportSheet(ext); };
+  return (
+    <details class="menu" ref={ref}>
+      <summary class="primary">Скачать ▾</summary>
+      <div class="menu-list" role="menu">
+        <button role="menuitem" onClick={() => pick('pdf')}><b>PDF {plan.value.sheet.paper}</b><span>для печати и подписи</span></button>
+        <button role="menuitem" onClick={() => pick('png')}><b>PNG</b><span>картинка для вставки в Word</span></button>
+        <button role="menuitem" onClick={() => pick('svg')}><b>SVG</b><span>векторная картинка</span></button>
+      </div>
+    </details>
+  );
+}
+
 const GRID_NAMES: Record<string, string> = { 0: 'нет', 10: '1 см', 50: '5 см', 100: '10 см' };
 
 export function App() {
@@ -86,7 +109,7 @@ export function App() {
   return (
     <div class="app">
       <header>
-        <h1><span class="dot">1</span>План места происшествия</h1>
+        <h1><span class="dot">1</span><span class="t-full">План места происшествия</span><span class="t-short" aria-hidden="true">План ОМП</span></h1>
         <button class="ghost" title="Пошаговый режим для телефона" onClick={() => setMode('onsite')}>На месте</button>
         <SaveStatus />
         {plan.value.photos.length > 0 && (
@@ -107,9 +130,7 @@ export function App() {
         </label>
         <button onClick={openFile}>Открыть файл</button>
         <button onClick={saveToFile}>Сохранить в файл</button>
-        <button onClick={() => exportSheet('svg')} title="Лист в SVG (векторная картинка)">SVG</button>
-        <button onClick={() => exportSheet('png')} title="Лист картинкой для вставки в Word">PNG</button>
-        <button class="primary" onClick={() => exportSheet('pdf')}>Скачать PDF {plan.value.sheet.paper}</button>
+        <DownloadMenu />
         <UpdateBar />
       </header>
       <main>
@@ -121,6 +142,7 @@ export function App() {
       <MeasureDialog />
       <CameraDialog />
       <RectifyDialog />
+      <WelcomeDialog />
       <CompareDialog />
       <PhotoViewer />
     </div>
