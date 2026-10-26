@@ -193,3 +193,46 @@ test('развёртки: налезают во внутреннем углу �
   await expect(sheet).not.toContainText('СТЕНА В (развёртка)');
   await expect(sheet).toContainText('Развёртка стены В не показана.');
 });
+
+test('нарисованная Г-комната: окно, дверь, метка, мебель, замеры, PDF', async ({ page }) => {
+  page.on('dialog', d => void d.accept());
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Помещение', exact: true }).click();
+  await page.getByRole('button', { name: 'Пустой план' }).click();
+  await page.getByRole('button', { name: 'Нарисовать комнату' }).first().click();
+  const sheet = page.getByTestId('sheet');
+  for (const [x, y] of [[-3, -2.5], [3, -2.5], [3, 0.5], [1, 0.5], [1, 2.5], [-3, 2.5], [-3, -2.5]] as const) {
+    await sheet.click({ position: await at(page, x, y) });
+  }
+  await expect(page.locator('#toast')).toContainText('Комната готова');
+
+  // окно и дверь — на стенах нарисованной комнаты, на развёртке видны
+  await page.getByRole('tab', { name: 'Стены', exact: true }).click();
+  await page.getByRole('button', { name: '+ Окно' }).click();
+  await page.getByRole('button', { name: '+ Дверь' }).click();
+  await expect(page.locator('.side [data-card]')).toHaveCount(2);
+  await expect(sheet).toContainText('дверь');
+
+  // метка на полу — привязки к стенам
+  await page.getByRole('tab', { name: 'Метки' }).click();
+  await page.getByRole('button', { name: '+ Метка' }).click();
+  await expect(page.locator('.side [data-card]')).toHaveCount(1);
+  const tie = await sheet.locator('[data-measure^="tie:"]').count();
+  expect(tie).toBeGreaterThan(0);
+
+  // мебель
+  await page.getByRole('tab', { name: 'Мебель' }).click();
+  await page.getByRole('button', { name: '+ Добавить' }).click();
+  await expect(page.locator('.side [data-card]')).toHaveCount(1);
+
+  // замеры: длины стен нарисованной комнаты в списке
+  await page.getByRole('tab', { name: 'Замеры' }).click();
+  await expect(page.locator('.side')).toContainText('Помещение — стена А');
+  await expect(page.locator('.side')).toContainText('Метка № 1 — до стены');
+
+  // PDF
+  await page.getByText('Скачать ▾').click();
+  const pdf = page.waitForEvent('download');
+  await page.getByRole('menu').getByRole('menuitem', { name: /PDF/ }).click();
+  expect((await pdf).suggestedFilename()).toMatch(/\.pdf$/);
+});
