@@ -3,7 +3,7 @@
 import { signal, type Signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Callout, Item, Marker, Mm, Plan, Point, SelKind, WallItem } from '../../model/types';
-import { moveCorner, moveTo, patch, setAngle, setSheet, setWallElev, snapWallZ } from '../../model/actions';
+import { moveCorner, moveTo, patch, setAngle, setSheet, setWallElev, snapItemXY, snapWallZ } from '../../model/actions';
 import { drawSheet, sheetGeom, sheetLayout } from '../../render/sheet';
 import type { Box } from '../../render/layout';
 import { locate, segOf, unf, wallDelta, type Spot } from '../../geometry/unfold';
@@ -33,7 +33,9 @@ const touchScreen = typeof window !== 'undefined' && (window.matchMedia?.('(poin
 const hintHidden = signal(false);
 
 /** линия-направляющая при выравнивании элементов стены: какая стена и высота, мм */
-const guide = signal<{ wallId: string; z: Mm } | null>(null);
+/** линия-направляющая: на развёртке стены (окна) или на полу через всю комнату (мебель), мм */
+type Guide = { wallId: string; z: Mm } | { x: Mm | null; y: Mm | null };
+const guide = signal<Guide | null>(null);
 
 /** масштаб плана в режиме «На месте» — свой, чтобы не сбивать «Чистовик» */
 export const onsiteZoom = signal(1);
@@ -358,7 +360,13 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
     const onFloor = kind === 'it' || (kind === 'mk' && (q as Marker).place === 'floor');
     if (onFloor) {
       const qq = q as Item | Marker;
-      const x = sn(qq.x.mm / 1000 + dx / g.s), y = sn(qq.y.mm / 1000 + dy / g.s);
+      let x = sn(qq.x.mm / 1000 + dx / g.s), y = sn(qq.y.mm / 1000 + dy / g.s);
+      // мебель встаёт в ряд с соседней: край или середина на линии; видна направляющая (Alt — без этого)
+      if (kind === 'it' && !e.altKey) {
+        const s2 = snapItemXY(plan.value, id, x, y, (2 / g.s) * 1000);
+        x = s2.x; y = s2.y;
+        guide.value = s2.gx === null && s2.gy === null ? null : { x: s2.gx, y: s2.gy };
+      }
       dispatch(pl => moveTo(pl, COL[kind] as 'items' | 'markers', id, { x, y }), d.key);
       return;
     }
@@ -491,9 +499,19 @@ function drawSvg(p: Plan, pts: readonly Point[], hover: Point | null, cross = 0)
 }
 
 /** Линия-направляющая через всю развёртку стены (только на экране) */
-function guideSvg(p: Plan, gd: { wallId: string; z: Mm } | null): string {
+function guideSvg(p: Plan, gd: Guide | null): string {
   if (!gd) return '';
-  const g = sheetGeom(p), sg = segOf(g, gd.wallId);
+  const g = sheetGeom(p);
+  if (!('wallId' in gd)) {
+    // мебель: линия через весь пол, с запасом
+    const xs = g.segs.map(s => s.ax), ys = g.segs.map(s => s.ay);
+    const X = (m: number) => g.fx + m * g.s, Y = (m: number) => g.fy + m * g.s, pad = 0.5;
+    const x0 = X(Math.min(...xs) - pad), x1 = X(Math.max(...xs) + pad), y0 = Y(Math.min(...ys) - pad), y1 = Y(Math.max(...ys) + pad);
+    const st = 'stroke="#D0332B" stroke-width="0.35" stroke-dasharray="2 1" pointer-events="none"';
+    return (gd.x === null ? '' : `<line x1="${X(gd.x / 1000)}" y1="${y0}" x2="${X(gd.x / 1000)}" y2="${y1}" ${st}/>`) +
+      (gd.y === null ? '' : `<line x1="${x0}" y1="${Y(gd.y / 1000)}" x2="${x1}" y2="${Y(gd.y / 1000)}" ${st}/>`);
+  }
+  const sg = segOf(g, gd.wallId);
   if (!sg) return '';
   const [x1, y1] = unf(g, sg, 0, gd.z / 1000), [x2, y2] = unf(g, sg, sg.len, gd.z / 1000);
   return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#D0332B" stroke-width="0.35" stroke-dasharray="2 1" pointer-events="none"/>`;

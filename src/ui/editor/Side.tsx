@@ -358,6 +358,20 @@ function ItemCard({ it }: { it: Item }) {
         <Len label="По Y, м" value={it.d.mm} positive chip={chip(it.d, itRef('d'))} onValue={len('d')} />
         <Num label="Поворот, °" value={it.angle} onValue={v => dispatch(p => A.setAngle(p, it.id, v), `it:${it.id}:angle`)} />
       </div>
+      <AlignItems it={it} />
+    </div>
+  );
+}
+
+/** «Выровнять ряд / колонку по этому» — такие же предметы, стоящие с этим в одну линию (этап 12) */
+function AlignItems({ it }: { it: Item }) {
+  const row = A.itemsInLine(plan.value, it.id, 'row').length, col = A.itemsInLine(plan.value, it.id, 'col').length;
+  if (!row && !col) return null;
+  const go = (line: A.ItemLine) => { dispatch(p => A.alignItemsLine(p, it.id, line)); toast(line === 'row' ? 'Ряд выровнен по этому предмету' : 'Колонка выровнена по этому предмету'); };
+  return (
+    <div class="row" style="margin:6px 0 0">
+      {row > 0 && <button onClick={() => go('row')}>Выровнять ряд по этому ({row})</button>}
+      {col > 0 && <button onClick={() => go('col')}>Выровнять колонку по этому ({col})</button>}
     </div>
   );
 }
