@@ -22,7 +22,7 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'phone', testMatch: /(onsite|wall|start)\.spec\.ts/,
+      name: 'phone', testMatch: /(onsite|wall|start|draw)\.spec\.ts/,
       use: {
         ...devices['Pixel 7'], channel: 'msedge', storageState: welcomed,
         // поддельная камера браузера (заставка вместо видео) — для встроенной камеры, без вопроса о разрешении

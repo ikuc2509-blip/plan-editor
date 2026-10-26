@@ -45,7 +45,7 @@ type Obj = WallItem | Item | Marker | Callout;
 
 interface Drag {
   /** move — объект; rot — ручка поворота; tip — кончик стрелки выноски; pan — сдвиг листа; corner — угол комнаты */
-  mode: 'move' | 'rot' | 'tip' | 'pan' | 'corner' | 'shape' | 'elev';
+  mode: 'move' | 'rot' | 'tip' | 'pan' | 'corner' | 'shape' | 'elev' | 'aim';
   /** развёртка, которую несут: стена и прежний сдвиг, мм */
   elev?: { wallId: string; dx: Mm; dy: Mm };
   /** угол комнаты (этап 12) */
@@ -64,6 +64,8 @@ interface Drag {
   place?: boolean;
   /** «На месте»: выбор — по отпусканию пальца, чтобы щипок не переключал шаг */
   pick?: boolean;
+  /** рисование пальцем: куда ляжет угол — под крестиком над пальцем (мм пола) */
+  aim?: { x: number; y: number; tol: number };
 }
 
 function findObj(s: Plan, kind: SelKind, id: string): Obj | undefined {
@@ -96,6 +98,8 @@ interface SheetProps {
 
 /** на сколько пикселей можно сдвинуть палец, чтобы это ещё было касанием, а не сдвигом */
 const TAP_PX = 8;
+/** рисование пальцем: крестик выше пальца на столько пикселей, чтобы палец его не закрывал (этап 12) */
+const AIM_PX = 70;
 
 export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}) {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -103,7 +107,7 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
   const drag = useRef<Drag | null>(null);
   // пальцы на экране — для масштаба двумя пальцами
   const fingers = useRef(new Map<number, { x: number; y: number }>());
-  const pinch = useRef<{ d0: number; z0: number } | null>(null);
+  const pinch = useRef<{ d0: number; z0: number; m: { x: number; y: number } } | null>(null);
   const [base, setBase] = useState(800);
   const z: Signal<number> = onsite ? onsiteZoom : zoom;
   const view = (p: Plan) => (onsite ? schematicView(p) : p);
@@ -175,7 +179,19 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
   /** точка листа → мм пола (для рисования комнаты и углов) */
   const floorMm = (pt: { x: number; y: number }) => {
     const g = sheetGeom(view(plan.value));
-    return { x: ((pt.x - g.fx) / g.s) * 1000, y: ((pt.y - g.fy) / g.s) * 1000, tol: (4 / g.s) * 1000 };
+    return { x: ((pt.x - g.fx) / g.s) * 1000, y: ((pt.y - g.fy) / g.s) * 1000, tol: (Math.max(4, 12 * mmPerPx()) / g.s) * 1000 };
+  };
+
+  /** мм листа в одном пикселе экрана */
+  const mmPerPx = () => box.w / (base * z.value);
+
+  /** рисование пальцем: точка пола под крестиком, на AIM_PX выше пальца */
+  const aimAt = (e: PointerEvent) => {
+    const f = floorMm(svgPt(e));
+    const g = sheetGeom(view(plan.value));
+    const raw = { x: f.x, y: f.y - ((AIM_PX * mmPerPx()) / g.s) * 1000, tol: f.tol };
+    drawHover.value = cornerAt(raw, false, raw.tol);
+    return raw;
   };
 
   const twoFingers = () => {
@@ -189,8 +205,10 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
     if (fingers.current.size === 2) {
       // второй палец — масштаб; начатое перетаскивание заканчивается
       if (drag.current?.moved) endGesture();
+      if (drag.current?.mode === 'aim') drawHover.value = null;
       drag.current = null;
-      pinch.current = { d0: Math.max(1, twoFingers().d), z0: z.value };
+      const t = twoFingers();
+      pinch.current = { d0: Math.max(1, t.d), z0: z.value, m: { x: (t.a.x + t.b.x) / 2, y: (t.a.y + t.b.y) / 2 } };
       return;
     }
     if (fingers.current.size > 2 || e.button !== 0) return;
@@ -204,6 +222,11 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
       // прямоугольник: от точки нажатия до точки отпускания
       shaping.value = { a: shapeCorner(floorMm(start)), annex: shaping.value.annex };
       drag.current = { mode: 'shape', key, start, moved: false };
+      return;
+    }
+    if (drawing.value && e.pointerType === 'touch') {
+      // пальцем: крестик над пальцем, ведёте — едет, отпустили — угол; лист — двумя пальцами (ответ 1А)
+      drag.current = { mode: 'aim', key, start, moved: false, aim: aimAt(e) };
       return;
     }
     if (drawing.value) {
@@ -262,11 +285,17 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
     if (pinch.current) {
       if (fingers.current.size < 2) return;
       const { a, b, d } = twoFingers();
-      zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, pinch.current.z0 * (d / pinch.current.d0));
+      // два пальца двигают лист и меняют масштаб
+      const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, st = stageRef.current!;
+      st.scrollLeft -= m.x - pinch.current.m.x;
+      st.scrollTop -= m.y - pinch.current.m.y;
+      pinch.current.m = m;
+      zoomAt(m.x, m.y, pinch.current.z0 * (d / pinch.current.d0));
       return;
     }
     const d = drag.current;
     // линия-подсказка к следующему углу
+    if (d?.mode === 'aim') { d.aim = aimAt(e); return; }
     if (drawing.value && (!d || !d.moved)) { const f = floorMm(svgPt(e)); drawHover.value = cornerAt(f, e.shiftKey, f.tol); }
     if (!d) return;
     if (d.mode === 'pan') {
@@ -373,6 +402,10 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
       if (sh?.a && sh.b && e.type === 'pointerup') applyShape(sh.a, sh.b, sh.annex);
       else if (sh) shaping.value = { annex: sh.annex };
     }
+    if (d?.mode === 'aim') {
+      drawHover.value = null;
+      if (e.type === 'pointerup' && drawing.value) addCorner(d.aim!, false, d.aim!.tol);
+    }
     if (d?.draw && !d.moved && e.type === 'pointerup' && drawing.value) {
       const f = floorMm(d.start);
       addCorner(f, e.shiftKey, f.tol);
@@ -388,7 +421,9 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
     <div class={'stage' + (onsite ? ' os-stage' : '')} ref={stageRef}>
       {dr && (
         <div class="overlay-top"><div class="drawbar" role="toolbar" aria-label="Рисование комнаты">
-          {!hintHidden.value && <span>{dr.pts.length < 3 ? 'Щёлкайте по углам комнаты по порядку' : 'Замкнуть — щелчок по первому углу или «Замкнуть»'}{onsite || touchScreen ? '' : '. Shift — без привязки к прямым углам'}</span>}
+          {!hintHidden.value && <span>{onsite || touchScreen
+            ? dr.pts.length < 3 ? 'Коснитесь и ведите палец: угол встанет под крестиком, когда отпустите. Лист двигают двумя пальцами' : 'Замкнуть — наведите крестик на первый угол или «Замкнуть»'
+            : (dr.pts.length < 3 ? 'Щёлкайте по углам комнаты по порядку' : 'Замкнуть — щелчок по первому углу или «Замкнуть»') + '. Shift — без привязки к прямым углам'}</span>}
           <button class="ghost" aria-label={hintHidden.value ? 'Показать подсказку' : 'Скрыть подсказку'} title={hintHidden.value ? 'Показать подсказку' : 'Скрыть подсказку'} onClick={() => { hintHidden.value = !hintHidden.value; }}>{hintHidden.value ? '?' : '✕'}</button>
           <button disabled={!dr.pts.length} onClick={undoCorner}>Убрать угол</button>
           <button class="primary" disabled={dr.pts.length < 3} onClick={finishDraw}>Замкнуть</button>
@@ -424,7 +459,7 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
-        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true, touch: onsite, wallImages: fullMode.value ? wallImages.value : undefined }) + (onsite || !fullMode.value ? '' : suggestSvg(shown, suggestions.value, suggSel.value)) + markSvg(shown, mark) + guideSvg(shown, guide.value) + (dr ? drawSvg(shown, dr.pts, drawHover.value) : sh?.a && sh.b ? shapeSvg(shown, sh.a, sh.b) : !empty && !isRect(shown.room) ? cornersSvg(shown) : '') }}
+        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true, touch: onsite, wallImages: fullMode.value ? wallImages.value : undefined }) + (onsite || !fullMode.value ? '' : suggestSvg(shown, suggestions.value, suggSel.value)) + markSvg(shown, mark) + guideSvg(shown, guide.value) + (dr ? drawSvg(shown, dr.pts, drawHover.value, drag.current?.mode === 'aim' ? mmPerPx() : 0) : sh?.a && sh.b ? shapeSvg(shown, sh.a, sh.b) : !empty && !isRect(shown.room) ? cornersSvg(shown, onsite || touchScreen ? mmPerPx() : 0) : '') }}
       />
       {!onsite && (
         <>
@@ -437,7 +472,8 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
 }
 
 /** Рисование комнаты: отмеченные углы, линия к курсору, длины стен (только на экране) */
-function drawSvg(p: Plan, pts: readonly Point[], hover: Point | null): string {
+/** cross — мм листа в пикселе: рисуют пальцем, у следующего угла — крупный крестик */
+function drawSvg(p: Plan, pts: readonly Point[], hover: Point | null, cross = 0): string {
   const g = sheetGeom(p), at = (q: Point): [number, number] => [g.fx + (q.x / 1000) * g.s, g.fy + (q.y / 1000) * g.s];
   const all = hover ? [...pts, hover] : [...pts];
   let out = '';
@@ -447,6 +483,10 @@ function drawSvg(p: Plan, pts: readonly Point[], hover: Point | null): string {
     if (len > 0) out += `<text x="${(a[0] + b[0]) / 2}" y="${(a[1] + b[1]) / 2 - 1.2}" font-size="2.6" text-anchor="middle" fill="#2F6FB3" font-weight="700">${fmt(len)} м</text>`;
   }
   pts.forEach((q, i) => { const [x, y] = at(q); out += `<circle cx="${x}" cy="${y}" r="${i === 0 && pts.length >= 3 ? 2.2 : 1.2}" fill="${i === 0 ? '#fff' : '#2F6FB3'}" stroke="#2F6FB3" stroke-width="0.5"/>`; });
+  if (hover && cross) {
+    const [x, y] = at(hover), r = 22 * cross, w = 1.5 * cross;
+    out += `<path d="M${x - r} ${y}h${2 * r}M${x} ${y - r}v${2 * r}" stroke="#D0332B" stroke-width="${w}"/><circle cx="${x}" cy="${y}" r="${6 * cross}" fill="none" stroke="#D0332B" stroke-width="${w}"/>`;
+  }
   return `<g pointer-events="none">${out}</g>`;
 }
 
@@ -469,11 +509,13 @@ function shapeSvg(p: Plan, a: Point, b: Point): string {
 }
 
 /** Углы нарисованной комнаты — ручки, их можно тянуть (только на экране) */
-function cornersSvg(p: Plan): string {
+/** touch — мм листа в пикселе: на телефоне точки крупнее и берутся пальцем издалека */
+function cornersSvg(p: Plan, touch = 0): string {
   const g = sheetGeom(p);
   return g.segs.map((sg, i) => {
     const [x, y] = [g.fx + sg.ax * g.s, g.fy + sg.ay * g.s];
-    return `<circle data-corner="${i}" cx="${x}" cy="${y}" r="1.6" fill="#fff" stroke="#2F6FB3" stroke-width="0.5" style="cursor:move"/>`;
+    const big = touch ? `<circle data-corner="${i}" cx="${x}" cy="${y}" r="${22 * touch}" fill="transparent"/>` : '';
+    return big + `<circle data-corner="${i}" cx="${x}" cy="${y}" r="${Math.max(1.6, 7 * touch)}" fill="#fff" stroke="#2F6FB3" stroke-width="${Math.max(0.5, 1.5 * touch)}" style="cursor:move"/>`;
   }).join('');
 }
 

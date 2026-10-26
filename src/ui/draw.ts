@@ -18,7 +18,8 @@ export function startDraw(): void {
   sel.value = null;
   drawHover.value = null;
   drawing.value = { pts: [] };
-  toast('Щёлкайте по углам комнаты по порядку. Замкнуть — щелчок по первому углу');
+  // на телефоне подсказка — в полоске над планом; «щёлкайте» — только для мыши
+  if (typeof window === 'undefined' || !window.matchMedia?.('(pointer: coarse)').matches) toast('Щёлкайте по углам комнаты по порядку. Замкнуть — щелчок по первому углу');
 }
 
 export function cancelDraw(): void {
@@ -57,7 +58,7 @@ export function finishDraw(): void {
   dispatch(p => A.drawRoom(p, d.pts));
   if (plan.value === before) { toast('Углы лежат на одной прямой — нарисуйте ещё раз'); return; }
   cancelDraw();
-  toast('Комната готова. Длины стен — «условно»: впишите замеры в панели слева или щёлкните по подписи стены');
+  toast('Комната готова. Длины стен — «условно»: впишите замеры в поля «Стена А, м» и дальше или нажмите на подпись стены на плане');
 }
 
 /** Заготовка: прямоугольная комната, дальше — как раньше */

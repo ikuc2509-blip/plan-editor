@@ -18,6 +18,7 @@ import { RectifyDialog } from '../common/RectifyDialog';
 import { WelcomeDialog } from '../common/Welcome';
 import { PhotoViewer } from '../editor/PhotosPanel';
 import { Sheet, ZOOM_MAX, ZOOM_MIN, onsiteZoom } from '../editor/Sheet';
+import { drawing, shaping } from '../draw';
 import { STEPS, fullSheet, placing, step, type StepKey } from './state';
 import { keepAwake, startWake, wakeSupported } from './wake';
 import { FinishStep, MarkersStep, MeasureStep, OpeningsStep, PhotosStep, RoomStep } from './Steps';
@@ -78,8 +79,10 @@ export function OnsiteApp() {
   const go = (k: StepKey) => { step.value = k; };
   const zoomBy = (k: number) => { onsiteZoom.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, onsiteZoom.value * k)); };
 
+  // пока рисуют комнату — план на весь экран, панель и шаги спрятаны (ответ 2А)
+  const drawNow = !!drawing.value || !!shaping.value;
   return (
-    <div class="onsite">
+    <div class={'onsite' + (drawNow ? ' os-drawing' : '')}>
       <header class="os-top">
         <h1><span class="dot">1</span><span class="os-title">На месте</span></h1>
         <SaveStatus />
@@ -95,7 +98,7 @@ export function OnsiteApp() {
         <button class="ghost" title="Полный редактор" onClick={() => setMode('editor')}>Чистовик</button>
         <UpdateBar />
       </header>
-      {planMin ? (
+      {planMin && !drawNow ? (
         <div class="os-plan os-plan-min">
           <button onClick={() => setPlanShown(true)}>Показать план</button>
         </div>
