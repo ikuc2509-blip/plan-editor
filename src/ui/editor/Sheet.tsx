@@ -3,7 +3,7 @@
 import { signal, type Signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Callout, Item, Marker, Mm, Plan, Point, SelKind, WallItem } from '../../model/types';
-import { moveCorner, moveTo, patch, setAngle, setSheet, snapWallZ } from '../../model/actions';
+import { moveCorner, moveTo, patch, setAngle, setSheet, setWallElev, snapWallZ } from '../../model/actions';
 import { drawSheet, sheetGeom, sheetLayout } from '../../render/sheet';
 import type { Box } from '../../render/layout';
 import { locate, segOf, unf, wallDelta, type Spot } from '../../geometry/unfold';
@@ -45,7 +45,9 @@ type Obj = WallItem | Item | Marker | Callout;
 
 interface Drag {
   /** move — объект; rot — ручка поворота; tip — кончик стрелки выноски; pan — сдвиг листа; corner — угол комнаты */
-  mode: 'move' | 'rot' | 'tip' | 'pan' | 'corner' | 'shape';
+  mode: 'move' | 'rot' | 'tip' | 'pan' | 'corner' | 'shape' | 'elev';
+  /** развёртка, которую несут: стена и прежний сдвиг, мм */
+  elev?: { wallId: string; dx: Mm; dy: Mm };
   /** угол комнаты (этап 12) */
   corner?: number;
   /** рисование комнаты: касание без сдвига — новый угол */
@@ -243,6 +245,11 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
         tab.value = TAB_FOR[gKind];
       }
       drag.current = { mode: 'move', kind: gKind, id, key, start, orig: o, moved: false, pick: !!onSelect };
+    } else if (!onsite && target.closest('[data-elev]')) {
+      // пустое место развёртки — отнести её в сторону (этап 12)
+      const wid = target.closest<SVGElement>('[data-elev]')!.dataset.elev!;
+      const w = plan.value.room.walls.find(k => k.id === wid);
+      drag.current = { mode: 'elev', key, start, moved: false, elev: { wallId: wid, dx: w?.elev?.dx ?? 0, dy: w?.elev?.dy ?? 0 } };
     } else {
       // пустое место: снять выделение и сдвигать лист
       if (sel.value && !onSelect) sel.value = null;
@@ -280,6 +287,13 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
     const sn = (m: number): Mm => snapMm(m * 1000, step);
     const floorM = () => ({ x: (p.x - g.fx) / g.s, y: (p.y - g.fy) / g.s });
 
+    if (d.mode === 'elev') {
+      // сдвиг — в мм пола, по 10 см (Alt — точнее)
+      const el = d.elev!, st = e.altKey ? 10 : 100;
+      const nx = Math.round((el.dx + (dx / g.s) * 1000) / st) * st, ny = Math.round((el.dy + (dy / g.s) * 1000) / st) * st;
+      dispatch(pl => setWallElev(pl, el.wallId, { dx: nx, dy: ny }), d.key);
+      return;
+    }
     if (d.mode === 'shape') {
       const a = shaping.value?.a;
       if (a) shaping.value = { a, b: shapeCorner(floorMm(p)), annex: shaping.value?.annex };

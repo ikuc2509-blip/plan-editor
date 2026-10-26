@@ -1,10 +1,11 @@
 // Этап 12: чистый лист и своя комната — стены по углам, длины, углы, привязки меток, лист.
 import { describe, expect, test } from 'vitest';
-import { addAnnex, addMarker, addWallItem, allWalls, clearRoom, drawRoom, hasSlanted, makeMain, moveCorner, patch, rectTemplate, setAnnexWallLength, setWallLength, straightenRoom } from '../src/model/actions';
+import { addAnnex, addMarker, addWallItem, allWalls, resetElevs, setWallElev, clearRoom, drawRoom, hasSlanted, makeMain, moveCorner, patch, rectTemplate, setAnnexWallLength, setWallLength, straightenRoom } from '../src/model/actions';
 import { emptyPlan } from '../src/model/state';
 import { isRect, noRoom, polygonWalls, roomExtent, signedArea2 } from '../src/model/room';
 import { applyMeasure, measureList, tieOf } from '../src/model/measure';
-import { drawSheet } from '../src/render/sheet';
+import { drawSheet, sheetGeom } from '../src/render/sheet';
+import { elevOverlaps } from '../src/geometry/unfold';
 import { cond } from '../src/model/units';
 import type { Plan, Point } from '../src/model/types';
 
@@ -206,4 +207,35 @@ test('новая дверь и метка в нарисованной комна
   p = addMarker(p, 'm', 'A');
   expect(p.wallItems[0]!.wallId).toBe('w1');
   expect(p.markers[0]!.wallId).toBe('w1');
+});
+
+describe('развёртки: скрыть, отнести в сторону (формат 12)', () => {
+  // Г: во внутреннем углу развёртки стен В и Г налезают друг на друга
+  const lr = (): Plan => drawRoom(emptyPlan(), L_SHAPE);
+
+  test('у Г-образной комнаты развёртки во внутреннем углу налезают', () => {
+    expect(elevOverlaps(sheetGeom(lr()))).toEqual([['В', 'Г']]);
+  });
+
+  test('скрыть развёртку — налезания нет, в примечаниях сказано', () => {
+    const p = setWallElev(lr(), 'w3', { hidden: true });
+    expect(p.room.walls[2]!.elev).toEqual({ hidden: true });
+    expect(elevOverlaps(sheetGeom(p))).toEqual([]);
+    const svg = drawSheet(p);
+    expect(svg).not.toContain('СТЕНА В (развёртка)');
+    expect(svg).toContain('Развёртка стены В не показана.');
+  });
+
+  test('отнести развёртку в сторону — налезания нет, к стене тянется пунктир; «на место» убирает сдвиг', () => {
+    const p = setWallElev(lr(), 'w3', { dy: 3500 });
+    expect(elevOverlaps(sheetGeom(p))).toEqual([]);
+    expect(drawSheet(p)).toContain('stroke-dasharray="1.5 1"');
+    const q = resetElevs(p);
+    expect(q.room.walls[2]!.elev).toBeUndefined();
+  });
+
+  test('на экране развёртку можно взять мышью, в файле — нет', () => {
+    expect(drawSheet(lr(), { screen: true })).toContain('data-elev="w1"');
+    expect(drawSheet(lr())).not.toContain('data-elev');
+  });
 });

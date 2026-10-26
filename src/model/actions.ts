@@ -2,7 +2,7 @@
 // так старые состояния можно хранить для отмены и повтора.
 // Неизменённые части переиспользуются (подложка-картинка не копируется).
 import type {
-  Callout, Dim, FrameEdge, Item, ItemType, Marker, MeasureMethod, Mm, Origin, Photo, Plan, Point, SheetOptions, Stamp, Underlay, Wall, WallItem, WallItemType, WallPhoto,
+  Callout, Dim, FrameEdge, Item, ItemType, Marker, MeasureMethod, Mm, Origin, Photo, Plan, Point, SheetOptions, Stamp, Underlay, Wall, WallElev, WallItem, WallItemType, WallPhoto,
 } from './types';
 import { IT_SIZE } from './labels';
 import { LETTERS, createRectRoom, findWall, isRect, polygonWalls, rectSize, rectWalls, roomCorners, roomExtent, signedArea2, wallLength } from './room';
@@ -494,3 +494,25 @@ export function snapWallZ(p: Plan, id: string, wallId: string, z: Mm, h: Mm, tol
   }
   return best ? { z: best.z, line: best.line } : { z, line: null };
 }
+
+/* ——— развёртки стен: скрыть, отнести в сторону (этап 12, формат 12) ——— */
+
+/** Поменять развёртку стены; пустая (видна, на месте) — поле убирается */
+export function setWallElev(p: Plan, wallId: string, o: Partial<WallElev>): Plan {
+  return {
+    ...p,
+    room: {
+      ...p.room,
+      walls: p.room.walls.map(w => {
+        if (w.id !== wallId) return w;
+        const e: WallElev = { ...w.elev, ...o };
+        const clean: WallElev = { ...(e.hidden ? { hidden: true } : {}), ...(e.dx ? { dx: Math.round(e.dx) } : {}), ...(e.dy ? { dy: Math.round(e.dy) } : {}) };
+        const { elev: _, ...rest } = w;
+        return Object.keys(clean).length ? { ...rest, elev: clean } : rest;
+      }),
+    },
+  };
+}
+
+/** Все развёртки — на свои места (скрытые остаются скрытыми) */
+export const resetElevs = (p: Plan): Plan => p.room.walls.reduce((q, w) => setWallElev(q, w.id, { dx: 0, dy: 0 }), p);

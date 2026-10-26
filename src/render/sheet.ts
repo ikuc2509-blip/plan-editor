@@ -80,7 +80,18 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   const allSegs = wallsByLetter(st.room).map(w => planSegOf(g, w.id)!);
   const segs = allSegs.filter(sg => !g.noUnfold.has(sg.wall.id));
   const full = new Map(segs.map(sg => [sg, unfRect(g, sg, 0, 0, sg.len, h)]));
-  for (const sg of segs) { const r = full.get(sg)!; P.push(R(r.x, r.y, r.w, r.h, `fill="#fff" stroke="${pal.grey}" stroke-width="0.25"`)); }
+  for (const sg of segs) {
+    const r = full.get(sg)!;
+    const bg = R(r.x, r.y, r.w, r.h, `fill="#fff" stroke="${pal.grey}" stroke-width="0.25"`);
+    // на экране развёртку можно взять за пустое место и отнести в сторону (этап 12)
+    P.push(opts.screen && !opts.touch ? `<g data-elev="${sg.wall.id}" style="cursor:move">${bg}</g>` : bg);
+    if (sg.shx || sg.shy) {
+      // отнесена от стены — пунктир от середины стены к середине её развёртки
+      const m = wallPt(g, sg, sg.len / 2), o = unf(g, sg, sg.len / 2, 0);
+      const from = [m[0] - sg.nx * g.t, m[1] - sg.ny * g.t];
+      P.push(Ln(from[0]!, from[1]!, o[0], o[1], `stroke="${pal.grey}" stroke-width="0.25" stroke-dasharray="1.5 1"`));
+    }
+  }
   // выпрямленные снимки стен — только на экране (decisions.md, этап 9)
   if (opts.wallImages) for (const wp of st.wallPhotos) P.push(wallImage(g, st, wp, opts.wallImages[wp.id]));
   // линии сгиба
@@ -447,8 +458,12 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   notes.push(isNaN(nv) ? 'Направление на север: ______________' : 'Направление на север указано стрелкой «С».');
   st.markers.filter(m => m.place === 'outside').forEach(m => notes.push(`Метка № ${m.n} находится вне помещения.`));
   // перегородки к соседним помещениям — без развёрток (этап 12)
-  const hidden = allSegsOf(st, g).filter(sg => g.noUnfold.has(sg.wall.id)).map(sg => sg.wall.letter);
+  const noElev = allSegsOf(st, g).filter(sg => g.noUnfold.has(sg.wall.id));
+  const hidden = noElev.filter(sg => !sg.wall.elev?.hidden).map(sg => sg.wall.letter);
   if (hidden.length) notes.push(`${hidden.length > 1 ? 'Развёртки стен ' + hidden.join(', ') + ' не показаны: к ним' : 'Развёртка стены ' + hidden[0] + ' не показана: к ней'} примыкает соседнее помещение.`);
+  // скрытые пользователем (этап 12)
+  const off = noElev.filter(sg => sg.wall.elev?.hidden).map(sg => sg.wall.letter);
+  if (off.length) notes.push(off.length > 1 ? `Развёртки стен ${off.join(', ')} не показаны.` : `Развёртка стены ${off[0]} не показана.`);
   String(st.notes || '').split('\n').map(t => t.trim()).filter(Boolean).forEach(t => notes.push(t));
   notes.forEach((n, i) => { wrap(`${i + 1}. ${n}`, lay.notesChars).forEach((l, j) => { P.push(T(x0 + (j ? 3 : 0), y, l, { size: 2.4 })); y += 3.1; }); y += 0.5; });
 

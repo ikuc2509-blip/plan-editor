@@ -56,6 +56,15 @@ export interface Wall {
   b: Point;
   /** длина стены; совпадает с расстоянием a–b */
   length: Dim;
+  /** развёртка стены: скрыта или отнесена в сторону (формат 12, этап 12); нет — на месте */
+  elev?: WallElev;
+}
+
+/** Где развёртка стены на листе: сдвиг от обычного места, мм в координатах пола */
+export interface WallElev {
+  hidden?: boolean;
+  dx?: Mm;
+  dy?: Mm;
 }
 
 export interface Room {
@@ -242,7 +251,8 @@ export const FORMAT_ID = 'plan-editor';
  * 8 — этап 11: больше мебели (кресло, тумба, комод…) и контур тела человека;
  * 9 — этап 12: комнаты может не быть (чистый лист) или она нарисована — любые стены-отрезки;
  * 10 — этап 12: соседние помещения (annexes) — на плане пола, развёртки только у основного;
- * 11 — этап 12: лист цветной, как образец, или чёрно-белый (sheet.bw).
+ * 11 — этап 12: лист цветной, как образец, или чёрно-белый (sheet.bw);
+ * 12 — этап 12: развёртку стены можно скрыть или отнести в сторону (wall.elev).
  */
 /** Точка на снимке, в долях ширины и высоты (0…1) */
 export interface PhotoPt {
@@ -270,7 +280,7 @@ export interface WallPhoto {
   opacity: number;
 }
 
-export const FORMAT_VERSION = 11;
+export const FORMAT_VERSION = 12;
 
 export interface Plan {
   format: typeof FORMAT_ID;
