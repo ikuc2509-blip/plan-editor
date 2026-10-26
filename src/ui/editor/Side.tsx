@@ -1,4 +1,5 @@
 // Боковая панель: вкладки Помещение / Стены / Мебель / Метки / Подложка / Штамп.
+import { signal } from '@preact/signals';
 import { useEffect, useState } from 'preact/hooks';
 import type { AutoFound, Callout, Dim, Item, ItemType, Marker, MarkerPlace, Mm, PhotoBox, Plan, WallItem, WallItemType } from '../../model/types';
 import { measureList, type MeasureRef, type MeasureRow } from '../../model/measure';
@@ -8,7 +9,7 @@ import { IT_TYPES, WI_TYPES } from '../../model/labels';
 import { example, uid, emptyPlan } from '../../model/state';
 import { annexName, noRoom, rectSizeOf, wallsByLetter } from '../../model/room';
 import { drawing, redrawRoom, shaping, startDraw, startShape, straighten, takeTemplate } from '../draw';
-import { hasSlanted } from '../../model/actions';
+import { hasSlanted, likeOnWall } from '../../model/actions';
 import { parseLength } from '../../model/units';
 import * as A from '../../model/actions';
 import { SCALES, fitsAt, smallerScaleThatFits } from '../../geometry/unfold';
@@ -45,6 +46,9 @@ export const wallOpts = (p: Plan): Record<string, string> => ({
   ...Object.fromEntries(p.annexes.flatMap(a => a.walls.map(w => [w.id, `${annexName(p, a.id)}: стена ${w.letter}`]))),
 });
 
+/** панель свёрнута (узкий экран) */
+export const sideHidden = signal(false);
+
 export function Side() {
   // простой режим — без подложки (этап 11)
   useEffect(() => { if (!fullMode.value && tab.value === 'under') tab.value = 'room'; }, [fullMode.value]);
@@ -55,11 +59,13 @@ export function Side() {
   }, [sel.value?.id, tab.value]);
 
   return (
-    <aside>
+    <aside class={sideHidden.value ? 'collapsed' : ''}>
       <div class="tabs" role="tablist">
         {TABS.filter(([k]) => k !== 'under' || fullMode.value).map(([k, n]) => (
-          <button key={k} role="tab" aria-selected={k === tab.value} onClick={() => { tab.value = k; }}>{n}</button>
+          <button key={k} role="tab" aria-selected={k === tab.value} onClick={() => { tab.value = k; sideHidden.value = false; }}>{n}</button>
         ))}
+        {/* узкий экран: панель можно свернуть — лист получает место; вкладка снова её откроет */}
+        <button class="ghost side-toggle" onClick={() => { sideHidden.value = !sideHidden.value; }}>{sideHidden.value ? 'Панель ▾' : 'Скрыть панель ▴'}</button>
       </div>
       <div class="side">
         {tab.value === 'room' && <RoomPanel />}
@@ -244,6 +250,9 @@ export function WallLengths() {
   );
 }
 
+/** «Выровнять окна по этому» — во множественном числе */
+const ALIGN_WHAT: Partial<Record<WallItemType, string>> = { window: 'окна', door: 'двери', radiator: 'радиаторы', picture: 'картины', board: 'доски', screen: 'экраны' };
+
 type DimKeys<T> = { [K in keyof T]: T[K] extends { mm: Mm } ? K : never }[keyof T];
 
 export function WallItemCard({ it, walls }: { it: WallItem; walls: Record<string, string> }) {
@@ -273,6 +282,13 @@ export function WallItemCard({ it, walls }: { it: WallItem; walls: Record<string
           {it.type === 'window'
             ? <Check label="Створка открыта" checked={it.open} style="margin-top:14px" onValue={v => set({ open: v })} />
             : <span />}
+        </div>
+      )}
+      {likeOnWall(plan.value, it.id) > 0 && (
+        <div class="row" style="margin:6px 0 0">
+          <button onClick={() => { dispatch(p => A.alignLikeThis(p, it.id)); toast(`${WI_TYPES[it.type]}: на стене — на одной высоте с этим`); }}>
+            Выровнять {ALIGN_WHAT[it.type] ?? 'такие же'} по этому ({likeOnWall(plan.value, it.id)})
+          </button>
         </div>
       )}
       {it.origin.kind === 'photo' && <OriginRow photoId={it.origin.photoId} box={it.origin.box} auto={it.origin.auto} />}

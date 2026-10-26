@@ -195,7 +195,8 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
       P.push(clickable(T(mid[0] + n[0] * 2.4, mid[1] + n[1] * 2.4, txt, { size: 2, anchor: 'middle', base: 'central', fill: '#333', rot: isVert(sg) ? -90 : 0 }), 'wall:' + w.id));
     }
   });
-  // проёмы и радиаторы на плане
+  // проёмы и радиаторы на плане; створки и двери — отдельным слоем поверх (замечание проверки этапа 12)
+  const swings: string[] = [];
   for (const it of st.wallItems) {
     if (!['window', 'door', 'radiator'].includes(it.type)) continue;
     const sg = planSegOf(g, it.wallId);
@@ -217,14 +218,16 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
       const hinge = it.hinge === 'end' ? p2 : p1, other = it.hinge === 'end' ? p1 : p2;
       const len = Math.hypot(other[0] - hinge[0], other[1] - hinge[1]);
       if (it.type === 'door' || it.open) {
+        let sw = '';
         const r = it.type === 'door' ? len : len * 0.55;
         const uu = [(other[0] - hinge[0]) / len, (other[1] - hinge[1]) / len] as const;
         const ang = it.type === 'door' ? Math.PI / 2 : Math.PI / 4;
         const leaf = [hinge[0] + r * (Math.cos(ang) * uu[0] + Math.sin(ang) * n[0]), hinge[1] + r * (Math.cos(ang) * uu[1] + Math.sin(ang) * n[1])] as const;
-        b += Ln(hinge[0], hinge[1], leaf[0], leaf[1], `stroke="#111" stroke-width="${it.type === 'door' ? 0.35 : 0.3}"`);
+        sw += Ln(hinge[0], hinge[1], leaf[0], leaf[1], `stroke="#111" stroke-width="${it.type === 'door' ? 0.35 : 0.3}"`);
         const pts: string[] = [];
         for (let i = 0; i <= 14; i++) { const t = ang * i / 14; pts.push([hinge[0] + r * (Math.cos(t) * uu[0] + Math.sin(t) * n[0]), hinge[1] + r * (Math.cos(t) * uu[1] + Math.sin(t) * n[1])].map(v => v.toFixed(2)).join(',')); }
-        b += `<polyline points="${pts.join(' ')}" fill="none" stroke="#111" stroke-width="0.15" stroke-dasharray="0.8 0.5"/>`;
+        sw += `<polyline points="${pts.join(' ')}" fill="none" stroke="#111" stroke-width="0.15" stroke-dasharray="0.8 0.5"/>`;
+        swings.push(`<g data-kind="wi" data-id="${it.id}" style="cursor:move">${tint(sw, !measured(it.off, it.w))}</g>`);
       }
       if (it.type === 'door' && it.label) {
         // подпись двери — внутрь помещения, за дугой открывания, чтобы не перекрывать развёртку
@@ -235,6 +238,7 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
     b = tint(b, !measured(it.off, it.w));
     P.push(`<g data-kind="wi" data-id="${it.id}" style="cursor:move">${b}</g>`);
   }
+  P.push(...swings);
 
   /* размеры: замеренное — числом, условное — пустой строкой (decisions.md) */
   const dimTxt = (name: string, v: number, d: Dim) => {
