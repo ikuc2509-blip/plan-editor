@@ -15,6 +15,8 @@ export type PlanV1 = Omit<PlanV3, 'version' | 'sheet'> & {
   sheet: { mode: 'schematic' | 'scale'; scale: number; showDims: boolean; showTies: boolean };
 };
 
+/** Формат версии 11 (этап 12): развёртки стен всегда на своих местах (wall.elev нет — так и было) */
+export type PlanV11 = Omit<Plan, 'version'> & { version: 11 };
 /** Формат версии 10 (этап 12): лист без выбора цветной / чёрно-белый */
 export type PlanV10 = Omit<Plan, 'version' | 'sheet'> & { version: 10; sheet: Omit<Plan['sheet'], 'bw'> };
 /** Формат версии 9 (этап 12): без соседних помещений */
@@ -48,6 +50,7 @@ const UPGRADES: Record<number, (o: Record<string, unknown>) => Record<string, un
   8: o => v8to9(o as unknown as PlanV8) as unknown as Record<string, unknown>,
   9: o => v9to10(o as unknown as PlanV9) as unknown as Record<string, unknown>,
   10: o => v10to11(o as unknown as PlanV10) as unknown as Record<string, unknown>,
+  11: o => v11to12(o as unknown as PlanV11) as unknown as Record<string, unknown>,
 };
 
 /** Распознать сохранённый план и привести к текущей версии формата */
@@ -133,8 +136,13 @@ export function v9to10(p: PlanV9): PlanV10 {
 }
 
 /** 10 → 11: лист — цветной, как образец (чёрно-белый включают для принтера без цвета) */
-export function v10to11(p: PlanV10): Plan {
+export function v10to11(p: PlanV10): PlanV11 {
   return { ...p, version: 11, sheet: { ...p.sheet, bw: false } };
+}
+
+/** 11 → 12: wall.elev необязательный — развёртки остаются на местах */
+export function v11to12(p: PlanV11): Plan {
+  return { ...p, version: 12 };
 }
 
 function checkShape(o: Record<string, unknown>): boolean {

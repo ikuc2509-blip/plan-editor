@@ -8,11 +8,12 @@ import { StatusChip, openMeasure } from '../common/MeasureDialog';
 import { IT_TYPES, WI_TYPES } from '../../model/labels';
 import { example, uid, emptyPlan } from '../../model/state';
 import { annexName, noRoom, rectSizeOf, wallsByLetter } from '../../model/room';
+import { sheetGeom } from '../../render/sheet';
 import { drawing, redrawRoom, shaping, startDraw, startShape, straighten, takeTemplate } from '../draw';
 import { hasSlanted, likeOnWall } from '../../model/actions';
 import { parseLength } from '../../model/units';
 import * as A from '../../model/actions';
-import { SCALES, fitsAt, smallerScaleThatFits } from '../../geometry/unfold';
+import { SCALES, elevOverlaps, fitsAt, smallerScaleThatFits } from '../../geometry/unfold';
 import { PAPERS, layoutFor } from '../../render/layout';
 import { pickFile, readDataUrl } from '../../storage/files';
 import { dispatch, endGesture, plan, replacePlan, sel, tab, toast, type TabKey } from '../store';
@@ -92,8 +93,8 @@ const SCALE_OPTS: Record<'50' | '100' | '200', string> = { '50': '1:50', '100': 
 
 function RoomPanel() {
   const st = plan.value, lay = layoutFor(st.sheet.paper), sc = st.sheet.mode === 'scale';
-  const fits = !sc || fitsAt(st.room, lay.area, st.sheet.scale);
-  const better = fits ? null : smallerScaleThatFits(st.room, lay.area, st.sheet.scale);
+  const fits = !sc || fitsAt(st.room, lay.area, st.sheet.scale, st.annexes);
+  const better = fits ? null : smallerScaleThatFits(st.room, lay.area, st.sheet.scale, st.annexes);
   const size = rectSizeOf(st.room);
   return (
     <>
@@ -134,9 +135,14 @@ function RoomPanel() {
       {size && <p class="hint">А — сверху, Б — снизу, В — слева, Г — справа от плана пола.</p>}
       <div class="grid two">
         {wallsByLetter(st.room).map(w => (
-          <Text key={w.id} label={'Стена ' + w.letter} value={w.name} placeholder="напр. оконная" onValue={v => dispatch(p => A.setWallName(p, w.id, v), 'name:' + w.id)} />
+          <div key={w.id}>
+            <Text label={'Стена ' + w.letter} value={w.name} placeholder="напр. оконная" onValue={v => dispatch(p => A.setWallName(p, w.id, v), 'name:' + w.id)} />
+            {/* развёртку можно скрыть (этап 12) */}
+            <Check label="развёртка" checked={!w.elev?.hidden} onValue={v => dispatch(p => A.setWallElev(p, w.id, { hidden: !v }))} />
+          </div>
         ))}
       </div>
+      <ElevHint />
       <h3>Шаблон</h3>
       <div class="row">
         <button onClick={() => void newPlan(example(), 'Заменить текущий план примером аудитории? Текущий сохранится в истории (вкладка «Файл»).', 'примера аудитории')}>Пример: наша аудитория</button>
@@ -230,6 +236,23 @@ export function AnnexList() {
           </div>
         </div>
       ))}
+    </>
+  );
+}
+
+/** Развёртки налезают — подсказка; отнесены — «вернуть на место» (этап 12) */
+function ElevHint() {
+  const st = plan.value;
+  const over = noRoom(st.room) ? [] : elevOverlaps(sheetGeom(st));
+  const moved = st.room.walls.some(w => w.elev?.dx || w.elev?.dy);
+  return (
+    <>
+      {over.length > 0 && (
+        <p class="warn">
+          Развёртки {over.map(([a, b]) => `${a} и ${b}`).join(', ')} налезают друг на друга. Возьмите развёртку мышью за пустое место и отнесите в сторону — или снимите у стены галочку «развёртка».
+        </p>
+      )}
+      {moved && <div class="row"><button onClick={() => dispatch(A.resetElevs)}>Вернуть развёртки на место</button></div>}
     </>
   );
 }

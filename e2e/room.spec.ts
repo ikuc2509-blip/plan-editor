@@ -148,3 +148,48 @@ test('соседнее помещение: кабинет 6 м и подсобк
   await page.getByRole('button', { name: 'Сделать основным' }).click();
   await expect(page.locator('#toast')).toContainText('Основное помещение — «подсобка»');
 });
+
+test('развёртки: налезают во внутреннем углу — отнести мышью, вернуть, скрыть галочкой', async ({ page }) => {
+  page.on('dialog', d => void d.accept());
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Помещение', exact: true }).click();
+  await page.getByRole('button', { name: 'Пустой план' }).click();
+  await page.getByRole('button', { name: 'Нарисовать комнату' }).first().click();
+  const sheet = page.getByTestId('sheet');
+  for (const [x, y] of [[-3, -2.5], [3, -2.5], [3, 0.5], [1, 0.5], [1, 2.5], [-3, 2.5], [-3, -2.5]] as const) {
+    await sheet.click({ position: await at(page, x, y) });
+  }
+  await expect(page.locator('#toast')).toContainText('Комната готова');
+  const warn = page.getByText('налезают друг на друга');
+  await expect(warn).toContainText('Развёртки В и Г');
+
+  // точка на пустом месте развёртки В, где сверху ничего не лежит
+  const pt = await page.evaluate(() => {
+    const r = document.querySelector('[data-elev="w3"]')!.getBoundingClientRect();
+    for (let fy = 0.95; fy > 0.05; fy -= 0.05) for (let fx = 0.1; fx < 0.95; fx += 0.1) {
+      const x = r.left + r.width * fx, y = r.top + r.height * fy;
+      if (document.elementFromPoint(x, y)?.closest('[data-elev]')?.getAttribute('data-elev') === 'w3') return { x, y };
+    }
+    return null;
+  });
+  expect(pt).not.toBeNull();
+  const b = (await sheet.boundingBox())!;
+  const mm = b.height / 297; // пикселей на мм листа
+  await page.mouse.move(pt!.x, pt!.y);
+  await page.mouse.down();
+  await page.mouse.move(pt!.x, pt!.y + 20 * mm, { steps: 5 });
+  await page.mouse.move(pt!.x, pt!.y + 40 * mm, { steps: 5 });
+  await page.mouse.up();
+  await expect(warn).toHaveCount(0);
+  await expect(sheet.locator('line[stroke-dasharray="1.5 1"]')).toHaveCount(1);
+
+  await page.getByRole('button', { name: 'Вернуть развёртки на место' }).click();
+  await expect(warn).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Вернуть развёртки на место' })).toHaveCount(0);
+
+  // снять галочку у стены В — развёртки нет, в примечаниях сказано
+  await page.getByRole('checkbox', { name: 'развёртка' }).nth(2).uncheck();
+  await expect(warn).toHaveCount(0);
+  await expect(sheet).not.toContainText('СТЕНА В (развёртка)');
+  await expect(sheet).toContainText('Развёртка стены В не показана.');
+});

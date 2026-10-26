@@ -1,6 +1,6 @@
 // Открытие старых файлов: прототип → формат версии 1.
 import { describe, expect, test } from 'vitest';
-import { fromPrototype, loadPlan, v1to2, v2to3, v3to4, v4to5, v5to6, v6to7, v7to8, v8to9, v9to10, v10to11, type PlanV1, type PlanV2, type PlanV3, type PlanV4, type PlanV5, type PlanV6, type PlanV7, type PlanV8, type PlanV9, type PlanV10 } from '../src/model/migrate';
+import { fromPrototype, loadPlan, v1to2, v2to3, v3to4, v4to5, v5to6, v6to7, v7to8, v8to9, v9to10, v10to11, v11to12, type PlanV1, type PlanV2, type PlanV3, type PlanV4, type PlanV5, type PlanV6, type PlanV7, type PlanV8, type PlanV9, type PlanV10, type PlanV11 } from '../src/model/migrate';
 import type { ProtoPlan } from '../src/model/prototype';
 import { FORMAT_VERSION, type Plan } from '../src/model/types';
 import proto from '../examples/auditorium.prototype.json';
@@ -14,6 +14,7 @@ import v7file from '../examples/old/auditorium.v7.json';
 import v8file from '../examples/old/auditorium.v8.json';
 import v9file from '../examples/old/auditorium.v9.json';
 import v10file from '../examples/old/auditorium.v10.json';
+import v11file from '../examples/old/auditorium.v11.json';
 
 const old = proto as unknown as ProtoPlan;
 const v1 = v1file as unknown as PlanV1;
@@ -26,6 +27,7 @@ const v7 = v7file as unknown as PlanV7;
 const v8 = v8file as unknown as PlanV8;
 const v9 = v9file as unknown as PlanV9;
 const v10 = v10file as unknown as PlanV10;
+const v11 = v11file as unknown as PlanV11;
 
 /** Сравнение «остальное без изменений»: выбор цветной / чёрно-белый (формат 11) — новое поле листа */
 const noBw = <T extends object>(o: T): T => ('sheet' in o && o.sheet && typeof o.sheet === 'object' ? { ...o, sheet: { ...(o.sheet as object), bw: undefined } } : o);
@@ -119,7 +121,7 @@ describe('файл версии 1 (этап 1)', () => {
   });
 
   test('прототип переводится через версию 1', () => {
-    expect(loadPlan(structuredClone(old))).toEqual({ ok: true, plan: v10to11(v9to10(v8to9(v7to8(v6to7(v5to6(v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old)))))))))))), migratedFrom: 'prototype' });
+    expect(loadPlan(structuredClone(old))).toEqual({ ok: true, plan: v11to12(v10to11(v9to10(v8to9(v7to8(v6to7(v5to6(v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old))))))))))))), migratedFrom: 'prototype' });
   });
 });
 
@@ -230,7 +232,7 @@ describe('файл версии 10 (этап 12, до цветного лист�
   const r = loadPlan(structuredClone(v10));
   test('открывается: лист цветной, остальное без изменений', () => {
     expect(r.ok && r.migratedFrom).toBe('v10');
-    expect(r.ok && r.plan.version).toBe(11);
+    expect(r.ok && r.plan.version).toBe(FORMAT_VERSION);
     expect(r.ok && r.plan.sheet.bw).toBe(false);
     const { version: _a, sheet: sa, ...rest10 } = v10;
     const { version: _b, sheet: sb, ...rest11 } = (r as { plan: Plan }).plan;
@@ -239,9 +241,20 @@ describe('файл версии 10 (этап 12, до цветного лист�
   });
 });
 
+describe('файл версии 11 (этап 12, развёртки на местах)', () => {
+  test('открывается без изменений', () => {
+    const r = loadPlan(structuredClone(v11));
+    expect(r.ok && r.migratedFrom).toBe('v11');
+    expect(r.ok && r.plan.version).toBe(12);
+    const { version: _a, ...rest11 } = v11;
+    const { version: _b, ...rest12 } = (r as { plan: Plan }).plan;
+    expect(rest12).toEqual(rest11);
+  });
+});
+
 describe('чистый лист (формат 9)', () => {
   test('план без стен открывается', () => {
-    const p = { ...v10to11(v9to10(v8to9(structuredClone(v8)))), room: { walls: [], height: v8.room.height } };
+    const p = { ...v11to12(v10to11(v9to10(v8to9(structuredClone(v8))))), room: { walls: [], height: v8.room.height } };
     expect(loadPlan(JSON.parse(JSON.stringify(p)))).toEqual({ ok: true, plan: p });
   });
   test('две стены — не помещение', () => {
@@ -267,7 +280,7 @@ describe('файл версии 3 (этап 5)', () => {
 });
 
 describe('loadPlan', () => {
-  const p = v10to11(v9to10(v8to9(v7to8(v6to7(v5to6(v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old))))))))))));
+  const p = v11to12(v10to11(v9to10(v8to9(v7to8(v6to7(v5to6(v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old)))))))))))));
 
   test('файл текущей версии открывается как есть', () => {
     const r = loadPlan(JSON.parse(JSON.stringify(p)));

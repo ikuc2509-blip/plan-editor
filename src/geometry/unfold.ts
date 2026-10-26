@@ -21,6 +21,9 @@ export interface Seg {
   ny: number;
   /** с какой стороны пола лежит развёртка этой стены на листе */
   side: 'top' | 'right' | 'bottom' | 'left';
+  /** развёртка отнесена в сторону, м (wall.elev, этап 12) */
+  shx: number;
+  shy: number;
 }
 
 export interface Geom {
@@ -73,17 +76,31 @@ export function toSeg(w: Wall): Seg {
   const ux = len ? dx / len : 1, uy = len ? dy / len : 0;
   // поворот на 90° «вправо» при оси Y вниз
   const nx = -uy, ny = ux;
-  return { wall: w, ax, ay, len, ux, uy, nx, ny, side: sideOf(nx, ny) };
+  return { wall: w, ax, ay, len, ux, uy, nx, ny, side: sideOf(nx, ny), shx: toM(w.elev?.dx ?? 0), shy: toM(w.elev?.dy ?? 0) };
 }
 
 /** Стены соседних помещений (у них свои стены, высота — общая) */
 type Annexes = readonly { walls: Wall[] }[];
 
-/** Габарит развёртки, м: пол плюс высота стены во все стороны; соседние помещения — без развёрток */
+/** Стены основного помещения без развёртки: скрытые и перегородки к соседним помещениям */
+function hiddenWalls(segs: readonly Seg[], annexSegs: readonly Seg[][]): Set<string> {
+  return new Set(segs.filter(sg => sg.wall.elev?.hidden || annexSegs.some(a => a.some(o => touches(sg, o)))).map(sg => sg.wall.id));
+}
+
+/** Габарит развёртки, м: пол со стенами, развёртки (там, где они на листе), соседние помещения */
 function unfoldedSize(room: Room, annexes: Annexes = []) {
   const e = roomExtent(room);
   const h = toM(room.height.mm), o = h + WALL_T;
-  let minX = toM(e.minX) - o, maxX = toM(e.maxX) + o, minY = toM(e.minY) - o, maxY = toM(e.maxY) + o;
+  const segs = room.walls.map(toSeg), hidden = hiddenWalls(segs, annexes.map(a => a.walls.map(toSeg)));
+  let minX = toM(e.minX) - WALL_T, maxX = toM(e.maxX) + WALL_T, minY = toM(e.minY) - WALL_T, maxY = toM(e.maxY) + WALL_T;
+  for (const sg of segs) {
+    if (hidden.has(sg.wall.id)) continue;
+    // четыре угла развёртки: у стены и на высоте стены снаружи, со сдвигом
+    for (const [t, k] of [[0, 0], [sg.len, 0], [0, o], [sg.len, o]] as const) {
+      const x = sg.ax + sg.ux * t - sg.nx * k + sg.shx, y = sg.ay + sg.uy * t - sg.ny * k + sg.shy;
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    }
+  }
   for (const a of annexes) {
     for (const w of a.walls) {
       minX = Math.min(minX, toM(w.a.x)); maxX = Math.max(maxX, toM(w.a.x));
@@ -117,7 +134,7 @@ export function geom(room: Room, sheet: SheetOptions, area: Area, annexes: Annex
   const s = sheet.mode === 'scale' ? 1000 / sheet.scale : Math.min((area.w - 2 * pad) / totW, (area.h - 2 * pad) / totH);
   const fits = totW * s <= area.w - 2 * pad + 0.01 && totH * s <= area.h - 2 * pad + 0.01;
   const fx = area.x + (area.w - totW * s) / 2 - minX * s, fy = area.y + (area.h - totH * s) / 2 - minY * s;
-  const noUnfold = new Set(segs.filter(sg => annexSegs.some(a => a.some(o => touches(sg, o)))).map(sg => sg.wall.id));
+  const noUnfold = hiddenWalls(segs, annexSegs);
   return { L: toM(e.maxX - e.minX), W: toM(e.maxY - e.minY), h, s, t: WALL_T * s, fx, fy, fits, segs, annexSegs, noUnfold };
 }
 
@@ -154,7 +171,7 @@ export const outward = (sg: Seg): Pt => [-sg.nx, -sg.ny];
 /** Точка на развёртке стены: off — вдоль стены от её начала, z — от пола, м; пол развёртки — у наружной грани стены */
 export function unf(g: Geom, sg: Seg, off: number, z: number): Pt {
   const p = wallPt(g, sg, off), d = z * g.s + g.t;
-  return [p[0] - sg.nx * d, p[1] - sg.ny * d];
+  return [p[0] - sg.nx * d + sg.shx * g.s, p[1] - sg.ny * d + sg.shy * g.s];
 }
 
 export interface Rect {
@@ -209,4 +226,13 @@ export function locate(g: Geom, px: number, py: number): Spot | null {
 /** Поворот подписи на развёртке, чтобы текст читался (не вверх ногами) */
 export function textRot(sg: Seg): number {
   return sg.side === 'left' ? -90 : sg.side === 'right' ? 90 : 0;
+}
+
+/** Какие развёртки налезают друг на друга или на пол: пары букв стен (подсказка «отнесите в сторону», этап 12) */
+export function elevOverlaps(g: Geom): [string, string][] {
+  const rs = g.segs.filter(sg => !g.noUnfold.has(sg.wall.id)).map(sg => ({ sg, r: unfRect(g, sg, 0, 0, sg.len, g.h) }));
+  const hit = (a: Rect, b: Rect) => a.x < b.x + b.w - 0.3 && b.x < a.x + a.w - 0.3 && a.y < b.y + b.h - 0.3 && b.y < a.y + a.h - 0.3;
+  const out: [string, string][] = [];
+  rs.forEach((a, i) => rs.slice(i + 1).forEach(b => { if (hit(a.r, b.r)) out.push([a.sg.wall.letter, b.sg.wall.letter]); }));
+  return out;
 }
