@@ -1,6 +1,6 @@
 // Открытие старых файлов: прототип → формат версии 1.
 import { describe, expect, test } from 'vitest';
-import { fromPrototype, loadPlan, v1to2, v2to3, v3to4, v4to5, v5to6, v6to7, v7to8, v8to9, v9to10, type PlanV1, type PlanV2, type PlanV3, type PlanV4, type PlanV5, type PlanV6, type PlanV7, type PlanV8, type PlanV9 } from '../src/model/migrate';
+import { fromPrototype, loadPlan, v1to2, v2to3, v3to4, v4to5, v5to6, v6to7, v7to8, v8to9, v9to10, v10to11, type PlanV1, type PlanV2, type PlanV3, type PlanV4, type PlanV5, type PlanV6, type PlanV7, type PlanV8, type PlanV9, type PlanV10 } from '../src/model/migrate';
 import type { ProtoPlan } from '../src/model/prototype';
 import { FORMAT_VERSION, type Plan } from '../src/model/types';
 import proto from '../examples/auditorium.prototype.json';
@@ -13,6 +13,7 @@ import v6file from '../examples/old/auditorium.v6.json';
 import v7file from '../examples/old/auditorium.v7.json';
 import v8file from '../examples/old/auditorium.v8.json';
 import v9file from '../examples/old/auditorium.v9.json';
+import v10file from '../examples/old/auditorium.v10.json';
 
 const old = proto as unknown as ProtoPlan;
 const v1 = v1file as unknown as PlanV1;
@@ -24,6 +25,10 @@ const v6 = v6file as unknown as PlanV6;
 const v7 = v7file as unknown as PlanV7;
 const v8 = v8file as unknown as PlanV8;
 const v9 = v9file as unknown as PlanV9;
+const v10 = v10file as unknown as PlanV10;
+
+/** Сравнение «остальное без изменений»: выбор цветной / чёрно-белый (формат 11) — новое поле листа */
+const noBw = <T extends object>(o: T): T => ('sheet' in o && o.sheet && typeof o.sheet === 'object' ? { ...o, sheet: { ...(o.sheet as object), bw: undefined } } : o);
 
 /** Пример в текущем формате получается переводом файла прототипа и лежит в examples/ */
 test('пример аудитории в текущем формате — это переведённый файл прототипа', async () => {
@@ -104,17 +109,17 @@ describe('файл версии 1 (этап 1)', () => {
 
   test('лист — A3, как было; галочки showDims больше нет', () => {
     const sheet = r.ok ? r.plan.sheet : null;
-    expect(sheet).toEqual({ paper: 'A3', mode: 'schematic', scale: 100, showTies: true });
+    expect(sheet).toEqual({ paper: 'A3', mode: 'schematic', scale: 100, showTies: true, bw: false });
   });
 
   test('остальное без изменений', () => {
     const { version: _a, sheet: _b, ...rest1 } = v1;
     const { version: _c, sheet: _d, instruments: _e, wallPhotos: _f, annexes: _g, ...rest2 } = (r as { plan: Plan }).plan;
-    expect(rest2).toEqual(rest1);
+    expect(noBw(rest2)).toEqual(noBw(rest1));
   });
 
   test('прототип переводится через версию 1', () => {
-    expect(loadPlan(structuredClone(old))).toEqual({ ok: true, plan: v9to10(v8to9(v7to8(v6to7(v5to6(v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old))))))))))), migratedFrom: 'prototype' });
+    expect(loadPlan(structuredClone(old))).toEqual({ ok: true, plan: v10to11(v9to10(v8to9(v7to8(v6to7(v5to6(v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old)))))))))))), migratedFrom: 'prototype' });
   });
 });
 
@@ -129,7 +134,7 @@ describe('файл версии 2 (этапы 2–4)', () => {
   test('всё остальное без изменений: предметы, углы, штамп, лист', () => {
     const { version: _a, ...rest2 } = v2;
     const { version: _b, annexes: _ax, instruments: _c, wallPhotos: _d, ...rest4 } = (r as { plan: Plan }).plan;
-    expect(rest4).toEqual(rest2);
+    expect(noBw(rest4)).toEqual(noBw(rest2));
   });
 });
 
@@ -144,7 +149,7 @@ describe('файл версии 4 (этап 6)', () => {
   test('снимков нет, остальное без изменений', () => {
     const { version: _a, ...rest4 } = v4;
     const { version: _b, annexes: _ax, wallPhotos: _c, ...rest5 } = (r as { plan: Plan }).plan;
-    expect(rest5).toEqual(rest4);
+    expect(noBw(rest5)).toEqual(noBw(rest4));
   });
 
   test('заготовка снимка из версии 4 получает пустые сведения', () => {
@@ -165,7 +170,7 @@ describe('файл версии 5 (этапы 7–8)', () => {
     const { version: _a, ...rest5 } = v5;
     const { version: _b, annexes: _ax, wallPhotos, ...rest6 } = (r as { plan: Plan }).plan;
     expect(wallPhotos).toEqual([]);
-    expect(rest6).toEqual(rest5);
+    expect(noBw(rest6)).toEqual(noBw(rest5));
   });
 });
 
@@ -180,7 +185,7 @@ describe('файл версии 6 (этап 9)', () => {
   test('данные без изменений, пометок «предложено моделью» нет', () => {
     const { version: _a, ...rest6 } = v6;
     const { version: _b, annexes: _ax, ...rest7 } = (r as { plan: Plan }).plan;
-    expect(rest7).toEqual(rest6);
+    expect(noBw(rest7)).toEqual(noBw(rest6));
     expect(JSON.stringify(rest7)).not.toContain('"auto"');
   });
 });
@@ -193,7 +198,7 @@ describe('файл версии 7 (этап 10)', () => {
     expect(r.ok && r.plan.version).toBe(FORMAT_VERSION);
     const { version: _a, ...rest7 } = v7;
     const { version: _b, annexes: _ax, ...rest8 } = (r as { plan: Plan }).plan;
-    expect(rest8).toEqual(rest7);
+    expect(noBw(rest8)).toEqual(noBw(rest7));
   });
 });
 
@@ -205,7 +210,7 @@ describe('файл версии 8 (этап 11)', () => {
     expect(r.ok && r.plan.version).toBe(FORMAT_VERSION);
     const { version: _a, ...rest8 } = v8;
     const { version: _b, annexes: _ax, ...rest9 } = (r as { plan: Plan }).plan;
-    expect(rest9).toEqual(rest8);
+    expect(noBw(rest9)).toEqual(noBw(rest8));
   });
 });
 
@@ -213,17 +218,30 @@ describe('файл версии 9 (этап 12, до соседних помещ
   const r = loadPlan(structuredClone(v9));
   test('открывается: соседних помещений нет, остальное без изменений', () => {
     expect(r.ok && r.migratedFrom).toBe('v9');
-    expect(r.ok && r.plan.version).toBe(10);
+    expect(r.ok && r.plan.version).toBe(FORMAT_VERSION);
     expect(r.ok && r.plan.annexes).toEqual([]);
     const { version: _a, ...rest9 } = v9;
     const { version: _b, annexes: _c, ...rest10 } = (r as { plan: Plan }).plan;
-    expect(rest10).toEqual(rest9);
+    expect(noBw(rest10)).toEqual(noBw(rest9));
+  });
+});
+
+describe('файл версии 10 (этап 12, до цветного листа)', () => {
+  const r = loadPlan(structuredClone(v10));
+  test('открывается: лист цветной, остальное без изменений', () => {
+    expect(r.ok && r.migratedFrom).toBe('v10');
+    expect(r.ok && r.plan.version).toBe(11);
+    expect(r.ok && r.plan.sheet.bw).toBe(false);
+    const { version: _a, sheet: sa, ...rest10 } = v10;
+    const { version: _b, sheet: sb, ...rest11 } = (r as { plan: Plan }).plan;
+    expect(noBw(rest11)).toEqual(noBw(rest10));
+    expect({ ...sb, bw: undefined }).toEqual({ ...sa, bw: undefined });
   });
 });
 
 describe('чистый лист (формат 9)', () => {
   test('план без стен открывается', () => {
-    const p = { ...v9to10(v8to9(structuredClone(v8))), room: { walls: [], height: v8.room.height } };
+    const p = { ...v10to11(v9to10(v8to9(structuredClone(v8)))), room: { walls: [], height: v8.room.height } };
     expect(loadPlan(JSON.parse(JSON.stringify(p)))).toEqual({ ok: true, plan: p });
   });
   test('две стены — не помещение', () => {
@@ -244,12 +262,12 @@ describe('файл версии 3 (этап 5)', () => {
     const { version: _a, ...rest3 } = v3;
     const { version: _b, annexes: _ax, instruments, wallPhotos: _c, ...rest4 } = (r as { plan: Plan }).plan;
     expect(instruments).toEqual({ tape: '', rangefinder: '' });
-    expect(rest4).toEqual(rest3);
+    expect(noBw(rest4)).toEqual(noBw(rest3));
   });
 });
 
 describe('loadPlan', () => {
-  const p = v9to10(v8to9(v7to8(v6to7(v5to6(v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old)))))))))));
+  const p = v10to11(v9to10(v8to9(v7to8(v6to7(v5to6(v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old))))))))))));
 
   test('файл текущей версии открывается как есть', () => {
     const r = loadPlan(JSON.parse(JSON.stringify(p)));

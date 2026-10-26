@@ -30,6 +30,8 @@ export interface Geom {
   h: number;
   /** мм листа на 1 м */
   s: number;
+  /** толщина стен на листе, мм: развёртка откидывается от наружной грани стены (как в образце) */
+  t: number;
   /** точка начала координат пола на листе */
   fx: number;
   fy: number;
@@ -55,6 +57,9 @@ export const SCALES = [50, 100, 200] as const;
 
 const PAD = 15;
 
+/** Толщина стен на плане, м — одна на помещение, только для вида (decisions.md, этап 12) */
+export const WALL_T = 0.25;
+
 function sideOf(nx: number, ny: number): Seg['side'] {
   // развёртка лежит снаружи, т. е. против нормали внутрь
   if (Math.abs(ny) >= Math.abs(nx)) return ny > 0 ? 'top' : 'bottom';
@@ -77,8 +82,8 @@ type Annexes = readonly { walls: Wall[] }[];
 /** Габарит развёртки, м: пол плюс высота стены во все стороны; соседние помещения — без развёрток */
 function unfoldedSize(room: Room, annexes: Annexes = []) {
   const e = roomExtent(room);
-  const h = toM(room.height.mm);
-  let minX = toM(e.minX) - h, maxX = toM(e.maxX) + h, minY = toM(e.minY) - h, maxY = toM(e.maxY) + h;
+  const h = toM(room.height.mm), o = h + WALL_T;
+  let minX = toM(e.minX) - o, maxX = toM(e.maxX) + o, minY = toM(e.minY) - o, maxY = toM(e.maxY) + o;
   for (const a of annexes) {
     for (const w of a.walls) {
       minX = Math.min(minX, toM(w.a.x)); maxX = Math.max(maxX, toM(w.a.x));
@@ -105,7 +110,7 @@ export function geom(room: Room, sheet: SheetOptions, area: Area, annexes: Annex
   if (!segs.length) {
     // чистый лист (этап 12): масштаб для рисования — 1:100 (или масштаб листа), начало координат — середина чертежа
     const k = 1000 / (sheet.mode === 'scale' ? sheet.scale : 100);
-    return { L: 0, W: 0, h: toM(room.height.mm), s: k, fx: area.x + area.w / 2, fy: area.y + area.h / 2, fits: true, segs, annexSegs, noUnfold: new Set() };
+    return { L: 0, W: 0, h: toM(room.height.mm), s: k, t: WALL_T * k, fx: area.x + area.w / 2, fy: area.y + area.h / 2, fits: true, segs, annexSegs, noUnfold: new Set() };
   }
   const { e, h, minX, minY, totW, totH } = unfoldedSize(room, annexes);
   const pad = PAD;
@@ -113,7 +118,7 @@ export function geom(room: Room, sheet: SheetOptions, area: Area, annexes: Annex
   const fits = totW * s <= area.w - 2 * pad + 0.01 && totH * s <= area.h - 2 * pad + 0.01;
   const fx = area.x + (area.w - totW * s) / 2 - minX * s, fy = area.y + (area.h - totH * s) / 2 - minY * s;
   const noUnfold = new Set(segs.filter(sg => annexSegs.some(a => a.some(o => touches(sg, o)))).map(sg => sg.wall.id));
-  return { L: toM(e.maxX - e.minX), W: toM(e.maxY - e.minY), h, s, fx, fy, fits, segs, annexSegs, noUnfold };
+  return { L: toM(e.maxX - e.minX), W: toM(e.maxY - e.minY), h, s, t: WALL_T * s, fx, fy, fits, segs, annexSegs, noUnfold };
 }
 
 /** Стена основного помещения с развёрткой; у перегородки к соседнему помещению развёртки нет */
@@ -146,10 +151,10 @@ export function wallPt(g: Geom, sg: Seg, t: number): Pt {
 export const inward = (sg: Seg): Pt => [sg.nx, sg.ny];
 export const outward = (sg: Seg): Pt => [-sg.nx, -sg.ny];
 
-/** Точка на развёртке стены: off — вдоль стены от её начала, z — от пола, м */
+/** Точка на развёртке стены: off — вдоль стены от её начала, z — от пола, м; пол развёртки — у наружной грани стены */
 export function unf(g: Geom, sg: Seg, off: number, z: number): Pt {
-  const p = wallPt(g, sg, off);
-  return [p[0] - sg.nx * z * g.s, p[1] - sg.ny * z * g.s];
+  const p = wallPt(g, sg, off), d = z * g.s + g.t;
+  return [p[0] - sg.nx * d, p[1] - sg.ny * d];
 }
 
 export interface Rect {

@@ -119,7 +119,8 @@ describe('снимок на листе', () => {
     expect([a, b, c]).toEqual([+(10 * g.s).toFixed(3), 0, 0]);
     expect(d).toBeCloseTo(3 * g.s, 2);
     expect(e).toBeCloseTo(g.fx, 2);
-    expect(f).toBeCloseTo(g.fy - 3 * g.s, 2);
+    // потолок — на высоте стены от наружной грани (толщина стены, этап 12)
+    expect(f).toBeCloseTo(g.fy - 3 * g.s - g.t, 2);
     const [a2, , , d2] = m('blob:b');
     expect(a2).toBeLessThan(0);
     expect(d2).toBeLessThan(0);
