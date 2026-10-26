@@ -516,3 +516,66 @@ export function setWallElev(p: Plan, wallId: string, o: Partial<WallElev>): Plan
 
 /** Все развёртки — на свои места (скрытые остаются скрытыми) */
 export const resetElevs = (p: Plan): Plan => p.room.walls.reduce((q, w) => setWallElev(q, w.id, { dx: 0, dy: 0 }), p);
+
+/* ——— мебель ровными рядами (этап 12, замечание проверки: «шанс случайно сдвинуть») ——— */
+
+/** Центр и половины габарита предмета на плане; повёрнутый не на 0/90/180/270° — null (с ним не выравниваем) */
+function itemBox(it: Item): { cx: Mm; cy: Mm; hx: Mm; hy: Mm } | null {
+  const a = ((Math.round(it.angle) % 180) + 180) % 180;
+  if (a !== 0 && a !== 90) return null;
+  const turned = a === 90;
+  return { cx: it.x.mm + it.w.mm / 2, cy: it.y.mm + it.d.mm / 2, hx: (turned ? it.d.mm : it.w.mm) / 2, hy: (turned ? it.w.mm : it.d.mm) / 2 };
+}
+
+/**
+ * Привязка при перетаскивании предмета: край или середина встаёт на линию края или середины
+ * другого предмета, если ближе tol. Возвращает новое место и линии-направляющие (null — нет).
+ */
+export function snapItemXY(p: Plan, id: string, x: Mm, y: Mm, tol: Mm): { x: Mm; y: Mm; gx: Mm | null; gy: Mm | null } {
+  const me = p.items.find(i => i.id === id);
+  const b = me && itemBox({ ...me, x: { ...me.x, mm: x }, y: { ...me.y, mm: y } });
+  if (!b) return { x, y, gx: null, gy: null };
+  let bx: { d: number; line: Mm } | null = null, by: { d: number; line: Mm } | null = null;
+  for (const o of p.items) {
+    const ob = o.id === id ? null : itemBox(o);
+    if (!ob) continue;
+    for (const k of [-1, 0, 1]) {
+      for (const m of [-1, 0, 1]) {
+        const lx = ob.cx + k * ob.hx, dx = lx - (b.cx + m * b.hx);
+        if (Math.abs(dx) <= tol && (!bx || Math.abs(dx) < Math.abs(bx.d))) bx = { d: dx, line: lx };
+        const ly = ob.cy + k * ob.hy, dy = ly - (b.cy + m * b.hy);
+        if (Math.abs(dy) <= tol && (!by || Math.abs(dy) < Math.abs(by.d))) by = { d: dy, line: ly };
+      }
+    }
+  }
+  return { x: Math.round(x + (bx?.d ?? 0)), y: Math.round(y + (by?.d ?? 0)), gx: bx && Math.round(bx.line), gy: by && Math.round(by.line) };
+}
+
+/** Ряд — по горизонтали плана (одна линия по Y), колонка — по вертикали (одна линия по X) */
+export type ItemLine = 'row' | 'col';
+
+/** Предметы того же вида в одном ряду (колонке) с этим: их габариты по Y (по X) перекрываются */
+export function itemsInLine(p: Plan, refId: string, line: ItemLine): Item[] {
+  const ref = p.items.find(i => i.id === refId);
+  const rb = ref && itemBox(ref);
+  if (!ref || !rb) return [];
+  return p.items.filter(o => {
+    const ob = o.id === ref.id || o.type !== ref.type ? null : itemBox(o);
+    if (!ob) return false;
+    return line === 'row' ? Math.abs(ob.cy - rb.cy) < ob.hy + rb.hy : Math.abs(ob.cx - rb.cx) < ob.hx + rb.hx;
+  });
+}
+
+/** «Выровнять ряд (колонку) по этому»: середины на одной линии с этим; замеренное не трогаем */
+export function alignItemsLine(p: Plan, refId: string, line: ItemLine): Plan {
+  const ref = p.items.find(i => i.id === refId);
+  const rb = ref && itemBox(ref);
+  if (!rb) return p;
+  const ids = new Set(itemsInLine(p, refId, line).map(i => i.id));
+  const set = (d: Dim, mm: Mm): Dim => (d.status === 'measured' ? d : withMm(d, Math.round(mm)));
+  return {
+    ...p,
+    items: p.items.map(o => (!ids.has(o.id) ? o
+      : line === 'row' ? { ...o, y: set(o.y, rb.cy - o.d.mm / 2) } : { ...o, x: set(o.x, rb.cx - o.w.mm / 2) })),
+  };
+}
