@@ -453,3 +453,44 @@ function shiftAnnexes(p: Plan, beyond: (x: Mm, y: Mm) => boolean, dx: Mm, dy: Mm
     }),
   };
 }
+
+/* ——— выравнивание (этап 12, замечание проверки) ——— */
+
+/**
+ * «Выровнять такие же по этому»: окна (радиаторы…) той же стены получают ту же высоту от пола
+ * и высоту, что у образца. Замеренное не меняется.
+ */
+export function alignLikeThis(p: Plan, refId: string): Plan {
+  const ref = p.wallItems.find(i => i.id === refId);
+  if (!ref) return p;
+  const set = (d: Dim, mm: Mm): Dim => (d.status === 'measured' ? d : withMm(d, mm));
+  return {
+    ...p,
+    wallItems: p.wallItems.map(i => (i.id !== ref.id && i.wallId === ref.wallId && i.type === ref.type
+      ? { ...i, z: set(i.z, ref.z.mm), h: set(i.h, ref.h.mm) } : i)),
+  };
+}
+
+/** Сколько ещё таких же на этой стене (для подписи кнопки) */
+export const likeOnWall = (p: Plan, refId: string): number => {
+  const ref = p.wallItems.find(i => i.id === refId);
+  return ref ? p.wallItems.filter(i => i.id !== ref.id && i.wallId === ref.wallId && i.type === ref.type).length : 0;
+};
+
+/**
+ * Привязка по высоте при перетаскивании элемента стены: низ, верх или середина встаёт на уровень
+ * низа, верха или середины соседних элементов той же стены, если ближе tol. Возвращает новый z и линию.
+ */
+export function snapWallZ(p: Plan, id: string, wallId: string, z: Mm, h: Mm, tol: Mm): { z: Mm; line: Mm | null } {
+  let best: { z: Mm; line: Mm; d: number } | null = null;
+  for (const o of p.wallItems) {
+    if (o.id === id || o.wallId !== wallId) continue;
+    for (const line of [o.z.mm, o.z.mm + o.h.mm, o.z.mm + o.h.mm / 2]) {
+      for (const k of [0, h, h / 2]) {
+        const d = Math.abs(z + k - line);
+        if (d <= tol && (!best || d < best.d)) best = { z: Math.round(line - k), line: Math.round(line), d };
+      }
+    }
+  }
+  return best ? { z: best.z, line: best.line } : { z, line: null };
+}

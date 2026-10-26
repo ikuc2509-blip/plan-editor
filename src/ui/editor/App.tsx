@@ -1,5 +1,6 @@
 // Режим «Чистовик» (компьютер): шапка с файлом, экспортом, отменой, масштабом и сеткой.
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { signal } from '@preact/signals';
 import { vectorPdf } from '../../export/pdf';
 import { sheetPng, sheetSvgFile } from '../../export/image';
 import { saveFile } from '../../storage/files';
@@ -99,6 +100,9 @@ function DownloadMenu() {
   );
 }
 
+/** на узком экране остальные кнопки шапки открыты */
+const headOpen = signal(false);
+
 const GRID_NAMES: Record<string, string> = { 0: 'нет', 10: '1 см', 50: '5 см', 100: '10 см' };
 
 export function App() {
@@ -120,6 +124,9 @@ export function App() {
           </span>
         )}
         <span class="grow" />
+        {/* узкий экран (телефон в «Чистовике»): остальное — по кнопке «Ещё», чтобы шапка не занимала пол-экрана */}
+        <button class="ghost head-toggle" aria-expanded={headOpen.value} onClick={() => { headOpen.value = !headOpen.value; }}>{headOpen.value ? 'Свернуть ▴' : 'Ещё ▾'}</button>
+        <div class={'head-more' + (headOpen.value ? ' open' : '')}>
         <button class="ghost" title="Отменить (Ctrl+Z)" aria-label="Отменить" disabled={!canUndo.value} onClick={undo}>↶</button>
         <button class="ghost" title="Повторить (Ctrl+Y)" aria-label="Повторить" disabled={!canRedo.value} onClick={redo}>↷</button>
         <button class="ghost" title="Уменьшить" onClick={() => { zoom.value = Math.max(ZOOM_MIN, zoom.value / 1.25); }}>−</button>
@@ -133,6 +140,7 @@ export function App() {
         <button onClick={openFile}>Открыть файл</button>
         <button onClick={saveToFile}>Сохранить в файл</button>
         <DownloadMenu />
+        </div>
         <UpdateBar />
       </header>
       <main>

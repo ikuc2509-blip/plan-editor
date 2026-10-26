@@ -272,3 +272,18 @@ header h1 .t-short{display:none}
 /* промежуток .stage (gap) не должен сдвигать лист, когда появляется полоска */
 .stage>.overlay-top,.stage>.overlay-mid{margin-bottom:-8px}
 .stage.os-stage>.overlay-top,.stage.os-stage>.overlay-mid{margin-bottom:0}
+
+/* «Чистовик» на узком экране (телефон, замечание проверки этапа 12): шапка — «Ещё ▾», панель сворачивается */
+.head-toggle,.side-toggle{display:none}
+.head-more{display:contents}
+.drawbar{background:var(--panel)}
+@media (max-width:860px){
+  .head-toggle{display:inline-block}
+  .head-more{display:none;width:100%;flex-wrap:wrap;gap:6px}
+  .head-more.open{display:flex}
+  header .weight{display:none}
+  .side-toggle{display:inline-block;margin-left:auto}
+  aside.collapsed .side{display:none}
+  aside.collapsed{max-height:none}
+  .legendline{display:none}
+}

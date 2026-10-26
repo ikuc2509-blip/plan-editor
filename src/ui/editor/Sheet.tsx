@@ -3,7 +3,7 @@
 import { signal, type Signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Callout, Item, Marker, Mm, Plan, Point, SelKind, WallItem } from '../../model/types';
-import { moveCorner, moveTo, patch, setAngle, setSheet } from '../../model/actions';
+import { moveCorner, moveTo, patch, setAngle, setSheet, snapWallZ } from '../../model/actions';
 import { drawSheet, sheetGeom, sheetLayout } from '../../render/sheet';
 import type { Box } from '../../render/layout';
 import { locate, segOf, unf, wallDelta, type Spot } from '../../geometry/unfold';
@@ -25,6 +25,15 @@ const COL = { wi: 'wallItems', it: 'items', mk: 'markers', co: 'callouts' } as c
 export const PRINT_HINT = 'Печать PDF: масштаб 100 % («Фактический размер»), без подгонки по размеру страницы — иначе масштаб плана исказится.';
 
 export const ZOOM_MIN = 0.4, ZOOM_MAX = 6;
+
+/** сенсорный экран: про Shift не пишем */
+const touchScreen = typeof window !== 'undefined' && (window.matchMedia?.('(pointer: coarse)').matches ?? false);
+
+/** подсказка на полоске рисования скрыта — остаются кнопки */
+const hintHidden = signal(false);
+
+/** линия-направляющая при выравнивании элементов стены: какая стена и высота, мм */
+const guide = signal<{ wallId: string; z: Mm } | null>(null);
 
 /** масштаб плана в режиме «На месте» — свой, чтобы не сбивать «Чистовик» */
 export const onsiteZoom = signal(1);
@@ -316,7 +325,13 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
     const [doff, dz] = wallDelta(sg, dx, dy, g.s);
     const off = sn(Math.max(-1, Math.min(sg.len, qq.off.mm / 1000 + doff)));
     if (kind === 'wi' || (qq as Marker).place === 'wall') {
-      const z = sn(Math.max(0, Math.min(g.h, qq.z.mm / 1000 + dz)));
+      let z = sn(Math.max(0, Math.min(g.h, qq.z.mm / 1000 + dz)));
+      // окна и радиаторы встают на уровень соседних; видна линия-направляющая (Alt — без этого)
+      if (kind === 'wi' && !e.altKey) {
+        const sn2 = snapWallZ(plan.value, id, qq.wallId, z, (q as WallItem).h.mm, (3 / g.s) * 1000);
+        z = sn2.z;
+        guide.value = sn2.line === null ? null : { wallId: qq.wallId, z: sn2.line };
+      }
       dispatch(pl => moveTo(pl, COL[kind] as 'wallItems' | 'markers', id, { off, z }), d.key);
     } else {
       dispatch(pl => moveTo(pl, 'markers', id, { off }), d.key);
@@ -332,6 +347,7 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
     }
     const d = drag.current;
     drag.current = null;
+    guide.value = null;
     endGesture();
     if (d?.pick && e.type === 'pointerup') {
       // объект — выбрать (и после перетаскивания); пустое место — снять выбор, если план не сдвигали
@@ -358,7 +374,8 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
     <div class={'stage' + (onsite ? ' os-stage' : '')} ref={stageRef}>
       {dr && (
         <div class="overlay-top"><div class="drawbar" role="toolbar" aria-label="Рисование комнаты">
-          <span>{dr.pts.length < 3 ? 'Щёлкайте по углам комнаты по порядку' : 'Замкнуть — щелчок по первому углу или «Замкнуть»'}{onsite ? '' : '. Shift — без привязки к прямым углам'}</span>
+          {!hintHidden.value && <span>{dr.pts.length < 3 ? 'Щёлкайте по углам комнаты по порядку' : 'Замкнуть — щелчок по первому углу или «Замкнуть»'}{onsite || touchScreen ? '' : '. Shift — без привязки к прямым углам'}</span>}
+          <button class="ghost" aria-label={hintHidden.value ? 'Показать подсказку' : 'Скрыть подсказку'} title={hintHidden.value ? 'Показать подсказку' : 'Скрыть подсказку'} onClick={() => { hintHidden.value = !hintHidden.value; }}>{hintHidden.value ? '?' : '✕'}</button>
           <button disabled={!dr.pts.length} onClick={undoCorner}>Убрать угол</button>
           <button class="primary" disabled={dr.pts.length < 3} onClick={finishDraw}>Замкнуть</button>
           <button onClick={cancelDraw}>Отмена</button>
@@ -366,7 +383,8 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
       )}
       {sh && (
         <div class="overlay-top"><div class="drawbar" role="toolbar" aria-label="Прямоугольник">
-          <span>{empty ? 'Протяните прямоугольник от угла до угла' : sh.annex ? 'Протяните соседнее помещение вплотную к комнате — между ними будет стена-перегородка' : 'Протяните прямоугольник так, чтобы он касался комнаты стороной — он сольётся с ней'}</span>
+          {!hintHidden.value && <span>{empty ? 'Протяните прямоугольник от угла до угла' : sh.annex ? 'Протяните соседнее помещение вплотную к комнате — между ними будет стена-перегородка' : 'Протяните прямоугольник так, чтобы он касался комнаты стороной — он сольётся с ней'}</span>}
+          <button class="ghost" aria-label={hintHidden.value ? 'Показать подсказку' : 'Скрыть подсказку'} onClick={() => { hintHidden.value = !hintHidden.value; }}>{hintHidden.value ? '?' : '✕'}</button>
           <button onClick={cancelShape}>Отмена</button>
         </div></div>
       )}
@@ -392,7 +410,7 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
-        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true, touch: onsite, wallImages: fullMode.value ? wallImages.value : undefined }) + (onsite || !fullMode.value ? '' : suggestSvg(shown, suggestions.value, suggSel.value)) + markSvg(shown, mark) + (dr ? drawSvg(shown, dr.pts, drawHover.value) : sh?.a && sh.b ? shapeSvg(shown, sh.a, sh.b) : !empty && !isRect(shown.room) ? cornersSvg(shown) : '') }}
+        dangerouslySetInnerHTML={{ __html: drawSheet(shown, { sel: sel.value, grid: gridStep.value, screen: true, touch: onsite, wallImages: fullMode.value ? wallImages.value : undefined }) + (onsite || !fullMode.value ? '' : suggestSvg(shown, suggestions.value, suggSel.value)) + markSvg(shown, mark) + guideSvg(shown, guide.value) + (dr ? drawSvg(shown, dr.pts, drawHover.value) : sh?.a && sh.b ? shapeSvg(shown, sh.a, sh.b) : !empty && !isRect(shown.room) ? cornersSvg(shown) : '') }}
       />
       {!onsite && (
         <>
@@ -416,6 +434,15 @@ function drawSvg(p: Plan, pts: readonly Point[], hover: Point | null): string {
   }
   pts.forEach((q, i) => { const [x, y] = at(q); out += `<circle cx="${x}" cy="${y}" r="${i === 0 && pts.length >= 3 ? 2.2 : 1.2}" fill="${i === 0 ? '#fff' : '#2F6FB3'}" stroke="#2F6FB3" stroke-width="0.5"/>`; });
   return `<g pointer-events="none">${out}</g>`;
+}
+
+/** Линия-направляющая через всю развёртку стены (только на экране) */
+function guideSvg(p: Plan, gd: { wallId: string; z: Mm } | null): string {
+  if (!gd) return '';
+  const g = sheetGeom(p), sg = segOf(g, gd.wallId);
+  if (!sg) return '';
+  const [x1, y1] = unf(g, sg, 0, gd.z / 1000), [x2, y2] = unf(g, sg, sg.len, gd.z / 1000);
+  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#D0332B" stroke-width="0.35" stroke-dasharray="2 1" pointer-events="none"/>`;
 }
 
 /** Прямоугольник, который тянут, с длинами сторон (только на экране) */
