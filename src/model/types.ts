@@ -225,6 +225,8 @@ export interface SheetOptions {
   mode: 'schematic' | 'scale';
   scale: number;
   showTies: boolean;
+  /** чёрно-белый лист (для принтера без цвета); иначе — цветной, как образец (формат 11) */
+  bw: boolean;
 }
 
 export const FORMAT_ID = 'plan-editor';
@@ -239,7 +241,8 @@ export const FORMAT_ID = 'plan-editor';
  * 7 — этап 10: у принятого объекта — «предложено моделью» и уверенность (origin.auto);
  * 8 — этап 11: больше мебели (кресло, тумба, комод…) и контур тела человека;
  * 9 — этап 12: комнаты может не быть (чистый лист) или она нарисована — любые стены-отрезки;
- * 10 — этап 12: соседние помещения (annexes) — на плане пола, развёртки только у основного.
+ * 10 — этап 12: соседние помещения (annexes) — на плане пола, развёртки только у основного;
+ * 11 — этап 12: лист цветной, как образец, или чёрно-белый (sheet.bw).
  */
 /** Точка на снимке, в долях ширины и высоты (0…1) */
 export interface PhotoPt {
@@ -267,7 +270,7 @@ export interface WallPhoto {
   opacity: number;
 }
 
-export const FORMAT_VERSION = 10;
+export const FORMAT_VERSION = 11;
 
 export interface Plan {
   format: typeof FORMAT_ID;

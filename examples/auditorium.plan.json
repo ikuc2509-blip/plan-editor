@@ -1,6 +1,6 @@
 {
  "format": "plan-editor",
- "version": 10,
+ "version": 11,
  "room": {
   "walls": [
    {
@@ -1405,7 +1405,8 @@
   "paper": "A3",
   "mode": "schematic",
   "scale": 100,
-  "showTies": true
+  "showTies": true,
+  "bw": false
  },
  "instruments": {
   "tape": "",

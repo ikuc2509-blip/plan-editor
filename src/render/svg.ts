@@ -51,8 +51,8 @@ export function wrap(str: string, max: number): string[] {
   return out;
 }
 
-/** Жёлтый кружок метки с номером */
-export function marker(x: number, y: number, n: string, r = 2.8): string {
-  return `<circle cx="${x}" cy="${y}" r="${r}" fill="#F2C200" stroke="#111" stroke-width="0.35"/>` +
-    T(x, y + 0.05, n, { size: r * 1.05, anchor: 'middle', weight: 700, base: 'central' });
+/** Кружок метки с номером: как в образце — белый, контур и номер красные (чёрно-белый лист — чёрные) */
+export function marker(x: number, y: number, n: string, r = 2.8, line = '#C0392B'): string {
+  return `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" stroke="${line}" stroke-width="0.42"/>` +
+    T(x, y + 0.05, n, { size: r * 1.05, anchor: 'middle', weight: 700, base: 'central', fill: line });
 }

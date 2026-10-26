@@ -6,10 +6,10 @@ import { layoutFor } from '../src/render/layout';
 import type { SheetOptions } from '../src/model/types';
 
 const room = createRectRoom(10_000, 6_000, 3_000);
-const sheet = (o: Partial<SheetOptions> = {}): SheetOptions => ({ paper: 'A3', mode: 'scale', scale: 100, showTies: true, ...o });
+const sheet = (o: Partial<SheetOptions> = {}): SheetOptions => ({ paper: 'A3', mode: 'scale', scale: 100, showTies: true, bw: false, ...o });
 const A3 = layoutFor('A3').area, A4 = layoutFor('A4').area;
 
-// Масштаб 1:100 → 10 мм листа на 1 м; пол 100×60 мм, развёртка 160×120 мм в центре области 264×256
+// Масштаб 1:100 → 10 мм листа на 1 м; пол 100×60 мм, стены по 2,5 мм (0,25 м), развёртка 165×125 мм в центре области 264×256
 const g: Geom = geom(room, sheet(), A3);
 const sg = (id: string): Seg => segOf(g, id)!;
 const { fx, fy } = g;
@@ -41,8 +41,9 @@ describe('прямоугольник — 4 стены-отрезка', () => {
 describe('geom', () => {
   test('масштаб 1:100 и положение пола', () => {
     expect(g.s).toBe(10);
-    expect(fx).toBe(24 + (264 - 160) / 2 + 30);
-    expect(fy).toBe(28 + (256 - 120) / 2 + 30);
+    expect(g.t).toBe(2.5);
+    expect(fx).toBe(24 + (264 - 165) / 2 + 32.5);
+    expect(fy).toBe(28 + (256 - 125) / 2 + 32.5);
     expect(g.fits).toBe(true);
   });
 
@@ -52,7 +53,7 @@ describe('geom', () => {
 
   test('схематично — развёртка вписана в область', () => {
     const sgm = geom(room, sheet({ mode: 'schematic' }), A3);
-    expect(sgm.s).toBeCloseTo(Math.min(234 / 16, 226 / 12), 10);
+    expect(sgm.s).toBeCloseTo(Math.min(234 / 16.5, 226 / 12.5), 10);
     expect(sgm.fits).toBe(true);
   });
 });
@@ -94,29 +95,32 @@ describe('wallPt — точка на стене, 2 м от левого угла
 
 describe('unf — точка на развёртке, 2 м вдоль и 1 м от пола', () => {
   test.each<[string, [number, number]]>([
-    ['A', [fx + 20, fy - 10]],
-    ['G', [fx + 110, fy + 20]],
-    ['B', [fx + 80, fy + 70]],
-    ['V', [fx - 10, fy + 40]],
-  ])('стена %s: высота откладывается наружу от пола', (id, p) => {
+    ['A', [fx + 20, fy - 12.5]],
+    ['G', [fx + 112.5, fy + 20]],
+    ['B', [fx + 80, fy + 72.5]],
+    ['V', [fx - 12.5, fy + 40]],
+  ])('стена %s: высота откладывается наружу от наружной грани стены', (id, p) => {
     const q = unf(g, sg(id), 2, 1);
     expect(q[0]).toBeCloseTo(p[0], 10);
     expect(q[1]).toBeCloseTo(p[1], 10);
   });
 
-  test('на высоте 0 точка развёртки лежит на линии стены', () => {
-    for (const id of ['A', 'G', 'B', 'V']) expect(unf(g, sg(id), 3, 0)).toEqual(wallPt(g, sg(id), 3));
+  test('на высоте 0 точка развёртки — у наружной грани стены, на толщину стены от её линии', () => {
+    for (const id of ['A', 'G', 'B', 'V']) {
+      const a = unf(g, sg(id), 3, 0), b = wallPt(g, sg(id), 3);
+      expect(Math.hypot(a[0] - b[0], a[1] - b[1])).toBeCloseTo(g.t, 10);
+    }
   });
 
   test('окно 1,5×1,8 м на стене А, 2 м от угла, низ на 0,9 м', () => {
-    expect(unfRect(g, sg('A'), 2, 0.9, 1.5, 1.8)).toEqual({ x: fx + 20, y: fy - 27, w: 15, h: 18 });
+    expect(unfRect(g, sg('A'), 2, 0.9, 1.5, 1.8)).toEqual({ x: fx + 20, y: fy - 29.5, w: 15, h: 18 });
   });
 
   test('на стене Б тот же участок отсчитывается от правого угла листа', () => {
     const r = unfRect(g, sg('B'), 2, 0, 1.5, 1);
     expect(r.x).toBeCloseTo(fx + 100 - 35, 10);
     expect(r.w).toBeCloseTo(15, 10);
-    expect(r.y).toBeCloseTo(fy + 60, 10);
+    expect(r.y).toBeCloseTo(fy + 62.5, 10);
   });
 });
 

@@ -15,8 +15,10 @@ export type PlanV1 = Omit<PlanV3, 'version' | 'sheet'> & {
   sheet: { mode: 'schematic' | 'scale'; scale: number; showDims: boolean; showTies: boolean };
 };
 
+/** Формат версии 10 (этап 12): лист без выбора цветной / чёрно-белый */
+export type PlanV10 = Omit<Plan, 'version' | 'sheet'> & { version: 10; sheet: Omit<Plan['sheet'], 'bw'> };
 /** Формат версии 9 (этап 12): без соседних помещений */
-export type PlanV9 = Omit<Plan, 'version' | 'annexes'> & { version: 9 };
+export type PlanV9 = Omit<PlanV10, 'version' | 'annexes'> & { version: 9 };
 /** Формат версии 8 (этап 11): как версия 9, только помещение — всегда прямоугольник */
 export type PlanV8 = Omit<PlanV9, 'version'> & { version: 8 };
 /** Формат версии 7 (этап 10): как версия 8, только без новых видов мебели и контура тела */
@@ -45,6 +47,7 @@ const UPGRADES: Record<number, (o: Record<string, unknown>) => Record<string, un
   7: o => v7to8(o as unknown as PlanV7) as unknown as Record<string, unknown>,
   8: o => v8to9(o as unknown as PlanV8) as unknown as Record<string, unknown>,
   9: o => v9to10(o as unknown as PlanV9) as unknown as Record<string, unknown>,
+  10: o => v10to11(o as unknown as PlanV10) as unknown as Record<string, unknown>,
 };
 
 /** Распознать сохранённый план и привести к текущей версии формата */
@@ -125,8 +128,13 @@ export function v8to9(p: PlanV8): PlanV9 {
 }
 
 /** 9 → 10: соседних помещений ещё нет */
-export function v9to10(p: PlanV9): Plan {
+export function v9to10(p: PlanV9): PlanV10 {
   return { ...p, version: 10, annexes: [] };
+}
+
+/** 10 → 11: лист — цветной, как образец (чёрно-белый включают для принтера без цвета) */
+export function v10to11(p: PlanV10): Plan {
+  return { ...p, version: 11, sheet: { ...p.sheet, bw: false } };
 }
 
 function checkShape(o: Record<string, unknown>): boolean {

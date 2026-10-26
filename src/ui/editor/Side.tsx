@@ -104,6 +104,8 @@ function RoomPanel() {
         {sc
           ? <Select label="Масштаб" value={String(st.sheet.scale) as keyof typeof SCALE_OPTS} options={SCALE_OPTS} onValue={v => dispatch(p => A.setSheet(p, { scale: +v }))} />
           : <span />}
+        {/* как образец — цветной; для принтера без цвета — чёрно-белый (этап 12) */}
+        <Select label="Цвет" value={st.sheet.bw ? 'bw' : 'color'} options={{ color: 'Цветной', bw: 'Чёрно-белый' }} onValue={v => dispatch(p => A.setSheet(p, { bw: v === 'bw' }))} />
       </div>
       {!fits && (
         <div class="warn" style="margin-top:8px">
