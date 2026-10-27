@@ -198,6 +198,8 @@ export interface Photo {
   source: 'file' | 'camera';
   /** пункт списка съёмки, из которого снят: 'wall:A', 'marker:<id>:detail'… */
   shot: string;
+  /** подпись в фототаблице после «Фото № N.»; '' — черновик приложения (формат 13) */
+  caption: string;
 }
 
 export interface Stamp {
@@ -207,6 +209,14 @@ export interface Stamp {
   date: string;
   author: string;
   members: string;
+}
+
+/** Шапка фототаблицы (формат 13): ведомство и подразделение, его адрес, номер КУСП; '' — линия для руки */
+export interface PhotoTableHead {
+  /** до трёх строк, каждая с новой строки */
+  org: string;
+  orgAddress: string;
+  kusp: string;
 }
 
 export interface Underlay {
@@ -252,7 +262,8 @@ export const FORMAT_ID = 'plan-editor';
  * 9 — этап 12: комнаты может не быть (чистый лист) или она нарисована — любые стены-отрезки;
  * 10 — этап 12: соседние помещения (annexes) — на плане пола, развёртки только у основного;
  * 11 — этап 12: лист цветной, как образец, или чёрно-белый (sheet.bw);
- * 12 — этап 12: развёртку стены можно скрыть или отнести в сторону (wall.elev).
+ * 12 — этап 12: развёртку стены можно скрыть или отнести в сторону (wall.elev);
+ * 13 — фототаблица: подпись снимка (photo.caption) и шапка (phototable).
  */
 /** Точка на снимке, в долях ширины и высоты (0…1) */
 export interface PhotoPt {
@@ -280,7 +291,7 @@ export interface WallPhoto {
   opacity: number;
 }
 
-export const FORMAT_VERSION = 12;
+export const FORMAT_VERSION = 13;
 
 export interface Plan {
   format: typeof FORMAT_ID;
@@ -296,6 +307,8 @@ export interface Plan {
   /** соседние помещения — на плане пола, без развёрток (этап 12) */
   annexes: Annex[];
   stamp: Stamp;
+  /** шапка фототаблицы (формат 13) */
+  phototable: PhotoTableHead;
   north: string;
   notes: string;
   instruments: Instruments;

@@ -1,6 +1,6 @@
 {
  "format": "plan-editor",
- "version": 12,
+ "version": 13,
  "room": {
   "walls": [
    {
@@ -1413,5 +1413,10 @@
   "rangefinder": ""
  },
  "wallPhotos": [],
- "annexes": []
+ "annexes": [],
+ "phototable": {
+  "org": "",
+  "orgAddress": "",
+  "kusp": ""
+ }
 }

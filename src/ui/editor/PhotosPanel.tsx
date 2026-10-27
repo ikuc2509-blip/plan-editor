@@ -6,6 +6,7 @@ import * as A from '../../model/actions';
 import { wallsByLetter } from '../../model/room';
 import { BIG_PROJECT, formatSize, showTaken } from '../../photos/meta';
 import { SHOT_KINDS, linkText, shotList, shotPhotos, type ShotItem } from '../../photos/shots';
+import { captionDraft } from '../../photos/phototable';
 import { dispatch, plan, tab } from '../store';
 import { fullMode } from '../mode';
 import { Hint, Select, Text } from '../common/fields';
@@ -100,7 +101,9 @@ function PhotoCard({ ph }: { ph: Photo }) {
         <Text label="№ в фототаблице" value={ph.n} onValue={v => set({ n: v }, `ph:${ph.id}:n`)} />
         <Select<ShotKind> label="Вид съёмки" value={ph.kind} options={kinds} onValue={v => set({ kind: v })} />
         <Select label="К чему относится" value={cur} options={links} onValue={v => set({ link: decLink(v) })} />
+        <Text label="Подпись в фототаблице" value={ph.caption} wide area placeholder={captionDraft(p, ph) || 'что на снимке'} onValue={v => set({ caption: v }, `ph:${ph.id}:caption`)} />
       </div>
+      <p class="hint" style="margin:4px 0 0">Пусто — в фототаблице будет подпись, написанная серым. «Фото № {ph.n}.» перед ней ставится само.</p>
       <p class="hint" style="margin:8px 0 0">
         {ph.takenAt ? `Снято: ${showTaken(ph.takenAt)}${ph.source === 'camera' ? ' (встроенная камера)' : ''}` : 'Время съёмки в файле не записано'}
         {' · '}{ph.name || ph.file} · {formatSize(ph.size)}

@@ -30,7 +30,7 @@ test('файл с телефона открывается в «Чистовик�
   await expect(page.getByRole('tab', { name: 'Подписи' })).toHaveCount(0);
   await page.getByText('Скачать ▾').click();
   const menu = page.getByRole('menu');
-  await expect(menu.getByRole('menuitem')).toHaveCount(3);
+  await expect(menu.getByRole('menuitem')).toHaveCount(4);
   const pdf = page.waitForEvent('download');
   await menu.getByRole('menuitem', { name: /PDF/ }).click();
   expect((await pdf).suggestedFilename()).toMatch(/\.pdf$/);

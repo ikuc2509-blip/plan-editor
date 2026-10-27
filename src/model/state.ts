@@ -12,6 +12,7 @@ export function blank(): Plan {
     room: createRectRoom(10_000, 6_000, 3_000),
     wallItems: [], items: [], markers: [], callouts: [], photos: [], wallPhotos: [], annexes: [],
     stamp: { name: 'План-схема места происшествия', object: '', protocol: '', date: '', author: '', members: '' },
+    phototable: { org: '', orgAddress: '', kusp: '' },
     north: '', notes: '',
     instruments: { tape: '', rangefinder: '' },
     underlay: { src: '', show: true, opacity: 0.45, scale: 100, dx: 0, dy: 0 },
