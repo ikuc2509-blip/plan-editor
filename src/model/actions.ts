@@ -2,7 +2,7 @@
 // так старые состояния можно хранить для отмены и повтора.
 // Неизменённые части переиспользуются (подложка-картинка не копируется).
 import type {
-  Callout, Dim, FrameEdge, Item, ItemType, Marker, MeasureMethod, Mm, Origin, Photo, Plan, Point, SheetOptions, Stamp, Underlay, Wall, WallElev, WallItem, WallItemType, WallPhoto,
+  Callout, Dim, FrameEdge, Item, ItemType, Marker, MeasureMethod, Mm, Origin, Photo, PhotoTableHead, Plan, Point, SheetOptions, Stamp, Underlay, Wall, WallElev, WallItem, WallItemType, WallPhoto,
 } from './types';
 import { IT_SIZE } from './labels';
 import { LETTERS, createRectRoom, findWall, isRect, polygonWalls, rectSize, rectWalls, roomCorners, roomExtent, signedArea2, wallLength } from './room';
@@ -71,6 +71,8 @@ export function setWallName(p: Plan, wallId: string, name: string): Plan {
 
 export const setSheet = (p: Plan, o: Partial<SheetOptions>): Plan => ({ ...p, sheet: { ...p.sheet, ...o } });
 export const setStamp = (p: Plan, o: Partial<Stamp>): Plan => ({ ...p, stamp: { ...p.stamp, ...o } });
+/** шапка фототаблицы (формат 13) */
+export const setPhotoTable = (p: Plan, o: Partial<PhotoTableHead>): Plan => ({ ...p, phototable: { ...p.phototable, ...o } });
 export const setUnderlay = (p: Plan, o: Partial<Underlay>): Plan => ({ ...p, underlay: { ...p.underlay, ...o } });
 export const setNorth = (p: Plan, north: string): Plan => ({ ...p, north });
 export const setNotes = (p: Plan, notes: string): Plan => ({ ...p, notes });

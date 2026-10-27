@@ -16,6 +16,7 @@ import * as A from '../../model/actions';
 import { SCALES, elevOverlaps, fitsAt, smallerScaleThatFits } from '../../geometry/unfold';
 import { PAPERS, layoutFor } from '../../render/layout';
 import { pickFile, readDataUrl } from '../../storage/files';
+import { loadPref, savePref } from '../../storage/prefs';
 import { dispatch, endGesture, plan, replacePlan, sel, tab, toast, type TabKey } from '../store';
 import { Check, Field, Hint, Len, Num, Select, Text, parseNum } from '../common/fields';
 import { stopAutosave } from '../project';
@@ -38,7 +39,17 @@ export async function newPlan(p: Plan, question: string, label: string) {
   if (!confirm(q)) return;
   await stopAutosave();
   await clearPhotos();
-  await replacePlan(p, { label });
+  await replacePlan(withOrg(p), { label });
+}
+
+/** ведомство и адрес для шапки фототаблицы — те же из осмотра в осмотр, помнит браузер */
+const ORG_PREF = 'phototable-org';
+const isOrg = (v: unknown): v is { org: string; orgAddress: string } =>
+  !!v && typeof (v as { org?: unknown }).org === 'string' && typeof (v as { orgAddress?: unknown }).orgAddress === 'string';
+function withOrg(p: Plan): Plan {
+  if (p.phototable.org || p.phototable.orgAddress) return p;
+  const o = loadPref(ORG_PREF, { org: '', orgAddress: '' }, isOrg);
+  return A.setPhotoTable(p, o);
 }
 
 export const wallOpts = (p: Plan): Record<string, string> => ({
@@ -606,6 +617,27 @@ function UnderlayPanel() {
   );
 }
 
+/** Шапка фототаблицы; дата протокола и адрес — из штампа (Дата, Объект) */
+function PhotoTableHeadFields() {
+  const h = plan.value.phototable;
+  const set = (k: keyof typeof h) => (v: string) => {
+    dispatch(p => A.setPhotoTable(p, { [k]: v }), 'phototable:' + k);
+    const n = plan.value.phototable;
+    if (k !== 'kusp') savePref(ORG_PREF, { org: n.org, orgAddress: n.orgAddress });
+  };
+  return (
+    <>
+      <h3>Фототаблица</h3>
+      <div class="grid two">
+        <Text label="Ведомство и подразделение (до 3 строк)" value={h.org} wide area placeholder={'МВД России\nГУ МВД России по …\nЭкспертно-криминалистический центр'} onValue={set('org')} />
+        <Text label="Адрес подразделения" value={h.orgAddress} wide onValue={set('orgAddress')} />
+        <Text label="КУСП №" value={h.kusp} placeholder="пусто — линия для руки" onValue={set('kusp')} />
+      </div>
+      <p class="hint" style="margin-top:6px">Дата протокола и адрес в фототаблице — из полей «Дата» и «Объект» выше; строка подписи — из «Составил». Ведомство и адрес этот браузер запомнит для следующих осмотров.</p>
+    </>
+  );
+}
+
 function StampPanel() {
   const st = plan.value, stamp = st.stamp;
   const set = (k: keyof typeof stamp) => (v: string) => dispatch(p => A.setStamp(p, { [k]: v }), 'stamp:' + k);
@@ -623,6 +655,7 @@ function StampPanel() {
       <p class="hint" style="margin-top:6px">Север: 0 — вверх листа, 90 — вправо.</p>
       <h3>Дополнительные примечания</h3>
       <Text label="По одному на строку" value={st.notes} wide area onValue={v => dispatch(p => A.setNotes(p, v), 'notes')} />
+      <PhotoTableHeadFields />
     </>
   );
 }
