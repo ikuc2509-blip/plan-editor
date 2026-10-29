@@ -2,13 +2,13 @@
 import { describe, expect, test } from 'vitest';
 import example from '../examples/auditorium.plan.json';
 import type { Photo, Plan } from '../src/model/types';
-import { PAGE, captionDraft, isSmall, layoutPhototable, photoCaption, phototableOrder, signer, type TableBox } from '../src/photos/phototable';
+import { PAGE, arrowGeom, arrowsTail, captionDraft, isSmall, layoutPhototable, newArrow, photoCaption, phototableOrder, signer, type TableBox } from '../src/photos/phototable';
 
 const aud = (): Plan => structuredClone(example) as unknown as Plan;
 
 const photo = (o: Partial<Photo>): Photo => ({
   id: 'ph', n: '1', file: 'a.jpg', name: 'a.jpg', type: 'image/jpeg', size: 1, sha256: '', kind: '', link: { kind: 'none' },
-  takenAt: '', hasGps: false, addedAt: '', source: 'file', shot: '', caption: '', ...o,
+  takenAt: '', hasGps: false, addedAt: '', source: 'file', shot: '', caption: '', arrows: [], ...o,
 });
 
 describe('подписи', () => {
@@ -77,4 +77,61 @@ describe('раскладка по листам', () => {
     expect(isSmall(4000, 3000, 'detail')).toBe(true);
     expect(isSmall(4000, 3000, 'overview')).toBe(false);
   });
+});
+
+describe('стрелки на снимке', () => {
+  const ar = (markerId: string, id = markerId) => newArrow(id, markerId, 0.5, 0.5);
+
+  test('одна стрелка: «Стрелкой № 1 указано: …» после подписи', () => {
+    const p = aud();
+    const ph = photo({ n: '4', caption: 'Стол преподавателя', arrows: [ar('id047')] });
+    expect(photoCaption(p, ph)).toBe('Фото № 4. Стол преподавателя. Стрелкой № 1 указано: предметы на столе преподавателя: клавиатура, мышь, карандаши.');
+  });
+
+  test('несколько: по номерам меток, повтор метки — один раз', () => {
+    const p = aud();
+    const ph = photo({ arrows: [ar('id048', 'a'), ar('id047', 'b'), ar('id047', 'c')] });
+    expect(arrowsTail(p, ph)).toMatch(/^Стрелками указаны: № 1 — предметы на столе .*; № 2 — окно с открытой внутрь створкой .*\.$/);
+  });
+
+  test('в своей подписи уже сказано про стрелки — хвост не добавляется', () => {
+    const p = aud();
+    const ph = photo({ n: '5', caption: 'Общий вид, стрелкой № 1 указан стол', arrows: [ar('id047')] });
+    expect(photoCaption(p, ph)).toBe('Фото № 5. Общий вид, стрелкой № 1 указан стол.');
+  });
+
+  test('метку удалили — её стрелка в подписи не упоминается', () => {
+    expect(arrowsTail(aud(), photo({ arrows: [ar('нет такой')] }))).toBe('');
+  });
+
+  test('новая стрелка: хвост внутри снимка; наконечник у острия', () => {
+    for (const [x, y] of [[0.05, 0.05], [0.95, 0.95], [0.5, 0.1]] as const) {
+      const a = newArrow('a', 'm', x, y);
+      expect(a.tx).toBeGreaterThan(0); expect(a.tx).toBeLessThan(1);
+      expect(a.ty).toBeGreaterThan(0); expect(a.ty).toBeLessThan(1);
+    }
+    const g = arrowGeom({ id: 'a', markerId: 'm', x: 0.5, y: 0.5, tx: 0.3, ty: 0.5 }, 100, 100);
+    expect(g.head[0]).toEqual({ x: 50, y: 50 });
+    expect(g.base.x).toBeLessThan(50);
+    expect(g.from.x).toBeCloseTo(30 + g.r);
+  });
+});
+
+test('длинная подпись: снимок чуть меньше, но остаётся на листе', () => {
+  const split = (t: string) => t.match(/.{1,60}/g) ?? [''];
+  const long = 'Фото № 2. ' + 'очень длинная подпись со стрелками '.repeat(5);
+  const pages = layoutPhototable([
+    { id: 'a', w: 4000, h: 3000, small: false, caption: 'Фото № 1.' },
+    { id: 'b', w: 4000, h: 3000, small: false, caption: long },
+  ], 60, split);
+  expect(pages.map(p => p.map(s => s.id))).toEqual([['a', 'b']]);
+  const b = pages[0]![1]!;
+  expect(b.capY + (b.lines.length - 1) * 4.8).toBeLessThanOrEqual(PAGE.bottom);
+  expect(b.x + b.w / 2).toBeCloseTo((PAGE.left + PAGE.right) / 2);
+});
+
+test('стрелка на ту же метку, что и снимок: описание не повторяется', () => {
+  const p = aud();
+  const ph = photo({ n: '4', kind: 'nodal', link: { kind: 'marker', markerId: 'id048' }, arrows: [newArrow('a', 'id048', 0.3, 0.4)] });
+  expect(photoCaption(p, ph)).toMatch(/^Фото № 4\. Метка № 2, вид с окружающей обстановкой\. Стрелкой № 2 указано: окно с открытой внутрь створкой/);
 });

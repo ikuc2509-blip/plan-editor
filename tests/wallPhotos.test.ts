@@ -11,7 +11,7 @@ import { drawSheet, sheetGeom, sheetSvg } from '../src/render/sheet';
 // пустой план 10 × 6 × 3 м, один снимок
 const base = (): Plan => ({
   ...blank(),
-  photos: [{ id: 'ph', n: '1', file: 'a.jpg', name: 'a.jpg', type: 'image/jpeg', size: 1, sha256: '', kind: 'overview', link: { kind: 'wall', wallId: 'A' }, takenAt: '', hasGps: false, addedAt: '', source: 'file', shot: '', caption: '' }],
+  photos: [{ id: 'ph', n: '1', file: 'a.jpg', name: 'a.jpg', type: 'image/jpeg', size: 1, sha256: '', kind: 'overview', link: { kind: 'wall', wallId: 'A' }, takenAt: '', hasGps: false, addedAt: '', source: 'file', shot: '', caption: '', arrows: [] }],
 });
 const frame = (o: Partial<WallPhoto> = {}): WallPhoto => ({
   id: 'f', photoId: 'ph', wallId: 'A', show: true, opacity: 0.8,

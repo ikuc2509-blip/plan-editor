@@ -37,7 +37,7 @@ const noBw = <T extends object>(o: T): T => {
   const r = { ...o } as Record<string, unknown>;
   if (r.sheet && typeof r.sheet === 'object') r.sheet = { ...(r.sheet as object), bw: undefined };
   if ('phototable' in r) r.phototable = undefined;
-  if (Array.isArray(r.photos)) r.photos = r.photos.map(ph => ({ ...(ph as object), caption: undefined }));
+  if (Array.isArray(r.photos)) r.photos = r.photos.map(ph => ({ ...(ph as object), caption: undefined, arrows: undefined }));
   return r as T;
 };
 
@@ -268,7 +268,7 @@ describe('файл версии 12 (до фототаблицы)', () => {
     const p = (r as { plan: Plan }).plan;
     expect(p.version).toBe(13);
     expect(p.phototable).toEqual({ org: '', orgAddress: '', kusp: '' });
-    expect(p.photos.every(ph => ph.caption === '')).toBe(true);
+    expect(p.photos.every(ph => ph.caption === '' && ph.arrows.length === 0)).toBe(true);
     const { version: _a, ...rest12 } = v12;
     const { version: _b, ...rest13 } = p;
     expect(noBw(rest13)).toEqual(noBw(rest12));

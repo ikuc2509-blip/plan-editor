@@ -135,7 +135,7 @@ describe('находка на кадре → участок стены', () => {
   };
   const p: Plan = addWallPhoto({
     ...blank(),
-    photos: [{ id: 'ph', n: '1', file: 'a.jpg', name: 'a.jpg', type: 'image/jpeg', size: 1, sha256: '', kind: 'overview', link: { kind: 'wall', wallId: 'A' }, takenAt: '', hasGps: false, addedAt: '', source: 'file', shot: '', caption: '' }],
+    photos: [{ id: 'ph', n: '1', file: 'a.jpg', name: 'a.jpg', type: 'image/jpeg', size: 1, sha256: '', kind: 'overview', link: { kind: 'wall', wallId: 'A' }, takenAt: '', hasGps: false, addedAt: '', source: 'file', shot: '', caption: '', arrows: [] }],
   }, wp);
 
   test('доли кадра → отступ, от пола, ширина, высота; до сантиметра', () => {

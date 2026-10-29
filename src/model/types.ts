@@ -200,6 +200,18 @@ export interface Photo {
   shot: string;
   /** подпись в фототаблице после «Фото № N.»; '' — черновик приложения (формат 13) */
   caption: string;
+  /** стрелки с номерами меток — рисуются поверх снимка только в фототаблице, оригинал не меняется (формат 13) */
+  arrows: PhotoArrow[];
+}
+
+/** Стрелка на снимке: остриё (x, y) и хвост с номером (tx, ty) — доли ширины и высоты снимка; номер — метки */
+export interface PhotoArrow {
+  id: string;
+  markerId: string;
+  x: number;
+  y: number;
+  tx: number;
+  ty: number;
 }
 
 export interface Stamp {
@@ -263,7 +275,7 @@ export const FORMAT_ID = 'plan-editor';
  * 10 — этап 12: соседние помещения (annexes) — на плане пола, развёртки только у основного;
  * 11 — этап 12: лист цветной, как образец, или чёрно-белый (sheet.bw);
  * 12 — этап 12: развёртку стены можно скрыть или отнести в сторону (wall.elev);
- * 13 — фототаблица: подпись снимка (photo.caption) и шапка (phototable).
+ * 13 — фототаблица: подпись снимка (photo.caption), стрелки на снимке (photo.arrows) и шапка (phototable).
  */
 /** Точка на снимке, в долях ширины и высоты (0…1) */
 export interface PhotoPt {

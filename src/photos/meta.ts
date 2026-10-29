@@ -72,7 +72,7 @@ export async function describePhoto(
     id, n, file: uniqueFileName(f.name, taken), name: f.name, type: f.type || 'application/octet-stream',
     size: f.bytes.length, sha256, ...extra,
     takenAt: exif.takenAt || f.takenAt || '', hasGps: exif.hasGps,
-    addedAt: new Date().toISOString(), source: f.source, caption: '',
+    addedAt: new Date().toISOString(), source: f.source, caption: '', arrows: [],
   };
 }
 

@@ -298,3 +298,15 @@ header h1 .t-short{display:none}
 .os-stage .emptycard{gap:6px;padding:10px 12px;max-width:calc(100% - 16px)}
 .os-stage .emptycard span{font-size:12px}
 .onsite .emptycard button{min-height:40px;padding:6px 10px;font-size:14px}
+
+/* стрелки на снимке для фототаблицы */
+dialog.arrows{border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:12px;width:min(1100px,calc(100vw - 24px));max-height:calc(100dvh - 24px)}
+dialog.arrows::backdrop{background:rgba(10,15,18,.6)}
+.ar-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ar-tools{display:flex;flex-wrap:wrap;align-items:end;gap:6px 12px;margin-bottom:8px}
+.ar-tools .hint{flex:1;min-width:200px;margin:0}
+.ar-box{position:relative;width:fit-content;max-width:100%;margin:0 auto;touch-action:none;user-select:none;-webkit-user-select:none}
+.ar-box img{display:block;max-width:100%;max-height:calc(100dvh - 230px)}
+.ar-box svg{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair}
+.ar-list{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
+.ar-list .hint{flex-basis:100%;margin:2px 0 0}

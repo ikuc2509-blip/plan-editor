@@ -19,6 +19,7 @@ import { RectifyDialog } from '../common/RectifyDialog';
 import { WelcomeDialog } from '../common/Welcome';
 import { CompareDialog } from '../common/Suggestions';
 import { PhotoViewer } from './PhotosPanel';
+import { ArrowsDialog } from '../common/ArrowsDialog';
 import { BIG_PROJECT, formatSize } from '../../photos/meta';
 import { photosBytes } from '../photos';
 import { Side } from './Side';
@@ -173,6 +174,7 @@ export function App() {
       <WelcomeDialog />
       <CompareDialog />
       <PhotoViewer />
+      <ArrowsDialog />
     </div>
   );
 }
