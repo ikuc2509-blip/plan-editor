@@ -1,5 +1,5 @@
 // Фототаблица: подписи снимков и раскладка по листам A4 (без DOM). Сам PDF — export/phototable.ts.
-import type { Photo, Plan } from '../model/types';
+import type { Marker, Photo, PhotoArrow, Plan } from '../model/types';
 import { findWall } from '../model/room';
 import { shotList } from './shots';
 
@@ -10,7 +10,9 @@ export function captionDraft(p: Plan, ph: Photo): string {
   if (ph.link.kind === 'marker') {
     const id = ph.link.markerId;
     const m = p.markers.find(k => k.id === id);
-    const what = m ? `метка № ${m.n}${m.desc.trim() ? ' — ' + m.desc.trim() : ''}` : 'метка';
+    // на эту же метку показывает стрелка — описание будет в «Стрелкой № … указано», не повторяем
+    const told = ph.arrows.some(a => a.markerId === id);
+    const what = m ? `метка № ${m.n}${m.desc.trim() && !told ? ' — ' + m.desc.trim() : ''}` : 'метка';
     return cap(ph.kind === 'detail' ? `${what}, крупный план` : ph.kind === 'nodal' ? `${what}, вид с окружающей обстановкой` : what);
   }
   if (ph.link.kind === 'wall') {
@@ -28,12 +30,55 @@ export function captionDraft(p: Plan, ph: Photo): string {
   return '';
 }
 
-/** Подпись под снимком: «Фото № 3. …» — своя или черновик, с точкой в конце */
+/** что указано стрелкой: описание метки со строчной буквы, без точки в конце */
+function arrowWhat(m: Marker): string {
+  const d = m.desc.trim().replace(/[.;,\s]+$/u, '');
+  if (!d) return `объект метки № ${m.n}`;
+  // «КамАЗ», «ВАЗ» — аббревиатуры не трогаем
+  return /^\p{Lu}\p{Ll}/u.test(d) ? d[0]!.toLowerCase() + d.slice(1) : d;
+}
+
+/** «Стрелкой № 1 указано: нож.» / «Стрелками указаны: № 1 — нож; № 2 — гильза.» — по меткам стрелок */
+export function arrowsTail(p: Plan, ph: Photo): string {
+  const ms = [...new Set(ph.arrows.map(a => a.markerId))]
+    .map(id => p.markers.find(m => m.id === id))
+    .filter((m): m is Marker => !!m)
+    .sort((a, b) => a.n.localeCompare(b.n, 'ru', { numeric: true }));
+  if (!ms.length) return '';
+  if (ms.length === 1) return `Стрелкой № ${ms[0]!.n} указано: ${arrowWhat(ms[0]!)}.`;
+  return `Стрелками указаны: ${ms.map(m => `№ ${m.n} — ${arrowWhat(m)}`).join('; ')}.`;
+}
+
+/** Подпись под снимком: «Фото № 3. …» — своя или черновик, с точкой в конце; про стрелки — сама, если в своей о них ни слова */
 export function photoCaption(p: Plan, ph: Photo): string {
   const t = (ph.caption.trim() || captionDraft(p, ph)).trim();
+  const tail = /стрелк/iu.test(ph.caption) ? '' : arrowsTail(p, ph);
   const head = `Фото № ${ph.n.trim() || '?'}.`;
-  if (!t) return head;
-  return `${head} ${t}${/[.!?…]$/.test(t) ? '' : '.'}`;
+  return [head, t ? t + (/[.!?…]$/.test(t) ? '' : '.') : '', tail].filter(Boolean).join(' ');
+}
+
+/** Новая стрелка: остриё в точке, хвост с номером — вверх-влево (у края снимка — в другую сторону) */
+export function newArrow(id: string, markerId: string, x: number, y: number): PhotoArrow {
+  const tx = x > 0.2 ? x - 0.12 : x + 0.12, ty = y > 0.25 ? y - 0.16 : y + 0.16;
+  return { id, markerId, x, y, tx, ty };
+}
+
+/**
+ * Стрелка в размерах снимка w × h (пиксели на экране, мм в PDF): кружок с номером у хвоста,
+ * линия от кружка, наконечник у острия.
+ */
+export function arrowGeom(a: PhotoArrow, w: number, h: number) {
+  const r = 0.034 * Math.min(w, h);
+  const tip = { x: a.x * w, y: a.y * h }, tail = { x: a.tx * w, y: a.ty * h };
+  const dx = tip.x - tail.x, dy = tip.y - tail.y, len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len, hl = 1.9 * r, hw = 0.75 * r;
+  const base = { x: tip.x - ux * hl, y: tip.y - uy * hl };
+  return {
+    r, tail, tip,
+    from: { x: tail.x + ux * r, y: tail.y + uy * r },
+    base,
+    head: [tip, { x: base.x - uy * hw, y: base.y + ux * hw }, { x: base.x + uy * hw, y: base.y - ux * hw }],
+  };
 }
 
 /** Снимки по номерам, как их задал пользователь: «2» раньше «10» */
@@ -50,6 +95,8 @@ const WIDE = { w: 150, h: 88 };
 const SMALL = { w: 80, h: 88 };
 const COL_GAP = 10, ROW_GAP = 7, CAP_GAP = 3;
 export const CAP_LINE = 4.8;
+/** насколько можно уменьшить снимок, чтобы он остался на листе */
+const SHRINK = 0.7;
 
 export interface TableBox {
   id: string;
@@ -105,12 +152,21 @@ export function layoutPhototable(boxes: readonly TableBox[], firstTop: number, s
       const capW = pair ? colW : b.small ? SMALL.w + 20 : WIDE.w;
       return { id: b.id, x: cx - s.w / 2, y: 0, w: s.w, h: s.h, capX: cx, capY: 0, lines: split(b.caption, capW) };
     });
-    const imgH = Math.max(...slots.map(s => s.h));
-    const rowH = imgH + CAP_GAP + Math.max(...slots.map(s => s.lines.length)) * CAP_LINE;
-    if (y + rowH > PAGE.bottom && pages[pages.length - 1]!.length) {
-      pages.push([]);
-      y = PAGE.top;
+    let imgH = Math.max(...slots.map(s => s.h));
+    const capH = CAP_GAP + Math.max(...slots.map(s => s.lines.length)) * CAP_LINE;
+    if (y + imgH + capH > PAGE.bottom && pages[pages.length - 1]!.length) {
+      // почти влезает — снимки чуть меньше, чтобы лист не оставался полупустым
+      const room = PAGE.bottom - y - capH;
+      if (room >= imgH * SHRINK) {
+        const k = room / imgH;
+        for (const s of slots) { s.w *= k; s.h *= k; s.x = s.capX - s.w / 2; }
+        imgH = room;
+      } else {
+        pages.push([]);
+        y = PAGE.top;
+      }
     }
+    const rowH = imgH + capH;
     for (const s of slots) {
       // картинки ряда — по нижнему краю, подписи на одной высоте
       s.y = y + (imgH - s.h);

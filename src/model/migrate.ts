@@ -16,7 +16,7 @@ export type PlanV1 = Omit<PlanV3, 'version' | 'sheet'> & {
 };
 
 /** Формат версии 12 (этап 12): без фототаблицы — у снимков нет подписи, шапки нет */
-export type PlanV12 = Omit<Plan, 'version' | 'photos' | 'phototable'> & { version: 12; photos: Omit<Plan['photos'][number], 'caption'>[] };
+export type PlanV12 = Omit<Plan, 'version' | 'photos' | 'phototable'> & { version: 12; photos: Omit<Plan['photos'][number], 'caption' | 'arrows'>[] };
 /** Формат версии 11 (этап 12): развёртки стен всегда на своих местах (wall.elev нет — так и было) */
 export type PlanV11 = Omit<PlanV12, 'version'> & { version: 11 };
 /** Формат версии 10 (этап 12): лист без выбора цветной / чёрно-белый */
@@ -148,9 +148,9 @@ export function v11to12(p: PlanV11): PlanV12 {
   return { ...p, version: 12 };
 }
 
-/** 12 → 13: подписи снимков — черновик приложения, шапка фототаблицы пустая */
+/** 12 → 13: подписи снимков — черновик приложения, стрелок нет, шапка фототаблицы пустая */
 export function v12to13(p: PlanV12): Plan {
-  return { ...p, version: 13, photos: p.photos.map(ph => ({ ...ph, caption: '' })), phototable: { org: '', orgAddress: '', kusp: '' } };
+  return { ...p, version: 13, photos: p.photos.map(ph => ({ ...ph, caption: '', arrows: [] })), phototable: { org: '', orgAddress: '', kusp: '' } };
 }
 
 function checkShape(o: Record<string, unknown>): boolean {

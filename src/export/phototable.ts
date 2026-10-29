@@ -1,7 +1,7 @@
 // Фототаблица в PDF (A4): шапка ведомства, «к протоколу осмотра…», снимки с подписями, строка подписи.
 // В PDF идут уменьшенные копии снимков; оригиналы не меняются и лежат в файле .omp (CLAUDE.md, правило 7).
 import type { Photo, Plan } from '../model/types';
-import { CAP_LINE, PAGE, isSmall, layoutPhototable, photoCaption, phototableOrder, signer, type TableBox } from '../photos/phototable';
+import { CAP_LINE, PAGE, arrowGeom, isSmall, layoutPhototable, photoCaption, phototableOrder, signer, type TableBox } from '../photos/phototable';
 import { FONT_NAME } from '../render/svg';
 import { loadFonts } from './font';
 
@@ -79,6 +79,28 @@ export async function phototablePdf(plan: Plan, load: (id: string) => Promise<Bl
   const byId = new Map(ready.map(r => [r.ph.id, r]));
   const { role, name } = signer(st.author);
 
+  /** стрелки с номерами меток поверх снимка: красные, номер в белом кружке, как метки на плане */
+  const drawArrows = (ph: Photo, s: { x: number; y: number; w: number; h: number }) => {
+    for (const a of ph.arrows) {
+      const m = plan.markers.find(k => k.id === a.markerId);
+      if (!m) continue;
+      const g = arrowGeom(a, s.w, s.h), X = (v: number) => s.x + v, Y = (v: number) => s.y + v;
+      doc.setDrawColor(208, 51, 43);
+      doc.setFillColor(208, 51, 43);
+      doc.setLineWidth(Math.max(0.5, g.r * 0.28));
+      doc.line(X(g.from.x), Y(g.from.y), X(g.base.x), Y(g.base.y));
+      const [t, l, rr] = g.head;
+      doc.triangle(X(t!.x), Y(t!.y), X(l!.x), Y(l!.y), X(rr!.x), Y(rr!.y), 'F');
+      doc.setFillColor(255, 255, 255);
+      doc.setLineWidth(Math.max(0.4, g.r * 0.18));
+      doc.circle(X(g.tail.x), Y(g.tail.y), g.r, 'FD');
+      doc.setTextColor(208, 51, 43);
+      font(Math.max(6, (g.r * 1.15) / 0.3528), true);
+      doc.text(m.n, X(g.tail.x), Y(g.tail.y) + g.r * 0.36, { align: 'center' });
+      doc.setTextColor(0, 0, 0);
+    }
+  };
+
   pages.forEach((slots, i) => {
     if (i > 0) doc.addPage();
     // номер листа сверху, строка подписи снизу — на каждом листе
@@ -88,7 +110,10 @@ export async function phototablePdf(plan: Plan, load: (id: string) => Promise<Bl
     doc.text(`${role || 'Составил'}   ${LINE}   ${name || LINE}`, PAGE.left, PAGE.h - 14);
     for (const s of slots) {
       const r = byId.get(s.id)!;
-      if (r.jpeg) doc.addImage(r.jpeg, 'JPEG', s.x, s.y, s.w, s.h, undefined, 'FAST');
+      if (r.jpeg) {
+        doc.addImage(r.jpeg, 'JPEG', s.x, s.y, s.w, s.h, undefined, 'FAST');
+        drawArrows(r.ph, s);
+      }
       else {
         doc.setDrawColor(150);
         doc.rect(s.x, s.y, s.w, s.h);

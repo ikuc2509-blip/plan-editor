@@ -233,6 +233,42 @@ test('нарисованная Г-комната: окно, дверь, метк
   // PDF
   await page.getByText('Скачать ▾').click();
   const pdf = page.waitForEvent('download');
-  await page.getByRole('menu').getByRole('menuitem', { name: /PDF/ }).click();
+  await page.getByRole('menu').getByRole('menuitem', { name: /^PDF/ }).click();
   expect((await pdf).suggestedFilename()).toMatch(/\.pdf$/);
+});
+
+test('фототаблица: снимок, стрелка на метку, подпись, PDF', async ({ page }) => {
+  page.on('dialog', d => void d.accept());
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Помещение', exact: true }).click();
+  await page.getByRole('button', { name: 'Пример: наша аудитория' }).click();
+  // учебный «снимок» — нарисованная картинка
+  const jpeg = Buffer.from(await page.evaluate(async () => {
+    const c = document.createElement('canvas'); c.width = 800; c.height = 600;
+    const g = c.getContext('2d')!; g.fillStyle = '#ccc'; g.fillRect(0, 0, 800, 600); g.fillStyle = '#a63'; g.fillRect(200, 300, 300, 100);
+    return c.toDataURL('image/jpeg').split(',')[1]!;
+  }), 'base64');
+  await page.getByRole('tab', { name: 'Фото' }).click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: '+ Из файлов' }).click();
+  await (await chooser).setFiles({ name: 'uchebnyi.jpg', mimeType: 'image/jpeg', buffer: jpeg });
+
+  await page.getByRole('button', { name: /^Стрелки на снимке/ }).click();
+  const img = page.getByTestId('arrows-photo');
+  await expect(img).toBeVisible();
+  const b = (await img.boundingBox())!;
+  await page.mouse.click(b.x + b.width * 0.45, b.y + b.height * 0.55);
+  await expect(img.locator('[data-end="tail"]')).toHaveCount(1);
+  await expect(page.locator('dialog.arrows')).toContainText('Стрелкой № 1 указано: предметы на столе преподавателя');
+  await page.getByRole('button', { name: 'Готово' }).click();
+  await expect(page.getByRole('button', { name: 'Стрелки на снимке (1)' })).toBeVisible();
+
+  // своя подпись — стрелка дописывается сама
+  await page.getByLabel('Подпись в фототаблице').fill('Стол преподавателя');
+  await expect(page.locator('.side')).toContainText('В фототаблице: Фото № 1. Стол преподавателя. Стрелкой № 1 указано:');
+
+  await page.getByText('Скачать ▾').click();
+  const pdf = page.waitForEvent('download');
+  await page.getByRole('menu').getByRole('menuitem', { name: /Фототаблица/ }).click();
+  expect((await pdf).suggestedFilename()).toMatch(/^fototablica.*\.pdf$/);
 });

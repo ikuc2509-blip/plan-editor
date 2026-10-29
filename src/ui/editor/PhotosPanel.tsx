@@ -6,7 +6,8 @@ import * as A from '../../model/actions';
 import { wallsByLetter } from '../../model/room';
 import { BIG_PROJECT, formatSize, showTaken } from '../../photos/meta';
 import { SHOT_KINDS, linkText, shotList, shotPhotos, type ShotItem } from '../../photos/shots';
-import { captionDraft } from '../../photos/phototable';
+import { captionDraft, photoCaption } from '../../photos/phototable';
+import { arrowsPhoto } from '../common/ArrowsDialog';
 import { dispatch, plan, tab } from '../store';
 import { fullMode } from '../mode';
 import { Hint, Select, Text } from '../common/fields';
@@ -103,7 +104,10 @@ function PhotoCard({ ph }: { ph: Photo }) {
         <Select label="К чему относится" value={cur} options={links} onValue={v => set({ link: decLink(v) })} />
         <Text label="Подпись в фототаблице" value={ph.caption} wide area placeholder={captionDraft(p, ph) || 'что на снимке'} onValue={v => set({ caption: v }, `ph:${ph.id}:caption`)} />
       </div>
-      <p class="hint" style="margin:4px 0 0">Пусто — в фототаблице будет подпись, написанная серым. «Фото № {ph.n}.» перед ней ставится само.</p>
+      <div class="row" style="margin:6px 0 0">
+        <button onClick={() => { arrowsPhoto.value = ph.id; }} disabled={!ph.file}>Стрелки на снимке{ph.arrows.length ? ` (${ph.arrows.length})` : ''}</button>
+      </div>
+      <p class="hint" style="margin:4px 0 0">В фототаблице: {photoCaption(p, ph)}</p>
       <p class="hint" style="margin:8px 0 0">
         {ph.takenAt ? `Снято: ${showTaken(ph.takenAt)}${ph.source === 'camera' ? ' (встроенная камера)' : ''}` : 'Время съёмки в файле не записано'}
         {' · '}{ph.name || ph.file} · {formatSize(ph.size)}

@@ -32,9 +32,13 @@ test('файл с телефона открывается в «Чистовик�
   const menu = page.getByRole('menu');
   await expect(menu.getByRole('menuitem')).toHaveCount(4);
   const pdf = page.waitForEvent('download');
-  await menu.getByRole('menuitem', { name: /PDF/ }).click();
+  await menu.getByRole('menuitem', { name: /^PDF/ }).click();
   expect((await pdf).suggestedFilename()).toMatch(/\.pdf$/);
   await expect(menu).toBeHidden();
+  // фототаблица: в файле с телефона снимков нет — подсказка, куда их добавить
+  await page.getByText('Скачать ▾').click();
+  await menu.getByRole('menuitem', { name: /Фототаблица/ }).click();
+  await expect(page.locator('#toast')).toContainText('Снимков нет');
   // шапка — в одну строку на экране ноутбука
   await page.setViewportSize({ width: 1366, height: 768 });
   const h = (await page.getByRole('banner').boundingBox())!.height;
