@@ -221,6 +221,9 @@ export interface Stamp {
   date: string;
   author: string;
   members: string;
+  /** время начала и окончания осмотра «10:15» — в протоколе с точностью до минуты (ч. 3 ст. 166 УПК РФ); '' — не указано (формат 14) */
+  timeStart: string;
+  timeEnd: string;
 }
 
 /** Шапка фототаблицы (формат 13): ведомство и подразделение, его адрес, номер КУСП; '' — линия для руки */
@@ -275,7 +278,8 @@ export const FORMAT_ID = 'plan-editor';
  * 10 — этап 12: соседние помещения (annexes) — на плане пола, развёртки только у основного;
  * 11 — этап 12: лист цветной, как образец, или чёрно-белый (sheet.bw);
  * 12 — этап 12: развёртку стены можно скрыть или отнести в сторону (wall.elev);
- * 13 — фототаблица: подпись снимка (photo.caption), стрелки на снимке (photo.arrows) и шапка (phototable).
+ * 13 — фототаблица: подпись снимка (photo.caption), стрелки на снимке (photo.arrows) и шапка (phototable);
+ * 14 — время начала и окончания осмотра (stamp.timeStart, stamp.timeEnd).
  */
 /** Точка на снимке, в долях ширины и высоты (0…1) */
 export interface PhotoPt {
@@ -303,7 +307,7 @@ export interface WallPhoto {
   opacity: number;
 }
 
-export const FORMAT_VERSION = 13;
+export const FORMAT_VERSION = 14;
 
 export interface Plan {
   format: typeof FORMAT_ID;

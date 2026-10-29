@@ -17,6 +17,7 @@ import { CameraDialog } from '../common/CameraDialog';
 import { RectifyDialog } from '../common/RectifyDialog';
 import { WelcomeDialog } from '../common/Welcome';
 import { PhotoViewer } from '../editor/PhotosPanel';
+import { ArrowsDialog } from '../common/ArrowsDialog';
 import { Sheet, ZOOM_MAX, ZOOM_MIN, onsiteZoom } from '../editor/Sheet';
 import { drawing, shaping } from '../draw';
 import { STEPS, fullSheet, placing, step, type StepKey } from './state';
@@ -141,6 +142,7 @@ export function OnsiteApp() {
       <RectifyDialog />
       <WelcomeDialog />
       <PhotoViewer />
+      <ArrowsDialog />
     </div>
   );
 }

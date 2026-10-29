@@ -29,3 +29,6 @@ export const fullSheet = signal(false);
 
 /** Сегодняшняя дата для штампа: «23.10.2026» */
 export const today = (d = new Date()): string => d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+/** Время сейчас для протокола: «10:15» — с точностью до минуты */
+export const nowHM = (d = new Date()): string => d.toTimeString().slice(0, 5);

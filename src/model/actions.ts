@@ -116,15 +116,34 @@ export function remove(p: Plan, col: Collection, id: string): Plan {
 }
 
 export function addWallItem(p: Plan, id: string, type: WallItemType, wallId: string): Plan {
+  const wid = wallOr(p, wallId);
+  const z = type === 'door' ? 0 : type === 'radiator' ? 150 : 900;
+  const w = type === 'door' ? 1000 : 1200;
+  const h = type === 'door' ? 2100 : type === 'radiator' ? 600 : 1500;
   const o: WallItem = {
-    id, wallId: wallOr(p, wallId), type, label: '',
-    off: cond(500),
-    z: cond(type === 'door' ? 0 : type === 'radiator' ? 150 : 900),
-    w: cond(type === 'door' ? 1000 : 1200),
-    h: cond(type === 'door' ? 2100 : type === 'radiator' ? 600 : 1500),
+    id, wallId: wid, type, label: '',
+    off: cond(freeOff(p, wid, w, z, h)),
+    z: cond(z), w: cond(w), h: cond(h),
     open: false, hinge: 'start', origin: { kind: 'manual' },
   };
   return { ...p, wallItems: [...p.wallItems, o] };
+}
+
+/**
+ * Где на стене свободно для нового элемента шириной w: первое место от 0,5 м, не налезающее
+ * на элементы той же высоты (радиатор под окном — можно). Места нет — 0,5 м, как раньше.
+ */
+function freeOff(p: Plan, wallId: string, w: Mm, z: Mm, h: Mm): Mm {
+  const len = allWalls(p).find(k => k.id === wallId)?.length.mm ?? Infinity;
+  const GAP = 300;
+  const busy = p.wallItems
+    .filter(i => i.wallId === wallId && i.z.mm < z + h && z < i.z.mm + i.h.mm)
+    .map(i => [i.off.mm - GAP, i.off.mm + i.w.mm + GAP] as const);
+  for (const at of [500, ...busy.map(b => b[1])].sort((a, b) => a - b)) {
+    if (at + w > len - 200) continue;
+    if (busy.every(([a, b]) => at + w <= a || at >= b)) return Math.round(at);
+  }
+  return 500;
 }
 
 /** Элемент стены, обведённый по снимку (этап 9): положение и размеры «условно», происхождение — снимок и рамка */
