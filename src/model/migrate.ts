@@ -15,8 +15,10 @@ export type PlanV1 = Omit<PlanV3, 'version' | 'sheet'> & {
   sheet: { mode: 'schematic' | 'scale'; scale: number; showDims: boolean; showTies: boolean };
 };
 
+/** Формат версии 13 (фототаблица): без времени начала и окончания осмотра */
+export type PlanV13 = Omit<Plan, 'version' | 'stamp'> & { version: 13; stamp: Omit<Plan['stamp'], 'timeStart' | 'timeEnd'> };
 /** Формат версии 12 (этап 12): без фототаблицы — у снимков нет подписи, шапки нет */
-export type PlanV12 = Omit<Plan, 'version' | 'photos' | 'phototable'> & { version: 12; photos: Omit<Plan['photos'][number], 'caption' | 'arrows'>[] };
+export type PlanV12 = Omit<PlanV13, 'version' | 'photos' | 'phototable'> & { version: 12; photos: Omit<Plan['photos'][number], 'caption' | 'arrows'>[] };
 /** Формат версии 11 (этап 12): развёртки стен всегда на своих местах (wall.elev нет — так и было) */
 export type PlanV11 = Omit<PlanV12, 'version'> & { version: 11 };
 /** Формат версии 10 (этап 12): лист без выбора цветной / чёрно-белый */
@@ -54,6 +56,7 @@ const UPGRADES: Record<number, (o: Record<string, unknown>) => Record<string, un
   10: o => v10to11(o as unknown as PlanV10) as unknown as Record<string, unknown>,
   11: o => v11to12(o as unknown as PlanV11) as unknown as Record<string, unknown>,
   12: o => v12to13(o as unknown as PlanV12) as unknown as Record<string, unknown>,
+  13: o => v13to14(o as unknown as PlanV13) as unknown as Record<string, unknown>,
 };
 
 /** Распознать сохранённый план и привести к текущей версии формата */
@@ -149,8 +152,13 @@ export function v11to12(p: PlanV11): PlanV12 {
 }
 
 /** 12 → 13: подписи снимков — черновик приложения, стрелок нет, шапка фототаблицы пустая */
-export function v12to13(p: PlanV12): Plan {
+export function v12to13(p: PlanV12): PlanV13 {
   return { ...p, version: 13, photos: p.photos.map(ph => ({ ...ph, caption: '', arrows: [] })), phototable: { org: '', orgAddress: '', kusp: '' } };
+}
+
+/** 13 → 14: время начала и окончания осмотра не указано — на листе его нет */
+export function v13to14(p: PlanV13): Plan {
+  return { ...p, version: 14, stamp: { ...p.stamp, timeStart: '', timeEnd: '' } };
 }
 
 function checkShape(o: Record<string, unknown>): boolean {

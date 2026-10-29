@@ -1,5 +1,5 @@
 // План → SVG листа A3 или A4. Один и тот же код рисует лист на экране, в SVG, PNG и PDF.
-import type { Callout, Dim, ItemType, Marker, Mm, Plan, Selection, WallPhoto } from '../model/types';
+import type { Callout, Dim, ItemType, Marker, Mm, Plan, Selection, Stamp, WallPhoto } from '../model/types';
 import { frameSpan } from '../model/wallPhotos';
 import { IT_TYPES, WI_TYPES } from '../model/labels';
 import { annexName, isRect, noRoom, rectSizeOf, wallsByLetter } from '../model/room';
@@ -471,7 +471,7 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   const lw = lay.stampLabelW, sx = lay.colX, sw = right - lay.colX;
   const rows: [string, string][] = [
     ['Наименование', st.stamp.name], ['Объект', st.stamp.object], ['Составил', st.stamp.author],
-    ['Участники', st.stamp.members], ['Дата', st.stamp.date],
+    ['Участники', st.stamp.members], ['Дата', dateTime(st.stamp)],
     ['Масштаб', sc ? `1:${st.sheet.scale}` : 'без масштаба'],
   ];
   const wrapped = rows.map(r => wrap(r[1] || '', lay.stampChars).slice(0, 3));
@@ -623,4 +623,11 @@ function wallImage(g: Geom, st: Plan, wp: WallPhoto, url: string | undefined): s
   const o = unf(g, sg, toM(span.from), g.h), u = unf(g, sg, toM(span.to), g.h), v = unf(g, sg, toM(span.from), 0);
   const m = [u[0] - o[0], u[1] - o[1], v[0] - o[0], v[1] - o[1], o[0], o[1]].map(n => +n.toFixed(3)).join(' ');
   return `<image href="${esc(url)}" x="0" y="0" width="1" height="1" preserveAspectRatio="none" opacity="${wp.opacity}" pointer-events="none" transform="matrix(${m})"/>`;
+}
+
+/** «22.10.2026, 10:15–11:40»; время не указано — только дата; одна граница — вторая линией для руки */
+export function dateTime(s: Stamp): string {
+  const a = s.timeStart.trim(), b = s.timeEnd.trim();
+  if (!a && !b) return s.date;
+  return `${s.date}${s.date ? ', ' : ''}${a || '__:__'}–${b || '__:__'}`;
 }

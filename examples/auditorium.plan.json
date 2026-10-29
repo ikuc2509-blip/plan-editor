@@ -1,6 +1,6 @@
 {
  "format": "plan-editor",
- "version": 13,
+ "version": 14,
  "room": {
   "walls": [
    {
@@ -1389,7 +1389,9 @@
   "protocol": "приложение к протоколу осмотра места происшествия от 22.10.2026",
   "date": "22.10.2026",
   "author": "",
-  "members": ""
+  "members": "",
+  "timeStart": "",
+  "timeEnd": ""
  },
  "north": "",
  "notes": "",

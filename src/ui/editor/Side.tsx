@@ -650,6 +650,8 @@ function StampPanel() {
         <Text label="Составил (роль и ФИО)" value={stamp.author} wide placeholder="следователь Иванов И. И." onValue={set('author')} />
         <Text label="Участники" value={stamp.members} wide onValue={set('members')} />
         <Text label="Дата" value={stamp.date} onValue={set('date')} />
+        <Text label="Начало осмотра" value={stamp.timeStart} placeholder="чч:мм" onValue={set('timeStart')} />
+        <Text label="Окончание осмотра" value={stamp.timeEnd} placeholder="чч:мм" onValue={set('timeEnd')} />
         <Text label="Север, градусы" value={st.north} placeholder="пусто = вписать от руки" onValue={v => dispatch(p => A.setNorth(p, v), 'north')} />
       </div>
       <p class="hint" style="margin-top:6px">Север: 0 — вверх листа, 90 — вправо.</p>

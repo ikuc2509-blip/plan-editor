@@ -19,7 +19,8 @@ import { AnnexList, MarkerCard, MeasurePanel, RoomShape, WallItemCard, WallLengt
 import { PhotosPanel } from '../editor/PhotosPanel';
 import { schematicView } from '../editor/Sheet';
 import { TraceBar, WallPhotosList } from '../common/WallPhotos';
-import { placing, step, today } from './state';
+import { nowHM, placing, step, today } from './state';
+import { inspectionGaps } from '../../model/check';
 import { openWelcome } from '../common/Welcome';
 import { fullMode, setFull } from '../mode';
 import { northArrow } from '../../geometry/compass';
@@ -38,10 +39,11 @@ export function RoomStep() {
   const size = rectSizeOf(st.room);
   // дата осмотра по умолчанию — сегодня (decisions.md, этап 8)
   useEffect(() => { if (!plan.value.stamp.date) dispatch(p => A.setStamp(p, { date: today() })); }, []);
-  const set = (k: 'object' | 'date' | 'author') => (v: string) => dispatch(p => A.setStamp(p, { [k]: v }), 'stamp:' + k);
+  const set = (k: 'object' | 'date' | 'author' | 'timeStart') => (v: string) => dispatch(p => A.setStamp(p, { [k]: v }), 'stamp:' + k);
   const fresh = () => {
     const p = emptyPlan();
-    void newPlan(A.setStamp(p, { date: today() }), 'Начать новый осмотр с пустого плана? Текущий план сохранится в истории состояний.', 'нового осмотра');
+    // новый осмотр начинается сейчас — время можно поправить
+    void newPlan(A.setStamp(p, { date: today(), timeStart: nowHM() }), 'Начать новый осмотр с пустого плана? Текущий план сохранится в истории состояний.', 'нового осмотра');
   };
   return (
     <>
@@ -54,6 +56,7 @@ export function RoomStep() {
       <div class="grid one">
         <Text label="Адрес, помещение" value={stamp.object} placeholder="ул. Широкая, 33, ауд. 214" onValue={set('object')} />
         <Text label="Дата" value={stamp.date} onValue={set('date')} />
+        <TimeField label="Начало осмотра" value={stamp.timeStart} onValue={set('timeStart')} />
         <Text label="Составил (роль и ФИО)" value={stamp.author} placeholder="следователь Иванов И. И." onValue={set('author')} />
       </div>
       <RoomShape />
@@ -207,6 +210,18 @@ async function schemePdf() {
 
 const time = (ms: number) => new Date(ms).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
+const GAP_STEP = { room: 'Помещение', markers: 'Метки', photos: 'Фото', measure: 'Замеры', finish: '' } as const;
+
+/** Время «10:15» и кнопка «Сейчас» */
+function TimeField({ label, value, onValue }: { label: string; value: string; onValue: (v: string) => void }) {
+  return (
+    <div class="grid two">
+      <Text label={label} value={value} placeholder="чч:мм" onValue={onValue} />
+      <button style="margin-top:18px" onClick={() => onValue(nowHM())}>Сейчас</button>
+    </div>
+  );
+}
+
 export function FinishStep() {
   const p = plan.value;
   const rows = measureList(p);
@@ -215,7 +230,7 @@ export function FinishStep() {
   const shot = shots.filter(it => shotPhotos(p, it.key).length).length;
   const noDesc = p.markers.filter(m => !m.desc.trim()).length;
   const size = rectSizeOf(p.room);
-  const missing = [!p.stamp.object.trim() && 'адрес', !p.stamp.date.trim() && 'дата', !p.stamp.author.trim() && '«Составил»'].filter(Boolean);
+  const gaps = inspectionGaps(p);
   const dirty = dirtySince.value !== null;
   return (
     <>
@@ -226,9 +241,20 @@ export function FinishStep() {
         <li>Снимков: {p.photos.length}; по списку съёмки снято {shot} из {shots.length}</li>
         <li>Замерено {measured} из {rows.length}{measured < rows.length && <> — <button class="inline" onClick={() => { step.value = 'measure'; }}>к замерам</button></>}</li>
       </ul>
-      {missing.length > 0 && (
-        <p class="warn">Для штампа не заполнено: {missing.join(', ')}. <button class="inline" onClick={() => { step.value = 'room'; }}>Шаг «Помещение»</button></p>
-      )}
+      <TimeField label="Окончание осмотра" value={p.stamp.timeEnd} onValue={v => dispatch(q => A.setStamp(q, { timeEnd: v }), 'stamp:timeEnd')} />
+
+      <h3>Перед завершением</h3>
+      {gaps.length ? (
+        <ul class="os-gaps">
+          {gaps.map(g => (
+            <li key={g.text}>
+              {g.text}
+              {g.where !== 'finish' && <> <button class="inline" onClick={() => { step.value = g.where; }}>{GAP_STEP[g.where]}</button></>}
+            </li>
+          ))}
+        </ul>
+      ) : <p class="hint">Всё заполнено: штамп, время, описания и снимки меток, замеры.</p>}
+      <p class="hint">Это подсказки, не запрет: сохранить можно и так — незаполненное останется линией для руки.</p>
 
       <h3>1. Сохранить проект</h3>
       <p class={dirty ? 'warn' : 'hint'}>

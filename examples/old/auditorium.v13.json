@@ -1,0 +1,1422 @@
+{
+ "format": "plan-editor",
+ "version": 13,
+ "room": {
+  "walls": [
+   {
+    "id": "A",
+    "letter": "А",
+    "name": "оконная",
+    "a": {
+     "x": 0,
+     "y": 0
+    },
+    "b": {
+     "x": 12000,
+     "y": 0
+    },
+    "length": {
+     "mm": 12000,
+     "status": "conditional"
+    }
+   },
+   {
+    "id": "G",
+    "letter": "Г",
+    "name": "задняя",
+    "a": {
+     "x": 12000,
+     "y": 0
+    },
+    "b": {
+     "x": 12000,
+     "y": 7000
+    },
+    "length": {
+     "mm": 7000,
+     "status": "conditional"
+    }
+   },
+   {
+    "id": "B",
+    "letter": "Б",
+    "name": "с дверями",
+    "a": {
+     "x": 12000,
+     "y": 7000
+    },
+    "b": {
+     "x": 0,
+     "y": 7000
+    },
+    "length": {
+     "mm": 12000,
+     "status": "conditional"
+    }
+   },
+   {
+    "id": "V",
+    "letter": "В",
+    "name": "передняя",
+    "a": {
+     "x": 0,
+     "y": 7000
+    },
+    "b": {
+     "x": 0,
+     "y": 0
+    },
+    "length": {
+     "mm": 7000,
+     "status": "conditional"
+    }
+   }
+  ],
+  "height": {
+   "mm": 3200,
+   "status": "conditional"
+  }
+ },
+ "wallItems": [
+  {
+   "id": "id001",
+   "wallId": "A",
+   "type": "window",
+   "label": "",
+   "off": {
+    "mm": 1000,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1400,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 1800,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "start",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id002",
+   "wallId": "A",
+   "type": "radiator",
+   "label": "",
+   "off": {
+    "mm": 1100,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 150,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1200,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 600,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "start",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id003",
+   "wallId": "A",
+   "type": "window",
+   "label": "",
+   "off": {
+    "mm": 3200,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1400,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 1800,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "start",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id004",
+   "wallId": "A",
+   "type": "radiator",
+   "label": "",
+   "off": {
+    "mm": 3300,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 150,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1200,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 600,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "start",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id005",
+   "wallId": "A",
+   "type": "window",
+   "label": "",
+   "off": {
+    "mm": 5400,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1400,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 1800,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "start",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id006",
+   "wallId": "A",
+   "type": "radiator",
+   "label": "",
+   "off": {
+    "mm": 5500,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 150,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1200,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 600,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "start",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id007",
+   "wallId": "A",
+   "type": "window",
+   "label": "",
+   "off": {
+    "mm": 7600,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1400,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 1800,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "start",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id008",
+   "wallId": "A",
+   "type": "radiator",
+   "label": "",
+   "off": {
+    "mm": 7700,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 150,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1200,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 600,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "start",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id009",
+   "wallId": "A",
+   "type": "window",
+   "label": "",
+   "off": {
+    "mm": 9800,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1400,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 1800,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "start",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id010",
+   "wallId": "A",
+   "type": "radiator",
+   "label": "",
+   "off": {
+    "mm": 9900,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 150,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1200,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 600,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "start",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id011",
+   "wallId": "B",
+   "type": "door",
+   "label": "Д1",
+   "off": {
+    "mm": 9800,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 0,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1000,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 2100,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "end",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id012",
+   "wallId": "B",
+   "type": "door",
+   "label": "Д2",
+   "off": {
+    "mm": 1200,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 0,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1000,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 2100,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "start",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id013",
+   "wallId": "B",
+   "type": "hanger",
+   "label": "вешалка",
+   "off": {
+    "mm": 6600,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 1500,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1800,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 300,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "end",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id014",
+   "wallId": "B",
+   "type": "picture",
+   "label": "картина",
+   "off": {
+    "mm": 5000,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 1400,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 800,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 600,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "end",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id015",
+   "wallId": "B",
+   "type": "picture",
+   "label": "картина",
+   "off": {
+    "mm": 3600,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 1400,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 800,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 600,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "end",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id016",
+   "wallId": "V",
+   "type": "screen",
+   "label": "экран",
+   "off": {
+    "mm": 3200,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 1300,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 2200,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 1400,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "end",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id017",
+   "wallId": "V",
+   "type": "board",
+   "label": "доска",
+   "off": {
+    "mm": 900,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 2000,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 1100,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "end",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id018",
+   "wallId": "V",
+   "type": "camera",
+   "label": "камера",
+   "off": {
+    "mm": 200,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 2750,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 300,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 200,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "end",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id019",
+   "wallId": "G",
+   "type": "window",
+   "label": "окно",
+   "off": {
+    "mm": 800,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1400,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 1800,
+    "status": "conditional"
+   },
+   "open": true,
+   "hinge": "start",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id020",
+   "wallId": "G",
+   "type": "radiator",
+   "label": "",
+   "off": {
+    "mm": 900,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 150,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1200,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 600,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "start",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id021",
+   "wallId": "G",
+   "type": "window",
+   "label": "",
+   "off": {
+    "mm": 4200,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1400,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 1800,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "start",
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id022",
+   "wallId": "G",
+   "type": "radiator",
+   "label": "",
+   "off": {
+    "mm": 4300,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 150,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 1200,
+    "status": "conditional"
+   },
+   "h": {
+    "mm": 600,
+    "status": "conditional"
+   },
+   "open": false,
+   "hinge": "start",
+   "origin": {
+    "kind": "manual"
+   }
+  }
+ ],
+ "items": [
+  {
+   "id": "id023",
+   "type": "teacher",
+   "label": "",
+   "x": {
+    "mm": 800,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 700,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 800,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 1600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id024",
+   "type": "lectern",
+   "label": "",
+   "x": {
+    "mm": 600,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 600,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id025",
+   "type": "table",
+   "label": "",
+   "x": {
+    "mm": 800,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 5600,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 700,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 900,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id026",
+   "type": "projector",
+   "label": "",
+   "x": {
+    "mm": 5500,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 3250,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id027",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id028",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 3900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id029",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 3450,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id030",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 3450,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 3900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id031",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 4300,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id032",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 4300,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 3900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id033",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 5150,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id034",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 5150,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 3900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id035",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 6000,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id036",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 6000,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 3900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id037",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 6850,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id038",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 6850,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 3900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id039",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 7700,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id040",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 7700,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 3900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id041",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 8550,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id042",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 8550,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 3900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id043",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 9400,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id044",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 9400,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 3900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id045",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 10250,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id046",
+   "type": "desk",
+   "label": "",
+   "x": {
+    "mm": 10250,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 3900,
+    "status": "conditional"
+   },
+   "w": {
+    "mm": 500,
+    "status": "conditional"
+   },
+   "d": {
+    "mm": 2600,
+    "status": "conditional"
+   },
+   "angle": 0,
+   "origin": {
+    "kind": "manual"
+   }
+  }
+ ],
+ "markers": [
+  {
+   "id": "id047",
+   "n": "1",
+   "desc": "Предметы на столе преподавателя: клавиатура, мышь, карандаши",
+   "place": "floor",
+   "x": {
+    "mm": 1200,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 1500,
+    "status": "conditional"
+   },
+   "wallId": "A",
+   "off": {
+    "mm": 1000,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 1000,
+    "status": "conditional"
+   },
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id048",
+   "n": "2",
+   "desc": "Окно с открытой внутрь створкой (предполагаемый путь проникновения)",
+   "place": "wall",
+   "x": {
+    "mm": 0,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 0,
+    "status": "conditional"
+   },
+   "wallId": "G",
+   "off": {
+    "mm": 1500,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 1800,
+    "status": "conditional"
+   },
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id049",
+   "n": "3",
+   "desc": "Грязевой след на наружном отливе окна № 2 (снаружи здания)",
+   "place": "outside",
+   "x": {
+    "mm": 0,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 0,
+    "status": "conditional"
+   },
+   "wallId": "G",
+   "off": {
+    "mm": 1500,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 0,
+    "status": "conditional"
+   },
+   "origin": {
+    "kind": "manual"
+   }
+  },
+  {
+   "id": "id050",
+   "n": "4",
+   "desc": "Шариковая ручка на полу в центральном проходе",
+   "place": "floor",
+   "x": {
+    "mm": 11000,
+    "status": "conditional"
+   },
+   "y": {
+    "mm": 3500,
+    "status": "conditional"
+   },
+   "wallId": "A",
+   "off": {
+    "mm": 1000,
+    "status": "conditional"
+   },
+   "z": {
+    "mm": 1000,
+    "status": "conditional"
+   },
+   "origin": {
+    "kind": "manual"
+   }
+  }
+ ],
+ "callouts": [],
+ "photos": [],
+ "stamp": {
+  "name": "План-схема места происшествия",
+  "object": "Аудитория, ул. Широкая, 33",
+  "protocol": "приложение к протоколу осмотра места происшествия от 22.10.2026",
+  "date": "22.10.2026",
+  "author": "",
+  "members": ""
+ },
+ "north": "",
+ "notes": "",
+ "underlay": {
+  "src": "",
+  "show": true,
+  "opacity": 0.45,
+  "scale": 100,
+  "dx": 0,
+  "dy": 0
+ },
+ "sheet": {
+  "paper": "A3",
+  "mode": "schematic",
+  "scale": 100,
+  "showTies": true,
+  "bw": false
+ },
+ "instruments": {
+  "tape": "",
+  "rangefinder": ""
+ },
+ "wallPhotos": [],
+ "annexes": [],
+ "phototable": {
+  "org": "",
+  "orgAddress": "",
+  "kusp": ""
+ }
+}
