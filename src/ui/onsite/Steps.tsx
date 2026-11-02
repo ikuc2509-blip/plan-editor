@@ -17,6 +17,7 @@ import { StatusChip } from '../common/MeasureDialog';
 import { openFile, saveToFile, setProtect } from '../project';
 import { AnnexList, MarkerCard, MeasurePanel, RoomShape, WallItemCard, WallLengths, newPlan, wallOpts } from '../editor/Side';
 import { PhotosPanel } from '../editor/PhotosPanel';
+import { exportPhototable } from '../photos';
 import { schematicView } from '../editor/Sheet';
 import { TraceBar, WallPhotosList } from '../common/WallPhotos';
 import { nowHM, placing, step, today } from './state';
@@ -264,9 +265,12 @@ export function FinishStep() {
       <div class="row"><button class="primary" onClick={saveToFile}>Сохранить проект (.omp)</button></div>
       <Check label="Защитить файл паролем" checked={protect.value} onValue={v => void setProtect(v)} />
 
-      <h3>2. Схема для протокола</h3>
-      <p class="hint">PDF без масштаба: замеренное подписано числом, незамеренное — пустой строкой «____ м», её впишете от руки.</p>
-      <div class="row"><button onClick={() => void schemePdf()}>PDF-схема</button></div>
+      <h3>2. Схема и фототаблица для протокола</h3>
+      <p class="hint">PDF без масштаба: замеренное подписано числом, незамеренное — пустой строкой «____ м», её впишете от руки. Фототаблица — снимки с подписями и стрелками, A4.</p>
+      <div class="row">
+        <button onClick={() => void schemePdf()}>PDF-схема</button>
+        <button onClick={() => void exportPhototable('на шаге «Фото»')}>Фототаблица (PDF)</button>
+      </div>
 
       <h3>3. Перенести файл на компьютер</h3>
       <p class="hint">На телефоне файлы попадают в папку «Загрузки» (Download).</p>

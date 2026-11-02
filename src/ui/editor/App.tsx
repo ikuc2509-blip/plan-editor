@@ -3,8 +3,6 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { signal } from '@preact/signals';
 import { vectorPdf } from '../../export/pdf';
 import { sheetPng, sheetSvgFile } from '../../export/image';
-import { phototablePdf } from '../../export/phototable';
-import { getPhoto } from '../../storage/db';
 import { saveFile } from '../../storage/files';
 import { saveStatusText } from '../../storage/history';
 import { GRID_STEPS, canRedo, canUndo, dirtySince, dispatch, fileSavedAt, gridStep, plan, redo, sel, tab, toast, undo, zoom } from '../store';
@@ -21,7 +19,7 @@ import { CompareDialog } from '../common/Suggestions';
 import { PhotoViewer } from './PhotosPanel';
 import { ArrowsDialog } from '../common/ArrowsDialog';
 import { BIG_PROJECT, formatSize } from '../../photos/meta';
-import { photosBytes } from '../photos';
+import { exportPhototable, photosBytes } from '../photos';
 import { Side } from './Side';
 import { PRINT_HINT, Sheet, ZOOM_MAX, ZOOM_MIN } from './Sheet';
 import { fullMode, setFull, setMode } from '../mode';
@@ -31,21 +29,6 @@ const fname = (ext: string): string => {
   const d = (plan.value.stamp.date || '').replace(/[^\d.]/g, '');
   return `plan${d ? '_' + d : ''}.${ext}`;
 };
-
-/** Фототаблица: отдельный PDF A4 со снимками и подписями */
-async function exportPhototable() {
-  const p = plan.value;
-  if (!p.photos.length) { toast('Снимков нет — добавьте их на вкладке «Фото»'); return; }
-  toast('Готовлю фототаблицу…');
-  try {
-    const d = (p.stamp.date || '').replace(/[^\d.]/g, '');
-    const name = `fototablica${d ? '_' + d : ''}.pdf`;
-    saveFile(name, await phototablePdf(p, getPhoto));
-    toast(`Файл сохранён: ${name}. Печать — A4, масштаб 100 %`);
-  } catch (e) {
-    toast(e instanceof Error && e.message ? e.message : 'Не удалось сохранить файл');
-  }
-}
 
 /** Экспорт листа: файл готовится, затем отдаётся пользователю */
 async function exportSheet(ext: 'pdf' | 'png' | 'svg') {
@@ -105,7 +88,7 @@ function DownloadMenu() {
     addEventListener('pointerdown', off);
     return () => removeEventListener('pointerdown', off);
   }, []);
-  const pick = (ext: 'pdf' | 'png' | 'svg' | 'photos') => { if (ref.current) ref.current.open = false; void (ext === 'photos' ? exportPhototable() : exportSheet(ext)); };
+  const pick = (ext: 'pdf' | 'png' | 'svg' | 'photos') => { if (ref.current) ref.current.open = false; void (ext === 'photos' ? exportPhototable('на вкладке «Фото»') : exportSheet(ext)); };
   return (
     <details class="menu" ref={ref}>
       <summary class="primary">Скачать ▾</summary>

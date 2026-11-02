@@ -8,8 +8,24 @@ import { describePhoto, formatSize, type NewPhoto } from '../photos/meta';
 import type { ShotItem } from '../photos/shots';
 import { makePreview } from '../photos/image';
 import { getPhoto, getPreview, prunePhotos, putPhoto, putPreview } from '../storage/db';
-import { pickFiles } from '../storage/files';
+import { pickFiles, saveFile } from '../storage/files';
+import { phototablePdf } from '../export/phototable';
 import { dispatch, plan, toast } from './store';
+
+/** Фототаблица: отдельный PDF A4 со снимками и подписями; where — где добавить снимки («на вкладке «Фото»») */
+export async function exportPhototable(where: string): Promise<void> {
+  const p = plan.value;
+  if (!p.photos.length) { toast(`Снимков нет — добавьте их ${where}`); return; }
+  toast('Готовлю фототаблицу…');
+  try {
+    const d = (p.stamp.date || '').replace(/[^\d.]/g, '');
+    const name = `fototablica${d ? '_' + d : ''}.pdf`;
+    saveFile(name, await phototablePdf(p, getPhoto));
+    toast(`Файл сохранён: ${name}. Печать — A4, масштаб 100 %`);
+  } catch (e) {
+    toast(e instanceof Error && e.message ? e.message : 'Не удалось сохранить файл');
+  }
+}
 
 /** снимок, открытый в карточке на вкладке «Фото» */
 export const selPhoto = signal<string | null>(null);
