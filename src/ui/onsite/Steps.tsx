@@ -117,9 +117,20 @@ export function OpeningsStep() {
   const st = plan.value;
   const walls = wallsByLetter(st.room);
   const cur = sel.value?.kind === 'wi' ? st.wallItems.find(i => i.id === sel.value!.id) : undefined;
-  const [wall, setWall] = useState(cur?.wallId ?? walls[0]!.id);
+  const [picked, setWall] = useState(cur?.wallId ?? walls[0]?.id ?? '');
   // выбрали проём на плане — переключиться на его стену
   useEffect(() => { if (cur) setWall(cur.wallId); }, [cur?.id, cur?.wallId]);
+  // комнату перерисовали — выбранной стены больше нет, берём первую
+  const wall = walls.some(w => w.id === picked) ? picked : walls[0]?.id ?? '';
+  // комнаты ещё нет (новый осмотр) — проёмы ставить не на что
+  if (!walls.length) {
+    return (
+      <>
+        <p class="hint">Комнаты пока нет. Сначала нарисуйте её или возьмите заготовку на шаге «Помещение» — потом здесь появятся её стены.</p>
+        <div class="row"><button class="primary" onClick={() => { step.value = 'room'; }}>К шагу «Помещение»</button></div>
+      </>
+    );
+  }
   const onWall = st.wallItems.filter(i => i.wallId === wall).sort((a, b) => a.off.mm - b.off.mm);
   const add = (t: WallItemType) => {
     const id = uid();

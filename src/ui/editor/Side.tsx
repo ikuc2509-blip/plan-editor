@@ -1,7 +1,7 @@
 // Боковая панель: вкладки Помещение / Стены / Мебель / Метки / Подложка / Штамп.
 import { signal } from '@preact/signals';
 import { useEffect, useState } from 'preact/hooks';
-import type { AutoFound, Callout, Dim, Item, ItemType, Marker, MarkerPlace, Mm, PhotoBox, Plan, WallItem, WallItemType } from '../../model/types';
+import type { AutoFound, Callout, CeilCorner, Dim, Item, ItemType, Marker, MarkerPlace, Mm, PhotoBox, Plan, WallItem, WallItemType } from '../../model/types';
 import { atXY } from '../../model/types';
 import { measureList, type MeasureRef, type MeasureRow } from '../../model/measure';
 import { formatMeters } from '../../model/units';
@@ -275,16 +275,25 @@ export function BehindFields() {
 function CeilingBox() {
   const st = plan.value, c = st.ceiling;
   if (noRoom(st.room)) return null;
-  const opts: Record<string, string> = { '': 'где больше места' };
-  for (const w of wallsByLetter(st.room)) opts[w.id] = 'у стены ' + w.letter;
+  // у прямоугольника углы и стены называем буквами: А — сверху, Б — снизу, В — слева, Г — справа
+  const rect = !!rectSizeOf(st.room);
+  const opts: Record<string, string> = {
+    tr: 'в углу справа сверху' + (rect ? ' (между А и Г)' : ''), tl: 'в углу слева сверху' + (rect ? ' (между А и В)' : ''),
+    br: 'в углу справа снизу' + (rect ? ' (между Б и Г)' : ''), bl: 'в углу слева снизу' + (rect ? ' (между Б и В)' : ''),
+  };
+  const SIDE: Record<string, string> = { A: ' (сверху)', B: ' (снизу)', V: ' (слева)', G: ' (справа)' };
+  for (const w of wallsByLetter(st.room)) opts['wall:' + w.id] = 'у стены ' + w.letter + (rect ? SIDE[w.id] ?? '' : '');
+  opts['wall:'] = 'у стены, где больше места';
+  const value = c.place !== 'wall' ? c.place : opts['wall:' + c.wallId] ? 'wall:' + c.wallId : 'wall:';
+  const choose = (v: string) => dispatch(p => A.setCeiling(p, v.startsWith('wall:') ? { place: 'wall', wallId: v.slice(5), dx: 0, dy: 0 } : { place: v as CeilCorner, dx: 0, dy: 0 }));
   return (
     <>
       <h3>Потолок</h3>
       <div class="grid two">
         <Check label="развёртка потолка" checked={c.show} onValue={v => dispatch(p => A.setCeiling(p, { show: v }))} />
-        {c.show && <Select label="Где на листе" value={opts[c.wallId] ? c.wallId : ''} options={opts} onValue={v => dispatch(p => A.setCeiling(p, { wallId: v, dx: 0, dy: 0 }))} />}
+        {c.show && <Select label="Где на листе" value={value} options={opts} onValue={choose} />}
       </div>
-      <Hint text="Потолок откидывается за развёртку стены, как на рисунках в учебнике криминалистики.">Метку на потолке ставят на вкладке «Метки»: «Где — на потолке». Светильник — предмет «Светильник (на потолке)». Потолок можно взять мышью за пустое место и отнести в сторону.</Hint>
+      <Hint text="В углу — потолок отдельно, уменьшенный так, чтобы план не мельчал; у стены — откинут за её развёртку, как в учебнике.">По краям потолка — буквы стен: видно, какой край у какой стены (вид снизу, зеркально полу). Метку на потолке ставят на вкладке «Метки»: «Где — на потолке». Светильник — предмет «Светильник (на потолке)». Потолок можно взять мышью за пустое место и отнести в сторону.</Hint>
     </>
   );
 }

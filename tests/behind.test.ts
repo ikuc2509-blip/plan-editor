@@ -1,12 +1,13 @@
 // «Что за стеной» (формат 15): полоска с подписью между стеной и её развёрткой, как в учебниках.
 import { describe, expect, test } from 'vitest';
 import { createRectRoom } from '../src/model/room';
-import { BAND_MM, ceilPt, geom, locate, segOf, unf, type Geom } from '../src/geometry/unfold';
+import { BAND_MM, ceilPt, ceilRect, geom, locate, segOf, unf, wallPt, type Geom } from '../src/geometry/unfold';
 import { layoutFor } from '../src/render/layout';
-import { addAnnex, setWallBehind, setWallElev } from '../src/model/actions';
+import { addAnnex, addMarker, patch, setCeiling, setMarkerPlace, setWallBehind, setWallElev } from '../src/model/actions';
 import { blank } from '../src/model/state';
 import type { Room, SheetOptions } from '../src/model/types';
-import { drawSheet } from '../src/render/sheet';
+import { drawSheet, sheetGeom } from '../src/render/sheet';
+import { cond } from '../src/model/units';
 
 const sheet = (o: Partial<SheetOptions> = {}): SheetOptions => ({ paper: 'A3', mode: 'scale', scale: 100, showTies: true, bw: false, ...o });
 const A3 = layoutFor('A3').area;
@@ -41,7 +42,7 @@ describe('развёртка отодвигается на полоску', () =
   });
 
   test('потолок у стены А — тоже за полоской', () => {
-    const gc = geom(withBehind(room, 'A', 'коридор'), sheet(), A3, [], { show: true, wallId: 'A' });
+    const gc = geom(withBehind(room, 'A', 'коридор'), sheet(), A3, [], { show: true, place: 'wall', wallId: 'A' });
     expect(ceilPt(gc, 2, 0)![1]).toBeCloseTo(unf(gc, segOf(gc, 'A')!, 2, 3)[1], 6);
   });
 
@@ -73,5 +74,34 @@ describe('на листе', () => {
   test('развёртка скрыта — полоска у стены остаётся', () => {
     const svg = drawSheet(setWallElev(setWallBehind(blank(), 'V', 'Двор дома'), 'V', { hidden: true }));
     expect(svg).toContain('>Двор дома</text>');
+  });
+});
+
+describe('метка «снаружи» (0.20.1)', () => {
+  /** метка № 1 снаружи у стены Г, 1,5 м от её начала */
+  const outside = () => patch(setMarkerPlace(addMarker(blank(), 'm', 'G'), 'm', 'outside'), 'markers', 'm', { wallId: 'G', off: cond(1500) });
+  const circleAt = (svg: string) => { const c = svg.match(/<g data-kind="mk"[^>]*>[\s\S]*?<circle cx="([-\d.]+)" cy="([-\d.]+)" r="2.8"/)!; return [+c[1]!, +c[2]!]; };
+
+  test('за стеной вписано — метка в полоске, напротив своего места', () => {
+    const p = setWallBehind(outside(), 'G', 'Двор дома'), g = sheetGeom(p), sg = segOf(g, 'G')!;
+    const q = wallPt(g, sg, 1.5), k = g.t + sg.band * g.s / 2;
+    const [x, y] = circleAt(drawSheet(p));
+    expect(x).toBeCloseTo(q[0] - sg.nx * k, 6);
+    expect(y).toBeCloseTo(q[1] - sg.ny * k, 6);
+  });
+
+  test('подпись полоски отходит от метки', () => {
+    const p = setWallBehind(patch(outside(), 'markers', 'm', { off: cond(3000) }), 'G', 'Двор дома'), g = sheetGeom(p), sg = segOf(g, 'G')!;
+    const svg = drawSheet(p), [, my] = circleAt(svg);
+    const ty = +svg.match(/<text x="[-\d.]+" y="([-\d.]+)"[^>]*>Двор дома<\/text>/)![1]!;
+    // стена Г вертикальная: метка посередине (3 м из 6) — подпись не там
+    expect(Math.abs(ty - my!)).toBeGreaterThan(5);
+    expect(sg.len).toBe(6);
+  });
+
+  test('полоски нет, у стены потолок — метка за потолком, а не на нём', () => {
+    const p = setCeiling(outside(), { show: true, place: 'wall', wallId: 'G' }), g = sheetGeom(p), cr = ceilRect(g)!;
+    const [x] = circleAt(drawSheet(p));
+    expect(x).toBeGreaterThan(cr.x + cr.w);
   });
 });

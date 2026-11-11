@@ -1,6 +1,6 @@
 // Открытие старых файлов: прототип → формат версии 1.
 import { describe, expect, test } from 'vitest';
-import { fromPrototype, loadPlan, v1to2, v2to3, v3to4, v4to5, v5to6, v6to7, v7to8, v8to9, v9to10, v10to11, v11to12, v12to13, v13to14, v14to15, type PlanV1, type PlanV2, type PlanV3, type PlanV4, type PlanV5, type PlanV6, type PlanV7, type PlanV8, type PlanV9, type PlanV10, type PlanV11, type PlanV12, type PlanV13, type PlanV14 } from '../src/model/migrate';
+import { fromPrototype, loadPlan, v1to2, v2to3, v3to4, v4to5, v5to6, v6to7, v7to8, v8to9, v9to10, v10to11, v11to12, v12to13, v13to14, v14to15, v15to16, type PlanV1, type PlanV2, type PlanV3, type PlanV4, type PlanV5, type PlanV6, type PlanV7, type PlanV8, type PlanV9, type PlanV10, type PlanV11, type PlanV12, type PlanV13, type PlanV14, type PlanV15 } from '../src/model/migrate';
 import type { ProtoPlan } from '../src/model/prototype';
 import { FORMAT_VERSION, type Plan } from '../src/model/types';
 import proto from '../examples/auditorium.prototype.json';
@@ -18,6 +18,7 @@ import v11file from '../examples/old/auditorium.v11.json';
 import v12file from '../examples/old/auditorium.v12.json';
 import v13file from '../examples/old/auditorium.v13.json';
 import v14file from '../examples/old/auditorium.v14.json';
+import v15file from '../examples/old/auditorium.v15.json';
 
 const old = proto as unknown as ProtoPlan;
 const v1 = v1file as unknown as PlanV1;
@@ -34,6 +35,7 @@ const v11 = v11file as unknown as PlanV11;
 const v12 = v12file as unknown as PlanV12;
 const v13 = v13file as unknown as PlanV13;
 const v14 = v14file as unknown as PlanV14;
+const v15 = v15file as unknown as PlanV15;
 
 /** Сравнение «остальное без изменений»: выбор цветной / чёрно-белый (формат 11) — новое поле листа */
 // поля, которых в старых версиях нет: цвет листа (11), фототаблица (13), потолок (15)
@@ -136,7 +138,7 @@ describe('файл версии 1 (этап 1)', () => {
   });
 
   test('прототип переводится через версию 1', () => {
-    expect(loadPlan(structuredClone(old))).toEqual({ ok: true, plan: v14to15(v13to14(v12to13(v11to12(v10to11(v9to10(v8to9(v7to8(v6to7(v5to6(v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old)))))))))))))))), migratedFrom: 'prototype' });
+    expect(loadPlan(structuredClone(old))).toEqual({ ok: true, plan: v15to16(v14to15(v13to14(v12to13(v11to12(v10to11(v9to10(v8to9(v7to8(v6to7(v5to6(v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old))))))))))))))))), migratedFrom: 'prototype' });
   });
 });
 
@@ -299,17 +301,30 @@ describe('файл версии 14 (время осмотра, без потол
     const r = loadPlan(structuredClone(v14));
     expect(r.ok && r.migratedFrom).toBe('v14');
     const p = (r as { plan: Plan }).plan;
-    expect(p.version).toBe(15);
-    expect(p.ceiling).toEqual({ show: false, wallId: '' });
+    expect(p.version).toBe(FORMAT_VERSION);
+    expect(p.ceiling).toEqual({ show: false, place: 'wall', wallId: '' });
     const { version: _a, ...rest14 } = v14;
     const { version: _b, ceiling: _c, ...rest15 } = p;
     expect(rest15).toEqual(rest14);
   });
 });
 
+describe('файл версии 15 (потолок только у стены)', () => {
+  test('открывается: потолок остаётся у стены, остальное без изменений', () => {
+    const r = loadPlan(structuredClone(v15));
+    expect(r.ok && r.migratedFrom).toBe('v15');
+    const p = (r as { plan: Plan }).plan;
+    expect(p.version).toBe(16);
+    expect(p.ceiling).toEqual({ ...v15.ceiling, place: 'wall' });
+    const { version: _a, ceiling: _c, ...rest15 } = v15;
+    const { version: _b, ceiling: _d, ...rest16 } = p;
+    expect(rest16).toEqual(rest15);
+  });
+});
+
 describe('чистый лист (формат 9)', () => {
   test('план без стен открывается', () => {
-    const p = { ...v14to15(v13to14(v12to13(v11to12(v10to11(v9to10(v8to9(structuredClone(v8)))))))), room: { walls: [], height: v8.room.height } };
+    const p = { ...v15to16(v14to15(v13to14(v12to13(v11to12(v10to11(v9to10(v8to9(structuredClone(v8))))))))), room: { walls: [], height: v8.room.height } };
     expect(loadPlan(JSON.parse(JSON.stringify(p)))).toEqual({ ok: true, plan: p });
   });
   test('две стены — не помещение', () => {
@@ -335,7 +350,7 @@ describe('файл версии 3 (этап 5)', () => {
 });
 
 describe('loadPlan', () => {
-  const p = v14to15(v13to14(v12to13(v11to12(v10to11(v9to10(v8to9(v7to8(v6to7(v5to6(v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old))))))))))))))));
+  const p = v15to16(v14to15(v13to14(v12to13(v11to12(v10to11(v9to10(v8to9(v7to8(v6to7(v5to6(v4to5(v3to4(v2to3(v1to2(fromPrototype(structuredClone(old)))))))))))))))));
 
   test('файл текущей версии открывается как есть', () => {
     const r = loadPlan(JSON.parse(JSON.stringify(p)));

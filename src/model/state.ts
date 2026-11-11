@@ -11,7 +11,7 @@ export function blank(): Plan {
     version: FORMAT_VERSION,
     room: createRectRoom(10_000, 6_000, 3_000),
     wallItems: [], items: [], markers: [], callouts: [], photos: [], wallPhotos: [], annexes: [],
-    ceiling: { show: false, wallId: '' },
+    ceiling: { show: false, place: 'tr', wallId: '' },
     stamp: { name: 'План-схема места происшествия', object: '', protocol: '', date: '', author: '', members: '', timeStart: '', timeEnd: '' },
     phototable: { org: '', orgAddress: '', kusp: '' },
     north: '', notes: '',

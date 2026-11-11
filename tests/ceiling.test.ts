@@ -1,7 +1,7 @@
-// Развёртка потолка (формат 15): потолок откинут за развёртку стены, метки и светильник на нём.
+// Потолок (формат 15–16): у стены — откинут за её развёртку; в углу листа — отдельно, уменьшенный. Метки и светильник на нём.
 import { describe, expect, test } from 'vitest';
 import { createRectRoom } from '../src/model/room';
-import { ceilPt, ceilToFloor, elevOverlaps, fitsAt, geom, locate, type Geom } from '../src/geometry/unfold';
+import { ceilDelta, ceilPt, ceilRect, ceilToFloor, elevOverlaps, fitsAt, geom, locate, type Geom } from '../src/geometry/unfold';
 import { layoutFor } from '../src/render/layout';
 import { addItem, addMarker, addMarkerAt, patch, resetElevs, setCeiling, setMarkerPlace, setWallElev } from '../src/model/actions';
 import { blank } from '../src/model/state';
@@ -12,14 +12,16 @@ import { drawSheet, sheetGeom } from '../src/render/sheet';
 const room = createRectRoom(10_000, 6_000, 3_000);
 const sheet: SheetOptions = { paper: 'A3', mode: 'scale', scale: 100, showTies: true, bw: false };
 const A3 = layoutFor('A3').area;
-const at = (c: Partial<Ceiling>): Geom => geom(room, sheet, A3, [], { show: true, wallId: 'A', ...c });
+const at = (c: Partial<Ceiling>): Geom => geom(room, sheet, A3, [], { show: true, place: 'wall', wallId: 'A', ...c });
+/** у какой стены потолок; в углу — null */
+const wallOf = (g: Geom) => (g.ceil?.kind === 'wall' ? g.ceil.sg.wall.id : null);
 
 describe('где потолок на листе', () => {
   // 1:100 — 10 мм листа на 1 м; стена А сверху, развёртка 3 м + толщина стены 0,25 м
   const g = at({});
 
   test('у стены А: точка у стены — у верхнего края развёртки А, дальше от стены — дальше от пола', () => {
-    expect(g.ceil?.sg.wall.id).toBe('A');
+    expect(wallOf(g)).toBe('A');
     const p = ceilPt(g, 2, 0)!, q = ceilPt(g, 2, 1)!, far = ceilPt(g, 2, 6)!;
     expect(p[0]).toBeCloseTo(g.fx + 20, 6);
     expect(p[1]).toBeCloseTo(g.fy - 32.5, 6);
@@ -39,18 +41,18 @@ describe('где потолок на листе', () => {
   });
 
   test('не показан — потолка на листе нет', () => {
-    const off = geom(room, sheet, A3, [], { show: false, wallId: 'A' });
+    const off = geom(room, sheet, A3, [], { show: false, place: 'wall', wallId: 'A' });
     expect(off.ceil).toBeNull();
     expect(ceilPt(off, 1, 1)).toBeNull();
   });
 
   test('место не выбрано — где план выходит крупнее: у длинной стены', () => {
-    expect(at({ wallId: '' }).ceil?.sg.wall.id).toBe('A');
+    expect(wallOf(at({ wallId: '' }))).toBe('A');
   });
 
   test('развёртка выбранной стены скрыта — потолок у другой стены', () => {
     const r = { ...room, walls: room.walls.map(w => (w.id === 'A' ? { ...w, elev: { hidden: true } } : w)) };
-    expect(geom(r, sheet, A3, [], { show: true, wallId: 'A' }).ceil?.sg.wall.id).toBe('B');
+    expect(wallOf(geom(r, sheet, A3, [], { show: true, place: 'wall', wallId: 'A' }))).toBe('B');
   });
 
   test('отнесён в сторону на 1 м вправо — вся развёртка потолка на 10 мм правее', () => {
@@ -67,7 +69,7 @@ describe('где потолок на листе', () => {
   test('потолок занимает место: в 1:50 комната 4 × 3 × 2,5 м с потолком на A3 уже не помещается', () => {
     const small = createRectRoom(4_000, 3_000, 2_500);
     expect(fitsAt(small, A3, 50)).toBe(true);
-    expect(fitsAt(small, A3, 50, [], { show: true, wallId: '' })).toBe(false);
+    expect(fitsAt(small, A3, 50, [], { show: true, place: 'wall', wallId: '' })).toBe(false);
   });
 });
 
@@ -90,8 +92,8 @@ describe('действия', () => {
 
   test('сдвиг потолка: нулевой не хранится; «вернуть на место» возвращает и потолок', () => {
     const p = setCeiling(blank(), { show: true, dx: 1234.4, dy: 0 });
-    expect(p.ceiling).toEqual({ show: true, wallId: '', dx: 1234 });
-    expect(resetElevs(setWallElev(p, 'A', { dx: 500 })).ceiling).toEqual({ show: true, wallId: '' });
+    expect(p.ceiling).toEqual({ show: true, place: 'tr', wallId: '', dx: 1234 });
+    expect(resetElevs(setWallElev(p, 'A', { dx: 500 })).ceiling).toEqual({ show: true, place: 'tr', wallId: '' });
   });
 });
 
@@ -99,7 +101,7 @@ describe('на листе', () => {
   const withCeil = (): Plan => setMarkerPlace(patch(addMarker(blank(), 'm', 'A'), 'markers', 'm', { x: cond(2000), y: cond(1000) }), 'm', 'ceiling');
 
   test('подпись потолка и метка на нём — в точке над полом', () => {
-    const p = setCeiling(withCeil(), { wallId: 'A' }), svg = drawSheet(p);
+    const p = setCeiling(withCeil(), { place: 'wall', wallId: 'A' }), svg = drawSheet(p);
     expect(svg).toContain('ПОТОЛОК (развёртка у стены А)');
     const [x, y] = ceilPt(sheetGeom(p), 2, 1)!;
     expect(svg).toContain(`<circle cx="${x}" cy="${y}" r="2.8"`);
@@ -119,5 +121,53 @@ describe('на листе', () => {
 
   test('потолок не показан — лист как раньше', () => {
     expect(drawSheet(blank())).not.toContain('ПОТОЛОК');
+  });
+});
+
+describe('потолок в углу листа (формат 16)', () => {
+  // 1:100: без потолка план 16,5 × 12,5 м; в натуральную величину потолок 10 × 6 м в угол не влезает — вдвое меньше
+  const g = at({ place: 'tr' });
+
+  test('новый осмотр — потолок в углу справа сверху', () => {
+    expect(blank().ceiling.place).toBe('tr');
+  });
+
+  test('уменьшен вдвое: план в 1:100 по-прежнему помещается', () => {
+    expect(g.ceil).toMatchObject({ kind: 'corner', corner: 'tr', k: 0.5 });
+    expect(g.fits).toBe(true);
+  });
+
+  test('вид снизу: стена А — нижний край потолка, у угла между А и Г', () => {
+    const a = ceilPt(g, 0, 0)!, far = ceilPt(g, 0, 6)!, end = ceilPt(g, 10, 0)!;
+    expect(a[0]).toBeCloseTo(g.fx + 102.5, 6);
+    expect(a[1]).toBeCloseTo(g.fy - 2.5, 6);
+    expect(far[1]).toBeCloseTo(g.fy - 32.5, 6);
+    expect(end[0]).toBeCloseTo(g.fx + 152.5, 6);
+  });
+
+  test('касание и перетаскивание — по уменьшенному потолку', () => {
+    const p = ceilPt(g, 4, 1.5)!;
+    expect(locate(g, p[0], p[1])).toEqual({ place: 'ceiling', x: 4000, y: 1500 });
+    const f = ceilToFloor(g, p[0], p[1])!;
+    expect(f[0]).toBeCloseTo(4, 6);
+    expect(ceilDelta(g, 5, 5)).toEqual([10, -10]);
+  });
+
+  test('в остальных углах — на своих местах', () => {
+    const r = (c: 'tl' | 'br' | 'bl') => ceilRect(at({ place: c }))!, base = ceilRect(g)!;
+    expect(base.x).toBeGreaterThan(g.fx + 100);
+    expect(r('tl').x + r('tl').w).toBeLessThan(at({ place: 'tl' }).fx);
+    expect(r('br').y).toBeGreaterThan(at({ place: 'br' }).fy + 60);
+    expect(r('bl').x + r('bl').w).toBeLessThan(at({ place: 'bl' }).fx);
+  });
+
+  test('на листе: «вид снизу» и свой масштаб; в схеме — во сколько раз уменьшен', () => {
+    let p = setMarkerPlace(addMarker(blank(), 'm', 'A'), 'm', 'ceiling');
+    p = { ...p, sheet: { ...p.sheet, mode: 'scale', scale: 100 } };
+    const svg = drawSheet(p);
+    expect(svg).toContain('ПОТОЛОК (вид снизу)');
+    expect(svg).toContain('М 1:200');
+    // в схеме план растянут на весь лист — потолок помещается в угол, только уменьшенный вчетверо
+    expect(drawSheet({ ...p, sheet: { ...p.sheet, mode: 'schematic' } })).toContain('уменьшено в 4 раза');
   });
 });

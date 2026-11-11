@@ -287,7 +287,8 @@ export const FORMAT_ID = 'plan-editor';
  * 12 — этап 12: развёртку стены можно скрыть или отнести в сторону (wall.elev);
  * 13 — фототаблица: подпись снимка (photo.caption), стрелки на снимке (photo.arrows) и шапка (phototable);
  * 14 — время начала и окончания осмотра (stamp.timeStart, stamp.timeEnd);
- * 15 — развёртка потолка (ceiling), метки на потолке (place: 'ceiling'), светильник (item lamp), что за стеной (wall.behind).
+ * 15 — развёртка потолка (ceiling), метки на потолке (place: 'ceiling'), светильник (item lamp), что за стеной (wall.behind);
+ * 16 — потолок в углу листа, уменьшенный (ceiling.place).
  */
 /** Точка на снимке, в долях ширины и высоты (0…1) */
 export interface PhotoPt {
@@ -315,7 +316,11 @@ export interface WallPhoto {
   opacity: number;
 }
 
-export const FORMAT_VERSION = 15;
+export const FORMAT_VERSION = 16;
+
+/** Угол листа для потолка: справа сверху (между А и Г у прямоугольника), слева сверху, справа снизу, слева снизу */
+export type CeilCorner = 'tr' | 'tl' | 'br' | 'bl';
+export type CeilPlace = 'wall' | CeilCorner;
 
 /**
  * Развёртка потолка (формат 15): потолок откинут за развёртку одной стены наружу, как в учебниках
@@ -323,7 +328,9 @@ export const FORMAT_VERSION = 15;
  */
 export interface Ceiling {
   show: boolean;
-  /** у какой стены; пусто — где больше места */
+  /** где: в углу листа между развёртками (формат 16, по умолчанию справа сверху) или у стены */
+  place: CeilPlace;
+  /** у какой стены (place: 'wall'); пусто — где больше места */
   wallId: string;
   /** отнесена в сторону, мм в координатах пола */
   dx?: Mm;

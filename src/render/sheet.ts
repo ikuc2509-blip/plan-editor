@@ -99,9 +99,15 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
     const bs = sg.band * g.s, a = wallPt(g, sg, 0), b = wallPt(g, sg, sg.len), o = outward(sg);
     const at = (p: readonly number[], k: number) => [p[0]! + o[0] * k, p[1]! + o[1] * k];
     const pts = [at(a, g.t), at(b, g.t), at(b, g.t + bs), at(a, g.t + bs)].map(p => p.map(v => +v.toFixed(3)).join(',')).join(' ');
-    const mid = wallPt(g, sg, sg.len / 2), c = at(mid, g.t + bs / 2);
+    // метки «снаружи» этой стены стоят в полоске — подпись туда, где их нет (середина или самый широкий промежуток)
+    const text = sg.wall.behind!.trim(), size = Math.min(2.6, bs * 0.45), half = (text.length * size * 0.52) / 2 / g.s;
+    const offs = st.markers.filter(m => m.place === 'outside' && m.wallId === sg.wall.id).map(m => toM(m.off.mm)).sort((p, q) => p - q);
+    const free = (t: number) => offs.every(v => Math.abs(v - t) > half + 3.4 / g.s);
+    const edges = [0, ...offs, sg.len], gaps = edges.slice(1).map((v, i) => [(v + edges[i]!) / 2, v - edges[i]!] as const).sort((p, q) => q[1] - p[1]);
+    const tc = [sg.len / 2, ...gaps.map(([t]) => t)].find(free) ?? sg.len / 2;
+    const c = at(wallPt(g, sg, tc), g.t + bs / 2);
     P.push(`<polygon points="${pts}" fill="#fff" stroke="#111" stroke-width="0.25"/>` +
-      T(c[0]!, c[1]!, sg.wall.behind!.trim(), { size: Math.min(2.6, bs * 0.45), anchor: 'middle', base: 'central', rot: textRot(sg) }));
+      T(c[0]!, c[1]!, text, { size, anchor: 'middle', base: 'central', rot: textRot(sg) }));
   }
   // выпрямленные снимки стен — только на экране (decisions.md, этап 9)
   if (opts.wallImages) for (const wp of st.wallPhotos) P.push(wallImage(g, st, wp, opts.wallImages[wp.id]));
@@ -120,9 +126,18 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
     else P.push(T(outside ? r.x + r.w + 1.2 : r.x + r.w - 3.2, mid[1], label, o));
   }
 
-  /* развёртка потолка (формат 15): за развёрткой одной стены, как на рисунках в учебниках */
+  /* потолок: в углу листа, уменьшенный (формат 16), или развёрткой за стеной, как на рисунках в учебниках (формат 15) */
   const ceilD = ceilPath(g);
-  if (ceilD && g.ceil) {
+  if (ceilD && g.ceil?.kind === 'corner') {
+    const c = g.ceil, bg = `<path d="${ceilD}" fill="#fff" stroke="${pal.grey}" stroke-width="0.25"/>`;
+    P.push(opts.screen && !opts.touch ? `<g data-ceil="1" style="cursor:move">${bg}</g>` : bg);
+    // подпись над потолком, от края к плану — чтобы не уйти за лист; уменьшение — словами, в масштабе — свой масштаб
+    const r = ceilRect(g)!, n = Math.round(1 / c.k), right = c.corner.endsWith('r');
+    const how = n > 1 ? (sc ? `М 1:${st.sheet.scale * n}` : `уменьшено в ${n} раза`) : '';
+    const tx = right ? r.x + r.w : r.x, o = { anchor: right ? 'end' : 'start', fill: pal.grey } as const;
+    P.push(T(tx, r.y - (how ? 4.4 : 1.4), 'ПОТОЛОК (вид снизу)', { ...o, size: 2.5, weight: 700 }));
+    if (how) P.push(T(tx, r.y - 1.2, how, { ...o, size: 2.1 }));
+  } else if (ceilD && g.ceil?.kind === 'wall') {
     const sg = g.ceil.sg, bg = `<path d="${ceilD}" fill="#fff" stroke="${pal.grey}" stroke-width="0.25"/>`;
     // на экране потолок можно взять за пустое место и отнести в сторону, как развёртку стены
     P.push(opts.screen && !opts.touch ? `<g data-ceil="1" style="cursor:move">${bg}</g>` : bg);
@@ -139,6 +154,14 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
     else if (sg.side === 'bottom') P.push(T(r.x + r.w / 2, r.y + r.h - 1.6, label, o));
     else if (sg.side === 'left') P.push(T(r.x + 3.2, r.y + r.h / 2, label, o));
     else P.push(T(r.x + r.w - 3.2, r.y + r.h / 2, label, o));
+  }
+  // буквы стен у краёв потолка: видно, какой край у какой стены (вид снизу — зеркально полу)
+  if (ceilD) {
+    for (const sg of g.segs) {
+      const mx = sg.ax + sg.ux * sg.len / 2, my = sg.ay + sg.uy * sg.len / 2;
+      const p = ceilPt(g, mx, my)!, q = ceilPt(g, mx + sg.nx * 0.5, my + sg.ny * 0.5)!, d = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1;
+      P.push(T(p[0] + (q[0] - p[0]) / d * 2, p[1] + (q[1] - p[1]) / d * 2, sg.wall.letter, { size: 2.1, anchor: 'middle', base: 'central', fill: pal.grey, weight: 700 }));
+    }
   }
 
   /* элементы на развёртке */
@@ -230,7 +253,8 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
     if (it.type === 'lamp') {
       // светильник — на развёртке потолка; потолка на листе нет — пунктиром на полу, как проектор
       const c = ceilPt(g, toM(it.x.mm + it.w.mm / 2), toM(it.y.mm + it.d.mm / 2));
-      const [lx, ly] = c ?? [x + w / 2, y + d / 2], r = Math.min(w, d) / 2;
+      // на уменьшенном потолке в углу — и светильник уменьшен
+      const [lx, ly] = c ?? [x + w / 2, y + d / 2], r = (Math.min(w, d) / 2) * (c && g.ceil?.kind === 'corner' ? g.ceil.k : 1);
       let lb = lampSymbol(lx, ly, r, !c);
       if (it.label) lb += T(lx, ly + r + 2.2, it.label, { size: 1.8, anchor: 'middle' });
       lb = tint(lb, !measured(it.x, it.y, it.w, it.d));
@@ -357,7 +381,9 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
     if (cr && dx > cr.x && dx < cr.x + cr.w && cr.y < fy + W * s && cr.y + cr.h > fy) dx = cr.x - 5;
     P.push(clickable(dimH(fx, fx + L * s, dy, dimTxt('L (длина помещения)', L, size.L)), 'room:L'));
     P.push(clickable(dimV(dx, fy, fy + W * s, dimTxt('W (ширина)', W, size.W)), 'room:W'));
-    P.push(clickable(dimV(fx + L * s + 6, fy - h * s - bTop, fy - bTop, dimTxt('h', h, st.room.height)), 'room:h'));
+    // потолок в углу справа сверху занял место размера h — размер слева от развёртки А
+    const hx = g.ceil?.kind === 'corner' && g.ceil.corner === 'tr' ? fx - 6 : fx + L * s + 6;
+    P.push(clickable(dimV(hx, fy - h * s - bTop, fy - bTop, dimTxt('h', h, st.room.height)), 'room:h'));
   } else if (!noRoom(st.room)) {
     // нарисованная комната: длина у каждой стены — внутри пола вдоль стены; h — у конца стены А
     for (const sg of allSegs) {
@@ -407,11 +433,22 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
       if (m.place === 'wall') {
         [x, y] = unf(g, sg, toM(m.off.mm), toM(m.z.mm));
       } else {
-        const p = unf(g, sg, toM(m.off.mm), h), o = outward(sg);
-        x = p[0] + o[0] * 7; y = p[1] + o[1] * 7;
-        extra += Ln(x, y, p[0], p[1], 'stroke="#111" stroke-width="0.15" stroke-dasharray="0.8 0.5"');
-        const vert = isVert(sg);
-        extra += T(x + (vert ? 0 : 4), y + (vert ? 5 : 0.9), 'снаружи', { size: 1.9, anchor: vert ? 'middle' : 'start', fill: '#333' });
+        const o = outward(sg), vert = isVert(sg), off = toM(m.off.mm);
+        if (sg.band) {
+          // за стеной вписано, что там («Двор дома») — метка в этой полоске, напротив своего места (0.20.1)
+          const q = wallPt(g, sg, off), k = g.t + (sg.band * g.s) / 2;
+          x = q[0] + o[0] * k; y = q[1] + o[1] * k;
+        } else {
+          // полоски нет — за развёрткой; у этой стены потолок — за его дальним краем, иначе метка легла бы на потолок
+          let p = unf(g, sg, off, h);
+          if (g.ceil?.kind === 'wall' && g.ceil.sg.wall.id === sg.wall.id) {
+            const dmax = Math.max(...g.segs.map(s2 => (s2.ax - sg.ax) * sg.nx + (s2.ay - sg.ay) * sg.ny));
+            p = ceilPt(g, sg.ax + sg.ux * off + sg.nx * dmax, sg.ay + sg.uy * off + sg.ny * dmax)!;
+          }
+          x = p[0] + o[0] * 7; y = p[1] + o[1] * 7;
+          extra += Ln(x, y, p[0], p[1], 'stroke="#111" stroke-width="0.15" stroke-dasharray="0.8 0.5"');
+          extra += T(x + (vert ? 0 : 4), y + (vert ? 5 : 0.9), 'снаружи', { size: 1.9, anchor: vert ? 'middle' : 'start', fill: '#333' });
+        }
       }
     }
     let b = extra + (opts.touch ? `<circle cx="${x}" cy="${y}" r="6" fill="transparent"/>` : '') + marker(x, y, m.n, 2.8, pal.red);

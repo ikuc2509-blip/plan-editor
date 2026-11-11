@@ -119,3 +119,25 @@ test('осмотр аудитории от начала до файла', async 
   await page.getByRole('button', { name: 'На месте' }).click();
   await expect(page.getByRole('heading', { name: 'На месте' })).toBeVisible();
 });
+
+test('новый осмотр: шаги до того, как нарисована комната, не ломают экран', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto('/');
+  const nav = (name: string) => page.getByRole('navigation', { name: 'Шаги осмотра' }).getByRole('button', { name });
+  await nav('Помещение').click();
+  await page.getByRole('button', { name: 'Новый осмотр' }).click();
+  // комнаты нет — на «Проёмах» подсказка и кнопка назад, а не падение
+  await nav('Проёмы').click();
+  await expect(page.getByText('Сначала нарисуйте её или возьмите заготовку')).toBeVisible();
+  for (const s of ['Метки', 'Фото', 'Замеры', 'Итог']) await nav(s).click();
+  await nav('Проёмы').click();
+  await page.getByRole('button', { name: 'К шагу «Помещение»' }).click();
+  await expect(page.getByRole('button', { name: 'Взять заготовку (прямоугольник)' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Взять заготовку (прямоугольник)' }).first().click();
+  await nav('Проёмы').click();
+  await expect(page.getByRole('button', { name: /^Стена А/ })).toBeVisible();
+  // экран один: шапка не задвоилась
+  await expect(page.locator('#app > .onsite')).toHaveCount(1);
+  expect(errors).toEqual([]);
+});

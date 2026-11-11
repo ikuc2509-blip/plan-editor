@@ -15,8 +15,10 @@ export type PlanV1 = Omit<PlanV3, 'version' | 'sheet'> & {
   sheet: { mode: 'schematic' | 'scale'; scale: number; showDims: boolean; showTies: boolean };
 };
 
+/** Формат версии 15 (потолок, что за стеной): потолок только у стены */
+export type PlanV15 = Omit<Plan, 'version' | 'ceiling'> & { version: 15; ceiling: Omit<Plan['ceiling'], 'place'> };
 /** Формат версии 14 (время осмотра): без развёртки потолка, меток на потолке и светильников */
-export type PlanV14 = Omit<Plan, 'version' | 'ceiling'> & { version: 14 };
+export type PlanV14 = Omit<PlanV15, 'version' | 'ceiling'> & { version: 14 };
 /** Формат версии 13 (фототаблица): без времени начала и окончания осмотра */
 export type PlanV13 = Omit<PlanV14, 'version' | 'stamp'> & { version: 13; stamp: Omit<Plan['stamp'], 'timeStart' | 'timeEnd'> };
 /** Формат версии 12 (этап 12): без фототаблицы — у снимков нет подписи, шапки нет */
@@ -60,6 +62,7 @@ const UPGRADES: Record<number, (o: Record<string, unknown>) => Record<string, un
   12: o => v12to13(o as unknown as PlanV12) as unknown as Record<string, unknown>,
   13: o => v13to14(o as unknown as PlanV13) as unknown as Record<string, unknown>,
   14: o => v14to15(o as unknown as PlanV14) as unknown as Record<string, unknown>,
+  15: o => v15to16(o as unknown as PlanV15) as unknown as Record<string, unknown>,
 };
 
 /** Распознать сохранённый план и привести к текущей версии формата */
@@ -165,8 +168,13 @@ export function v13to14(p: PlanV13): PlanV14 {
 }
 
 /** 14 → 15: потолка на листе не было — развёртка потолка скрыта, место выберется само */
-export function v14to15(p: PlanV14): Plan {
+export function v14to15(p: PlanV14): PlanV15 {
   return { ...p, version: 15, ceiling: { show: false, wallId: '' } };
+}
+
+/** 15 → 16: потолок остаётся там, где был, — у стены; угол — для новых осмотров */
+export function v15to16(p: PlanV15): Plan {
+  return { ...p, version: 16, ceiling: { ...p.ceiling, place: 'wall' } };
 }
 
 function checkShape(o: Record<string, unknown>): boolean {

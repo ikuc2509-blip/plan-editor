@@ -285,8 +285,9 @@ test('потолок: развёртка у стены В, метка на по�
   await page.getByRole('textbox', { name: 'За стеной Б' }).fill('Коридор');
   await expect(sheet).toContainText('Коридор');
   await page.getByRole('checkbox', { name: 'развёртка потолка' }).check();
-  await expect(sheet).toContainText('ПОТОЛОК (развёртка у стены А)');
-  await page.getByRole('combobox', { name: 'Где на листе' }).selectOption({ label: 'у стены В' });
+  // по умолчанию — в углу между А и Г, уменьшенный (формат 16)
+  await expect(sheet).toContainText('ПОТОЛОК (вид снизу)');
+  await page.getByRole('combobox', { name: 'Где на листе' }).selectOption({ label: 'у стены В (слева)' });
   await expect(sheet).toContainText('ПОТОЛОК (развёртка у стены В)');
 
   // метка — на потолок

@@ -1,7 +1,7 @@
 // Геометрия развёртки по списку стен-отрезков: пол в центре, каждая стена
 // «откинута» наружу от своего отрезка. Координаты листа — в мм листа (A3 420×297),
 // размеры помещения здесь — в метрах (из миллиметров модели).
-import type { Ceiling, Room, SheetOptions, Wall } from '../model/types';
+import type { Ceiling, CeilCorner, Room, SheetOptions, Wall } from '../model/types';
 import { roomExtent } from '../model/room';
 import { toM } from '../model/units';
 
@@ -51,12 +51,14 @@ export interface Geom {
   ceil: CeilAt | null;
 }
 
-/** Где потолок: за развёрткой стены sg; сдвиг — развёртки этой стены и свой, м */
-export interface CeilAt {
-  sg: Seg;
-  shx: number;
-  shy: number;
-}
+/**
+ * Где потолок. У стены — за развёрткой стены sg, зеркально полу; сдвиг — развёртки этой стены и свой, м.
+ * В углу листа (формат 16) — отдельно, уменьшенный в 1/k раз, вид снизу: зеркально полу сверху вниз;
+ * ox, oy — левый верхний угол потолка в координатах пола, м.
+ */
+export type CeilAt =
+  | { kind: 'wall'; sg: Seg; shx: number; shy: number }
+  | { kind: 'corner'; corner: CeilCorner; k: number; ox: number; oy: number; minX: number; maxY: number };
 
 /** Прямоугольник на листе, мм */
 export interface Area {
@@ -152,22 +154,42 @@ function unfoldedSize(room: Room, annexes: Annexes = [], ceil: CeilAt | null = n
  * и дальше на высоту стены (и её толщину — развёртка откидывается от наружной грани).
  */
 function ceilM(c: CeilAt, h: number, x: number, y: number): Pt {
+  if (c.kind === 'corner') return [c.ox + c.k * (x - c.minX), c.oy + c.k * (c.maxY - y)];
   const sg = c.sg, d = (x - sg.ax) * sg.nx + (y - sg.ay) * sg.ny, k = 2 * d + h + WALL_T + sg.band;
   return [x - sg.nx * k + c.shx, y - sg.ny * k + c.shy];
 }
 
-/** Стена, за развёрткой которой лежит потолок: выбранная, а если её нет или развёртка скрыта — где больше места */
-function ceilOf(room: Room, area: Area, annexes: Annexes, c: Ceiling | undefined, band = 0): CeilAt | null {
+/** Во сколько раз уменьшать потолок в углу: крупнейший, при котором план на листе не мельчает */
+const CEIL_K = [1, 1 / 2, 1 / 3, 1 / 4];
+
+/**
+ * Где потолок. В углу — уменьшенный так, чтобы план не мельчал (в масштабе — чтобы помещался в масштабе s).
+ * У стены — выбранной, а если её нет или развёртка скрыта — где больше места.
+ */
+function ceilOf(room: Room, area: Area, annexes: Annexes, c: Ceiling | undefined, band = 0, s?: number): CeilAt | null {
   if (!c?.show || !room.walls.length) return null;
+  const fit = (cc: CeilAt | null) => { const { totW, totH } = unfoldedSize(room, annexes, cc, band); return Math.min((area.w - 2 * PAD) / totW, (area.h - 2 * PAD) / totH); };
+  if (c.place && c.place !== 'wall') {
+    const e = roomExtent(room), x0 = toM(e.minX), x1 = toM(e.maxX), y0 = toM(e.minY), y1 = toM(e.maxY);
+    const right = c.place.endsWith('r'), top = c.place.startsWith('t');
+    // угол — у наружных граней стен: потолок встаёт в пустой угол между развёртками и дальше от плана
+    const ax = right ? x1 + WALL_T : x0 - WALL_T, ay = top ? y0 - WALL_T : y1 + WALL_T;
+    const at = (k: number): CeilAt => ({
+      kind: 'corner', corner: c.place as CeilCorner, k, minX: x0, maxY: y1,
+      ox: (right ? ax : ax - k * (x1 - x0)) + toM(c.dx ?? 0), oy: (top ? ay - k * (y1 - y0) : ay) + toM(c.dy ?? 0),
+    });
+    const need = s ?? fit(null);
+    return at(CEIL_K.find(k => fit(at(k)) >= need - 1e-9) ?? CEIL_K[CEIL_K.length - 1]!);
+  }
   const segs = roomSegs(room, annexes, band), hidden = hiddenWalls(segs, annexes.map(a => a.walls.map(toSeg)));
-  const at = (sg: Seg): CeilAt => ({ sg, shx: sg.shx + toM(c.dx ?? 0), shy: sg.shy + toM(c.dy ?? 0) });
+  const at = (sg: Seg): CeilAt => ({ kind: 'wall', sg, shx: sg.shx + toM(c.dx ?? 0), shy: sg.shy + toM(c.dy ?? 0) });
   const ok = segs.filter(sg => !hidden.has(sg.wall.id));
   const own = ok.find(sg => sg.wall.id === c.wallId);
   if (own) return at(own);
   // где больше места: при каком положении весь план на листе выходит крупнее
   let best: CeilAt | null = null, bestK = -1;
   for (const sg of ok) {
-    const { totW, totH } = unfoldedSize(room, annexes, at(sg), band), k = Math.min(area.w / totW, area.h / totH);
+    const k = fit(at(sg));
     if (k > bestK + 1e-9) { best = at(sg); bestK = k; }
   }
   return best;
@@ -176,7 +198,7 @@ function ceilOf(room: Room, area: Area, annexes: Annexes, c: Ceiling | undefined
 /** Помещается ли развёртка в область листа в масштабе 1:scale */
 export function fitsAt(room: Room, area: Area, scale: number, annexes: Annexes = [], ceiling?: Ceiling): boolean {
   const s = 1000 / scale, band = BAND_MM / s;
-  const { totW, totH } = unfoldedSize(room, annexes, ceilOf(room, area, annexes, ceiling, band), band);
+  const { totW, totH } = unfoldedSize(room, annexes, ceilOf(room, area, annexes, ceiling, band, s), band);
   return totW * s <= area.w - 2 * PAD + 0.01 && totH * s <= area.h - 2 * PAD + 0.01;
 }
 
@@ -201,14 +223,14 @@ export function geom(room: Room, sheet: SheetOptions, area: Area, annexes: Annex
   };
   const band = BAND_MM / (sheet.mode === 'scale' ? 1000 / sheet.scale : fitS(0));
   const segs = roomSegs(room, annexes, band);
-  const ceil = ceilOf(room, area, annexes, ceiling, band);
+  const ceil = ceilOf(room, area, annexes, ceiling, band, sheet.mode === 'scale' ? 1000 / sheet.scale : undefined);
   const { e, h, minX, minY, totW, totH } = unfoldedSize(room, annexes, ceil, band);
   const s = sheet.mode === 'scale' ? 1000 / sheet.scale : Math.min((area.w - 2 * pad) / totW, (area.h - 2 * pad) / totH);
   const fits = totW * s <= area.w - 2 * pad + 0.01 && totH * s <= area.h - 2 * pad + 0.01;
   const fx = area.x + (area.w - totW * s) / 2 - minX * s, fy = area.y + (area.h - totH * s) / 2 - minY * s;
   const noUnfold = hiddenWalls(segs, annexSegs);
   // стена потолка — та же, что в segs
-  const ceilAt = ceil ? { ...ceil, sg: segs.find(sg => sg.wall.id === ceil.sg.wall.id)! } : null;
+  const ceilAt = ceil?.kind === 'wall' ? { ...ceil, sg: segs.find(sg => sg.wall.id === ceil.sg.wall.id)! } : ceil;
   return { L: toM(e.maxX - e.minX), W: toM(e.maxY - e.minY), h, s, t: WALL_T * s, fx, fy, fits, segs, annexSegs, noUnfold, ceil: ceilAt };
 }
 
@@ -245,6 +267,7 @@ export function ceilPt(g: Geom, x: number, y: number): Pt | null {
 export function ceilToFloor(g: Geom, px: number, py: number): Pt | null {
   const c = g.ceil;
   if (!c) return null;
+  if (c.kind === 'corner') { const qx = (px - g.fx) / g.s, qy = (py - g.fy) / g.s; return [c.minX + (qx - c.ox) / c.k, c.maxY - (qy - c.oy) / c.k]; }
   const sg = c.sg, qx = (px - g.fx) / g.s - c.shx, qy = (py - g.fy) / g.s - c.shy;
   // ceilM наоборот: расстояние от стены вглубь пола d по расстоянию наружу на потолке
   const d = -((qx - sg.ax) * sg.nx + (qy - sg.ay) * sg.ny) - g.h - WALL_T - sg.band, k = 2 * d + g.h + WALL_T + sg.band;
@@ -254,6 +277,7 @@ export function ceilToFloor(g: Geom, px: number, py: number): Pt | null {
 /** Сдвиг мыши по потолку (мм листа) → сдвиг по полу (мм листа): потолок зеркален полу */
 export function ceilDelta(g: Geom, dx: number, dy: number): Pt {
   if (!g.ceil) return [dx, dy];
+  if (g.ceil.kind === 'corner') return [dx / g.ceil.k, -dy / g.ceil.k];
   const { nx, ny } = g.ceil.sg, k = 2 * (dx * nx + dy * ny);
   return [dx - nx * k, dy - ny * k];
 }
