@@ -1,6 +1,7 @@
 // Своя комната (этап 12): рисование щелчками по углам, заготовка, «нарисовать заново».
 import { signal } from '@preact/signals';
 import type { Point } from '../model/types';
+import { atXY } from '../model/types';
 import * as A from '../model/actions';
 import { closes, snapCorner } from '../geometry/draw';
 import { rectPts, unionOrtho } from '../geometry/union';
@@ -71,7 +72,7 @@ export function takeTemplate(): void {
 /** Убрать комнату и нарисовать заново (окна, двери и метки на стенах уйдут) */
 export function redrawRoom(): void {
   const p = plan.value;
-  const onWalls = p.wallItems.length + p.markers.filter(m => m.place !== 'floor').length;
+  const onWalls = p.wallItems.length + p.markers.filter(m => !atXY(m)).length;
   if (!confirm(onWalls ? `Убрать комнату? Окна, двери и метки на стенах (${onWalls}) тоже уберутся. Отменить можно кнопкой ↶.` : 'Убрать комнату и нарисовать заново? Отменить можно кнопкой ↶.')) return;
   dispatch(A.clearRoom);
   startDraw();
@@ -115,7 +116,7 @@ export function applyShape(a: Point, b: Point, annex = false): void {
   if (!p.room.walls.length) { dispatch(q => A.drawRoom(q, r)); toast('Комната готова. Можно пристроить ещё прямоугольник или вписать длины стен'); return; }
   const u = unionOrtho([roomCorners(p.room), r]);
   if (!u.ok) { toast(WHY[u.why]); return; }
-  const lost = p.wallItems.length + p.markers.filter(m => m.place !== 'floor').length;
+  const lost = p.wallItems.length + p.markers.filter(m => !atXY(m)).length;
   if (lost && !confirm(`Стены комнаты перестроятся: окна, двери и метки на стенах (${lost}) уберутся. Продолжить? Отменить можно кнопкой ↶.`)) return;
   dispatch(q => A.drawRoom(q, u.pts));
   toast('Прямоугольник слит с комнатой. Буквы стен назначены заново');

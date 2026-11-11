@@ -1,15 +1,16 @@
 // План → SVG листа A3 или A4. Один и тот же код рисует лист на экране, в SVG, PNG и PDF.
 import type { Callout, Dim, ItemType, Marker, Mm, Plan, Selection, Stamp, WallPhoto } from '../model/types';
+import { atXY } from '../model/types';
 import { frameSpan } from '../model/wallPhotos';
 import { IT_TYPES, WI_TYPES } from '../model/labels';
 import { annexName, isRect, noRoom, rectSizeOf, wallsByLetter } from '../model/room';
 import { tieOf } from '../model/measure';
 import { toM } from '../model/units';
-import { floorPt, geom, inward, outward, planSegOf, segOf, textRot, unf, unfRect, wallPt, type Geom, type Seg } from '../geometry/unfold';
+import { ceilPath, ceilPt, ceilRect, floorPt, geom, inward, outward, planSegOf, segOf, textRot, unf, unfRect, wallPt, type Geom, type Seg } from '../geometry/unfold';
 import { gridLineStep } from '../geometry/rotate';
 import { measureNote } from '../model/measure';
 import { layoutFor, type Layout } from './layout';
-import { LEGEND_BOX, SYMBOL_TYPES, itemSymbol } from './symbols';
+import { LEGEND_BOX, SYMBOL_TYPES, itemSymbol, lampSymbol } from './symbols';
 import { palette, type Palette } from './style';
 import { Ln, R, T, esc, fmt, marker, wrap } from './svg';
 
@@ -36,11 +37,11 @@ const measured = (...ds: Dim[]): boolean => ds.every(d => d.status === 'measured
 const gray = (svg: string): string => svg.replace(/#111\b/g, GRAY);
 
 export const sheetLayout = (st: Plan): Layout => layoutFor(st.sheet.paper);
-export const sheetGeom = (st: Plan): Geom => geom(st.room, st.sheet, sheetLayout(st).area, st.annexes);
+export const sheetGeom = (st: Plan): Geom => geom(st.room, st.sheet, sheetLayout(st).area, st.annexes, st.ceiling);
 
 /** Метка, положение которой не замерено */
 function markerApprox(m: Marker): boolean {
-  if (m.place === 'floor') return !measured(m.x, m.y);
+  if (atXY(m)) return !measured(m.x, m.y);
   if (m.place === 'wall') return !measured(m.off, m.z);
   return !measured(m.off);
 }
@@ -92,6 +93,16 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
       P.push(Ln(from[0]!, from[1]!, o[0], o[1], `stroke="${pal.grey}" stroke-width="0.25" stroke-dasharray="1.5 1"`));
     }
   }
+  // полоска «что за стеной» между стеной и развёрткой, как на рисунках в учебниках (формат 15)
+  for (const sg of allSegs) {
+    if (!sg.band) continue;
+    const bs = sg.band * g.s, a = wallPt(g, sg, 0), b = wallPt(g, sg, sg.len), o = outward(sg);
+    const at = (p: readonly number[], k: number) => [p[0]! + o[0] * k, p[1]! + o[1] * k];
+    const pts = [at(a, g.t), at(b, g.t), at(b, g.t + bs), at(a, g.t + bs)].map(p => p.map(v => +v.toFixed(3)).join(',')).join(' ');
+    const mid = wallPt(g, sg, sg.len / 2), c = at(mid, g.t + bs / 2);
+    P.push(`<polygon points="${pts}" fill="#fff" stroke="#111" stroke-width="0.25"/>` +
+      T(c[0]!, c[1]!, sg.wall.behind!.trim(), { size: Math.min(2.6, bs * 0.45), anchor: 'middle', base: 'central', rot: textRot(sg) }));
+  }
   // выпрямленные снимки стен — только на экране (decisions.md, этап 9)
   if (opts.wallImages) for (const wp of st.wallPhotos) P.push(wallImage(g, st, wp, opts.wallImages[wp.id]));
   // линии сгиба
@@ -107,6 +118,27 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
     else if (sg.side === 'bottom') P.push(T(mid[0], outside ? r.y + r.h + 3.2 : r.y + r.h - 1.6, label, o));
     else if (sg.side === 'left') P.push(T(outside ? r.x - 1.2 : r.x + 3.2, mid[1], label, o));
     else P.push(T(outside ? r.x + r.w + 1.2 : r.x + r.w - 3.2, mid[1], label, o));
+  }
+
+  /* развёртка потолка (формат 15): за развёрткой одной стены, как на рисунках в учебниках */
+  const ceilD = ceilPath(g);
+  if (ceilD && g.ceil) {
+    const sg = g.ceil.sg, bg = `<path d="${ceilD}" fill="#fff" stroke="${pal.grey}" stroke-width="0.25"/>`;
+    // на экране потолок можно взять за пустое место и отнести в сторону, как развёртку стены
+    P.push(opts.screen && !opts.touch ? `<g data-ceil="1" style="cursor:move">${bg}</g>` : bg);
+    const a = unf(g, sg, 0, h), b = unf(g, sg, sg.len, h);
+    if (st.ceiling.dx || st.ceiling.dy) {
+      // отнесён — пунктир от края развёртки стены к краю потолка
+      const m = unf(g, sg, sg.len / 2, h), c = ceilPt(g, sg.ax + sg.ux * sg.len / 2, sg.ay + sg.uy * sg.len / 2)!;
+      P.push(Ln(m[0], m[1], c[0], c[1], `stroke="${pal.grey}" stroke-width="0.25" stroke-dasharray="1.5 1"`));
+    } else P.push(Ln(a[0], a[1], b[0], b[1], `stroke="${pal.grey}" stroke-width="0.25" stroke-dasharray="4 1 0.6 1"`));
+    // подпись — у дальнего от стены края, как у развёрток стен
+    const r = ceilRect(g)!, o = { size: 2.5, anchor: 'middle', weight: 700, fill: pal.grey, rot: textRot(sg) } as const;
+    const label = `ПОТОЛОК (развёртка у стены ${sg.wall.letter})`;
+    if (sg.side === 'top') P.push(T(r.x + r.w / 2, r.y + 3.6, label, o));
+    else if (sg.side === 'bottom') P.push(T(r.x + r.w / 2, r.y + r.h - 1.6, label, o));
+    else if (sg.side === 'left') P.push(T(r.x + 3.2, r.y + r.h / 2, label, o));
+    else P.push(T(r.x + r.w - 3.2, r.y + r.h / 2, label, o));
   }
 
   /* элементы на развёртке */
@@ -195,20 +227,25 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   if (opts.grid && floorD) P.push(gridLines(g, opts.grid, floorD));
   for (const it of st.items) {
     const [x, y] = floorPt(g, toM(it.x.mm), toM(it.y.mm)), w = toM(it.w.mm) * s, d = toM(it.d.mm) * s;
+    if (it.type === 'lamp') {
+      // светильник — на развёртке потолка; потолка на листе нет — пунктиром на полу, как проектор
+      const c = ceilPt(g, toM(it.x.mm + it.w.mm / 2), toM(it.y.mm + it.d.mm / 2));
+      const [lx, ly] = c ?? [x + w / 2, y + d / 2], r = Math.min(w, d) / 2;
+      let lb = lampSymbol(lx, ly, r, !c);
+      if (it.label) lb += T(lx, ly + r + 2.2, it.label, { size: 1.8, anchor: 'middle' });
+      lb = tint(lb, !measured(it.x, it.y, it.w, it.d));
+      if (selA('it', it.id)) lb += `<circle cx="${lx}" cy="${ly}" r="${r + 0.8}" ${SEL}/>`;
+      P.push(`<g data-kind="it" data-id="${it.id}" style="cursor:move">${lb}</g>`);
+      continue;
+    }
     let b = '';
-    const symbol = itemSymbol(it.type, x, y, w, d, itemFill(it.type, pal));
+    const symbol = itemSymbol(it.type, x, y, w, d, itemFill(it.type, pal), it.type === 'chair' ? pal.chairLine : '#111');
     if (symbol) {
       b += symbol;
     } else if (it.type === 'projector') {
       b += R(x, y, w, d, 'fill="none" stroke="#111" stroke-width="0.25" stroke-dasharray="1 0.6"') + Ln(x, y, x + w, y + d, 'stroke="#111" stroke-width="0.15"') + Ln(x + w, y, x, y + d, 'stroke="#111" stroke-width="0.15"');
-    } else if (it.type === 'teacher') {
-      b += R(x, y, w, d, `fill="${pal.teacher}" stroke="#111" stroke-width="0.35"`);
     } else if (it.type === 'lectern') {
       b += R(x, y, w, d, `fill="${pal.lectern}" stroke="#111" stroke-width="0.35"`) + T(x + w / 2, y + d / 2, 'К', { size: Math.min(w, d) * 0.6, anchor: 'middle', base: 'central', weight: 700 });
-    } else if (it.type === 'cabinet') {
-      b += R(x, y, w, d, `fill="${pal.wood}" stroke="#111" stroke-width="0.3"`) + Ln(x, y, x + w, y + d, 'stroke="#111" stroke-width="0.15"');
-    } else if (it.type === 'chair') {
-      b += R(x, y, w, d, `fill="${pal.chair}" stroke="${pal.chairLine}" stroke-width="0.2"`);
     } else {
       b += R(x, y, w, d, `fill="${itemFill(it.type, pal)}" stroke="#111" stroke-width="0.25"`);
     }
@@ -310,9 +347,17 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   const dimH = (x1: number, x2: number, y: number, txt: string) => Ln(x1, y, x2, y, 'stroke="#111" stroke-width="0.18"') + Ln(x1, y - 1.5, x1, y + 1.5, 'stroke="#111" stroke-width="0.18"') + Ln(x2, y - 1.5, x2, y + 1.5, 'stroke="#111" stroke-width="0.18"') + Ln(x1 - 0.9, y + 0.9, x1 + 0.9, y - 0.9, 'stroke="#111" stroke-width="0.35"') + Ln(x2 - 0.9, y + 0.9, x2 + 0.9, y - 0.9, 'stroke="#111" stroke-width="0.35"') + T((x1 + x2) / 2, y - 1.1, txt, { size: 2.4, anchor: 'middle' });
   const dimV = (x: number, y1: number, y2: number, txt: string) => Ln(x, y1, x, y2, 'stroke="#111" stroke-width="0.18"') + Ln(x - 1.5, y1, x + 1.5, y1, 'stroke="#111" stroke-width="0.18"') + Ln(x - 1.5, y2, x + 1.5, y2, 'stroke="#111" stroke-width="0.18"') + Ln(x - 0.9, y1 + 0.9, x + 0.9, y1 - 0.9, 'stroke="#111" stroke-width="0.35"') + Ln(x - 0.9, y2 + 0.9, x + 0.9, y2 - 0.9, 'stroke="#111" stroke-width="0.35"') + T(x - 1.1, (y1 + y2) / 2, txt, { size: 2.4, anchor: 'middle', rot: -90 });
   if (size) {
-    P.push(clickable(dimH(fx, fx + L * s, fy - h * s - 5, dimTxt('L (длина помещения)', L, size.L)), 'room:L'));
-    P.push(clickable(dimV(fx - h * s - 5, fy, fy + W * s, dimTxt('W (ширина)', W, size.W)), 'room:W'));
-    P.push(clickable(dimV(fx + L * s + 6, fy - h * s, fy, dimTxt('h', h, st.room.height)), 'room:h'));
+    // потолок (формат 15) лёг туда, где обычно размер, — размер выносится за потолок
+    const cr = ceilRect(g);
+    // полоски «что за стеной» отодвигают развёртки — и размеры вместе с ними
+    const bandOn = (side: Seg['side']) => Math.max(0, ...segs.filter(sg => sg.side === side).map(sg => sg.band * s));
+    const bTop = bandOn('top');
+    let dy = fy - h * s - 5 - bTop, dx = fx - h * s - 5 - bandOn('left');
+    if (cr && dy > cr.y && dy < cr.y + cr.h && cr.x < fx + L * s && cr.x + cr.w > fx) dy = cr.y - 5;
+    if (cr && dx > cr.x && dx < cr.x + cr.w && cr.y < fy + W * s && cr.y + cr.h > fy) dx = cr.x - 5;
+    P.push(clickable(dimH(fx, fx + L * s, dy, dimTxt('L (длина помещения)', L, size.L)), 'room:L'));
+    P.push(clickable(dimV(dx, fy, fy + W * s, dimTxt('W (ширина)', W, size.W)), 'room:W'));
+    P.push(clickable(dimV(fx + L * s + 6, fy - h * s - bTop, fy - bTop, dimTxt('h', h, st.room.height)), 'room:h'));
   } else if (!noRoom(st.room)) {
     // нарисованная комната: длина у каждой стены — внутри пола вдоль стены; h — у конца стены А
     for (const sg of allSegs) {
@@ -332,9 +377,13 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   /* метки */
   for (const m of st.markers) {
     let x: number, y: number, extra = '';
-    if (m.place === 'floor') {
+    if (atXY(m)) {
       const mx = toM(m.x.mm), my = toM(m.y.mm);
-      [x, y] = floorPt(g, mx, my);
+      // на потолке — та же точка, откинутая на развёртку потолка (формат 15); потолка нет — метка в примечаниях
+      const at = (a: number, b: number) => (m.place === 'ceiling' ? ceilPt(g, a, b) : floorPt(g, a, b));
+      const pt = at(mx, my);
+      if (!pt) continue;
+      [x, y] = pt;
       if (st.sheet.showTies) {
         // привязка к двум ближайшим стенам; от дальней стены расстояние зависит и от размера помещения
         const lab = (v: number, ...ds: Dim[]) => { if (measured(...ds)) return fmt(v); anyBlank = true; return '____'; };
@@ -342,12 +391,14 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
         const farDims = (axis: 'x' | 'y'): Dim[] => (size ? [axis === 'x' ? size.L : size.W] : st.room.walls.map(w => w.length));
         const tx = tieOf(st, m, 'x'), ty = tieOf(st, m, 'y');
         if (tx) {
-          const wx = fx + toM(tx.at) * s, labX = lab(toM(tx.mm), m.x, ...(tx.far ? farDims('x') : []));
-          extra += Ln(x, y, wx, y, `stroke="${pal.tie}" stroke-width="0.18" stroke-dasharray="1 0.6"`) + clickable(T((x + wx) / 2, y - 0.9, labX, { size: 1.9, anchor: 'middle', fill: pal.tie }), `tie:${m.id}:x`);
+          const [wx, wy] = at(toM(tx.at), my)!, labX = lab(toM(tx.mm), m.x, ...(tx.far ? farDims('x') : []));
+          const vert = Math.abs(wx - x) < Math.abs(wy - y);
+          extra += Ln(x, y, wx, wy, `stroke="${pal.tie}" stroke-width="0.18" stroke-dasharray="1 0.6"`) + clickable(vert ? T(x + 0.9, (y + wy) / 2, labX, { size: 1.9, fill: pal.tie, base: 'central' }) : T((x + wx) / 2, y - 0.9, labX, { size: 1.9, anchor: 'middle', fill: pal.tie }), `tie:${m.id}:x`);
         }
         if (ty) {
-          const wy = fy + toM(ty.at) * s, labY = lab(toM(ty.mm), m.y, ...(ty.far ? farDims('y') : []));
-          extra += Ln(x, y, x, wy, `stroke="${pal.tie}" stroke-width="0.18" stroke-dasharray="1 0.6"`) + clickable(T(x + 0.9, (y + wy) / 2, labY, { size: 1.9, fill: pal.tie, base: 'central' }), `tie:${m.id}:y`);
+          const [wx, wy] = at(mx, toM(ty.at))!, labY = lab(toM(ty.mm), m.y, ...(ty.far ? farDims('y') : []));
+          const vert = Math.abs(wx - x) < Math.abs(wy - y);
+          extra += Ln(x, y, wx, wy, `stroke="${pal.tie}" stroke-width="0.18" stroke-dasharray="1 0.6"`) + clickable(vert ? T(x + 0.9, (y + wy) / 2, labY, { size: 1.9, fill: pal.tie, base: 'central' }) : T((x + wx) / 2, y - 0.9, labY, { size: 1.9, anchor: 'middle', fill: pal.tie }), `tie:${m.id}:y`);
         }
       }
     } else {
@@ -401,16 +452,17 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   if (used.has('window_open')) sym((x, yy) => Ln(x + 1, yy + 3, x + 8, yy + 0.2, `stroke="${pal.red}" stroke-width="0.45"`), 'Створка окна, открытая внутрь');
   if (used.has('door')) sym((x, yy) => R(x + 1, yy, 8, 1.2, `fill="#fff" ${K} stroke-width="0.25"`) + Ln(x + 2, yy + 1.2, x + 2, yy + 4, `${K} stroke-width="0.3"`) + `<path d="M${x + 2} ${yy + 4} A3 3 0 0 0 ${x + 5} ${yy + 1.2}" fill="none" ${K} stroke-width="0.15" stroke-dasharray="0.8 0.5"/>`, 'Дверь (направление открывания)');
   if (used.has('radiator')) sym((x, yy) => R(x + 1, yy + 0.6, 8, 2, `fill="#fff" ${K} stroke-width="0.2"`) + [3, 5, 7].map(i => Ln(x + i, yy + 0.6, x + i, yy + 2.6, `${K} stroke-width="0.12"`)).join(''), 'Радиатор отопления');
-  if (used.has('desk') || used.has('table')) sym((x, yy) => R(x + 1, yy, 8, 3, `fill="${pal.wood}" ${K} stroke-width="0.25"`), 'Стол');
-  if (used.has('chair')) sym((x, yy) => R(x + 3.5, yy + 0.3, 2.4, 2.4, `fill="${pal.chair}" stroke="${pal.chairLine}" stroke-width="0.2"`), 'Стул');
-  if (used.has('teacher')) sym((x, yy) => R(x + 1, yy, 8, 3, `fill="${pal.teacher}" ${K} stroke-width="0.35"`), 'Стол преподавателя');
+  if (used.has('desk') || used.has('table')) sym((x, yy) => itemSymbol(used.has('desk') ? 'desk' : 'table', x + 1, yy, 8, 3, pal.wood)!, 'Стол');
+  if (used.has('chair')) sym((x, yy) => itemSymbol('chair', x + 3.6, yy + 0.1, 2.8, 2.8, pal.chair, pal.chairLine)!, 'Стул');
+  if (used.has('teacher')) sym((x, yy) => itemSymbol('teacher', x + 1, yy, 8, 3, pal.teacher)!, 'Стол преподавателя');
   if (used.has('lectern')) sym((x, yy) => R(x + 3.3, yy, 3, 3, `fill="${pal.lectern}" ${K} stroke-width="0.35"`) + T(x + 4.8, yy + 1.6, 'К', { size: 2, anchor: 'middle', base: 'central', weight: 700 }), 'Кафедра (трибуна)');
-  if (used.has('cabinet')) sym((x, yy) => R(x + 1, yy, 8, 3, `fill="${pal.wood}" ${K} stroke-width="0.3"`) + Ln(x + 1, yy, x + 9, yy + 3, `${K} stroke-width="0.15"`), 'Шкаф');
+  if (used.has('cabinet')) sym((x, yy) => itemSymbol('cabinet', x + 1, yy, 8, 3, pal.wood)!, 'Шкаф');
   for (const t of SYMBOL_TYPES) {
     if (!used.has(t)) continue;
     const [bw, bd] = LEGEND_BOX[t]!;
     sym((x, yy) => itemSymbol(t, x + 5 - bw / 2, yy + 1.5 - bd / 2, bw, bd, itemFill(t, pal))!, IT_TYPES[t]);
   }
+  if (used.has('lamp')) sym((x, yy) => lampSymbol(x + 4.8, yy + 1.5, 1.5, !g.ceil), IT_TYPES.lamp);
   if (used.has('projector')) sym((x, yy) => R(x + 3.3, yy, 3, 3, `fill="none" ${K} stroke-width="0.25" stroke-dasharray="1 0.6"`) + Ln(x + 3.3, yy, x + 6.3, yy + 3, `${K} stroke-width="0.15"`) + Ln(x + 6.3, yy, x + 3.3, yy + 3, `${K} stroke-width="0.15"`), 'Проектор (на потолке)');
   sym((x, yy) => R(x + 1, yy + 0.4, 8, 2.2, `fill="${pal.wall}" ${K} stroke-width="0.3"`) + [2, 4, 6, 8].map(i => Ln(x + i, yy + 2.6, x + i + 1.6, yy + 0.4, `stroke="${pal.hatch}" stroke-width="0.12"`)).join(''), 'Стена (толщина условная)');
   sym((x, yy) => Ln(x, yy + 1.5, x + 10, yy + 1.5, `stroke="${pal.grey}" stroke-width="0.25" stroke-dasharray="4 1 0.6 1"`), 'Линия сгиба (стены развёрнуты на пол)');
@@ -457,6 +509,8 @@ export function drawSheet(st: Plan, opts: DrawOpts = {}): string {
   if (mNote) notes.push(mNote);
   notes.push(isNaN(nv) ? 'Направление на север: ______________' : 'Направление на север указано стрелкой «С».');
   st.markers.filter(m => m.place === 'outside').forEach(m => notes.push(`Метка № ${m.n} находится вне помещения.`));
+  // развёртка потолка скрыта — метки на потолке только в примечаниях
+  if (!g.ceil) st.markers.filter(m => m.place === 'ceiling').forEach(m => notes.push(`Метка № ${m.n} находится на потолке.`));
   // перегородки к соседним помещениям — без развёрток (этап 12)
   const noElev = allSegsOf(st, g).filter(sg => g.noUnfold.has(sg.wall.id));
   const hidden = noElev.filter(sg => !sg.wall.elev?.hidden).map(sg => sg.wall.letter);

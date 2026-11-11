@@ -2,6 +2,7 @@
 import { signal } from '@preact/signals';
 import { useEffect, useState } from 'preact/hooks';
 import type { AutoFound, Callout, Dim, Item, ItemType, Marker, MarkerPlace, Mm, PhotoBox, Plan, WallItem, WallItemType } from '../../model/types';
+import { atXY } from '../../model/types';
 import { measureList, type MeasureRef, type MeasureRow } from '../../model/measure';
 import { formatMeters } from '../../model/units';
 import { StatusChip, openMeasure } from '../common/MeasureDialog';
@@ -104,8 +105,8 @@ const SCALE_OPTS: Record<'50' | '100' | '200', string> = { '50': '1:50', '100': 
 
 function RoomPanel() {
   const st = plan.value, lay = layoutFor(st.sheet.paper), sc = st.sheet.mode === 'scale';
-  const fits = !sc || fitsAt(st.room, lay.area, st.sheet.scale, st.annexes);
-  const better = fits ? null : smallerScaleThatFits(st.room, lay.area, st.sheet.scale, st.annexes);
+  const fits = !sc || fitsAt(st.room, lay.area, st.sheet.scale, st.annexes, st.ceiling);
+  const better = fits ? null : smallerScaleThatFits(st.room, lay.area, st.sheet.scale, st.annexes, st.ceiling);
   const size = rectSizeOf(st.room);
   return (
     <>
@@ -153,6 +154,8 @@ function RoomPanel() {
           </div>
         ))}
       </div>
+      <BehindFields />
+      <CeilingBox />
       <ElevHint />
       <h3>Шаблон</h3>
       <div class="row">
@@ -251,11 +254,46 @@ export function AnnexList() {
   );
 }
 
+/** Что за каждой стеной (формат 15): на листе — полоска с подписью между стеной и развёрткой */
+export function BehindFields() {
+  const st = plan.value;
+  if (noRoom(st.room)) return null;
+  return (
+    <>
+      <h3>Что за стенами</h3>
+      <div class="grid two">
+        {wallsByLetter(st.room).map(w => (
+          <Text key={w.id} label={'За стеной ' + w.letter} value={w.behind ?? ''} placeholder="коридор, двор дома…" onValue={v => dispatch(p => A.setWallBehind(p, w.id, v), 'behind:' + w.id)} />
+        ))}
+      </div>
+      <Hint text="Вписано — на листе между стеной и её развёрткой появится полоска с подписью.">Пусто — полоски нет, вписать можно когда угодно. У стены, к которой пристроено соседнее помещение, полоски нет: там его название.</Hint>
+    </>
+  );
+}
+
+/** Развёртка потолка (формат 15): показать и у какой стены */
+function CeilingBox() {
+  const st = plan.value, c = st.ceiling;
+  if (noRoom(st.room)) return null;
+  const opts: Record<string, string> = { '': 'где больше места' };
+  for (const w of wallsByLetter(st.room)) opts[w.id] = 'у стены ' + w.letter;
+  return (
+    <>
+      <h3>Потолок</h3>
+      <div class="grid two">
+        <Check label="развёртка потолка" checked={c.show} onValue={v => dispatch(p => A.setCeiling(p, { show: v }))} />
+        {c.show && <Select label="Где на листе" value={opts[c.wallId] ? c.wallId : ''} options={opts} onValue={v => dispatch(p => A.setCeiling(p, { wallId: v, dx: 0, dy: 0 }))} />}
+      </div>
+      <Hint text="Потолок откидывается за развёртку стены, как на рисунках в учебнике криминалистики.">Метку на потолке ставят на вкладке «Метки»: «Где — на потолке». Светильник — предмет «Светильник (на потолке)». Потолок можно взять мышью за пустое место и отнести в сторону.</Hint>
+    </>
+  );
+}
+
 /** Развёртки налезают — подсказка; отнесены — «вернуть на место» (этап 12) */
 function ElevHint() {
   const st = plan.value;
   const over = noRoom(st.room) ? [] : elevOverlaps(sheetGeom(st));
-  const moved = st.room.walls.some(w => w.elev?.dx || w.elev?.dy);
+  const moved = st.room.walls.some(w => w.elev?.dx || w.elev?.dy) || !!(st.ceiling.dx || st.ceiling.dy);
   return (
     <>
       {over.length > 0 && (
@@ -358,7 +396,7 @@ function ItemCard({ it }: { it: Item }) {
   return (
     <div class={cardClass(it.id)} data-card={it.id}>
       <div class="card-h">
-        <Select<ItemType> label="" value={it.type} options={IT_TYPES} onValue={v => dispatch(p => A.patch(p, 'items', it.id, { type: v }))} />
+        <Select<ItemType> label="" value={it.type} options={IT_TYPES} onValue={v => dispatch(p => { const q = A.patch(p, 'items', it.id, { type: v }); return v === 'lamp' ? A.setCeiling(q, { show: true }) : q; })} />
         <button class="del" onClick={() => removeObj('items', it.id)}>Удалить</button>
       </div>
       <div class="grid">
@@ -445,7 +483,7 @@ function ItemsPanel() {
   );
 }
 
-export const PLACES: Record<MarkerPlace, string> = { floor: 'на полу / мебели', wall: 'на стене', outside: 'вне помещения' };
+export const PLACES: Record<MarkerPlace, string> = { floor: 'на полу / мебели', wall: 'на стене', ceiling: 'на потолке', outside: 'вне помещения' };
 
 function MarkersPanel() {
   const st = plan.value;
@@ -477,8 +515,8 @@ export function MarkerCard({ m, walls }: { m: Marker; walls: Record<string, stri
       </div>
       <div class="grid">
         <Text label="№" value={m.n} onValue={v => set({ n: v }, `mk:${m.id}:n`)} />
-        <Select label="Где" value={m.place} options={PLACES} onValue={v => set({ place: v })} />
-        {m.place === 'floor' ? (
+        <Select label="Где" value={m.place} options={PLACES} onValue={v => dispatch(p => A.setMarkerPlace(p, m.id, v))} />
+        {atXY(m) ? (
           <>
             <Len label="X, м" value={m.x.mm} chip={chip(m.x, mkRef('x'))} onValue={len('x')} />
             <Len label="Y, м" value={m.y.mm} chip={chip(m.y, mkRef('y'))} onValue={len('y')} />

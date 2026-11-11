@@ -14,6 +14,8 @@ export const IT_TYPES: Record<ItemType, string> = {
   armchair: 'Кресло', nightstand: 'Тумба', dresser: 'Комод', shelf: 'Стеллаж', wardrobe: 'Шкаф-купе',
   writingDesk: 'Письменный стол', tv: 'Телевизор', computer: 'Компьютер', carpet: 'Ковёр', mirror: 'Зеркало',
   washer: 'Стиральная машина', shower: 'Душевая кабина', safe: 'Сейф', body: 'Контур тела человека',
+  // формат 15
+  lamp: 'Светильник (на потолке)',
   other: 'Другое',
 };
 
@@ -27,4 +29,5 @@ export const IT_SIZE: Record<ItemType, [Mm, Mm]> = {
   writingDesk: [1200, 600], tv: [1100, 250], computer: [600, 500], carpet: [2000, 1500], mirror: [800, 80],
   // голова — со стороны Y = 0
   washer: [600, 600], shower: [900, 900], safe: [500, 500], body: [600, 1800],
+  lamp: [500, 500],
 };

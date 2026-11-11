@@ -32,9 +32,9 @@ function placeMarker(s: Spot) {
   const id = uid();
   // палец не точнее сантиметров — округляем, как при перетаскивании
   const sn = (mm: number) => snapMm(mm, gridStep.value);
-  const at: A.MarkerAt = s.place === 'floor'
-    ? { place: 'floor', x: sn(s.x), y: sn(s.y) }
-    : { place: 'wall', wallId: s.wallId, off: sn(s.off), z: sn(s.z) };
+  const at: A.MarkerAt = s.place === 'wall'
+    ? { place: 'wall', wallId: s.wallId, off: sn(s.off), z: sn(s.z) }
+    : { place: s.place, x: sn(s.x), y: sn(s.y) };
   dispatch(p => A.addMarkerAt(p, id, at));
   sel.value = { kind: 'mk', id };
   placing.value = false;

@@ -3,10 +3,11 @@
 import { signal, type Signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Callout, Item, Marker, Mm, Plan, Point, SelKind, WallItem } from '../../model/types';
-import { moveCorner, moveTo, patch, setAngle, setSheet, setWallElev, snapItemXY, snapWallZ } from '../../model/actions';
+import { atXY } from '../../model/types';
+import { moveCorner, moveTo, patch, setAngle, setCeiling, setSheet, setWallElev, snapItemXY, snapWallZ } from '../../model/actions';
 import { drawSheet, sheetGeom, sheetLayout } from '../../render/sheet';
 import type { Box } from '../../render/layout';
-import { locate, segOf, unf, wallDelta, type Spot } from '../../geometry/unfold';
+import { ceilDelta, locate, segOf, unf, wallDelta, type Spot } from '../../geometry/unfold';
 import { angleFromHandle, snapAngle, snapMm } from '../../geometry/rotate';
 import { dispatch, endGesture, gridStep, plan, sel, tab, toast, zoom, type TabKey } from '../store';
 import type { MeasureRef } from '../../model/measure';
@@ -48,7 +49,7 @@ type Obj = WallItem | Item | Marker | Callout;
 interface Drag {
   /** move — объект; rot — ручка поворота; tip — кончик стрелки выноски; pan — сдвиг листа; corner — угол комнаты */
   mode: 'move' | 'rot' | 'tip' | 'pan' | 'corner' | 'shape' | 'elev' | 'aim';
-  /** развёртка, которую несут: стена и прежний сдвиг, мм */
+  /** развёртка, которую несут: стена (пусто — потолок) и прежний сдвиг, мм */
   elev?: { wallId: string; dx: Mm; dy: Mm };
   /** угол комнаты (этап 12) */
   corner?: number;
@@ -275,6 +276,10 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
       const wid = target.closest<SVGElement>('[data-elev]')!.dataset.elev!;
       const w = plan.value.room.walls.find(k => k.id === wid);
       drag.current = { mode: 'elev', key, start, moved: false, elev: { wallId: wid, dx: w?.elev?.dx ?? 0, dy: w?.elev?.dy ?? 0 } };
+    } else if (!onsite && target.closest('[data-ceil]')) {
+      // развёртка потолка — так же, как развёртка стены (формат 15)
+      const c = plan.value.ceiling;
+      drag.current = { mode: 'elev', key, start, moved: false, elev: { wallId: '', dx: c.dx ?? 0, dy: c.dy ?? 0 } };
     } else {
       // пустое место: снять выделение и сдвигать лист
       if (sel.value && !onSelect) sel.value = null;
@@ -322,7 +327,7 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
       // сдвиг — в мм пола, по 10 см (Alt — точнее)
       const el = d.elev!, st = e.altKey ? 10 : 100;
       const nx = Math.round((el.dx + (dx / g.s) * 1000) / st) * st, ny = Math.round((el.dy + (dy / g.s) * 1000) / st) * st;
-      dispatch(pl => setWallElev(pl, el.wallId, { dx: nx, dy: ny }), d.key);
+      dispatch(pl => (el.wallId ? setWallElev(pl, el.wallId, { dx: nx, dy: ny }) : setCeiling(pl, { dx: nx, dy: ny })), d.key);
       return;
     }
     if (d.mode === 'shape') {
@@ -357,10 +362,13 @@ export function Sheet({ onsite, full, onPlace, onSelect, mark }: SheetProps = {}
       dispatch(pl => patch(pl, 'callouts', id, { at: { x: sn(c.at.x / 1000 + dx / g.s), y: sn(c.at.y / 1000 + dy / g.s) } }), d.key);
       return;
     }
-    const onFloor = kind === 'it' || (kind === 'mk' && (q as Marker).place === 'floor');
+    const onFloor = kind === 'it' || (kind === 'mk' && atXY(q as Marker));
     if (onFloor) {
       const qq = q as Item | Marker;
-      let x = sn(qq.x.mm / 1000 + dx / g.s), y = sn(qq.y.mm / 1000 + dy / g.s);
+      // на потолке всё зеркально полу: мышь вправо — точка пола под ней тоже, но вдоль стены наоборот
+      const onCeil = !!g.ceil && (kind === 'mk' ? (qq as Marker).place === 'ceiling' : (qq as Item).type === 'lamp');
+      const [mx, my] = onCeil ? ceilDelta(g, dx, dy) : [dx, dy];
+      let x = sn(qq.x.mm / 1000 + mx / g.s), y = sn(qq.y.mm / 1000 + my / g.s);
       // мебель встаёт в ряд с соседней: край или середина на линии; видна направляющая (Alt — без этого)
       if (kind === 'it' && !e.altKey) {
         const s2 = snapItemXY(plan.value, id, x, y, (2 / g.s) * 1000);

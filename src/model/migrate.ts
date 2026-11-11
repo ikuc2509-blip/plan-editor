@@ -15,8 +15,10 @@ export type PlanV1 = Omit<PlanV3, 'version' | 'sheet'> & {
   sheet: { mode: 'schematic' | 'scale'; scale: number; showDims: boolean; showTies: boolean };
 };
 
+/** Формат версии 14 (время осмотра): без развёртки потолка, меток на потолке и светильников */
+export type PlanV14 = Omit<Plan, 'version' | 'ceiling'> & { version: 14 };
 /** Формат версии 13 (фототаблица): без времени начала и окончания осмотра */
-export type PlanV13 = Omit<Plan, 'version' | 'stamp'> & { version: 13; stamp: Omit<Plan['stamp'], 'timeStart' | 'timeEnd'> };
+export type PlanV13 = Omit<PlanV14, 'version' | 'stamp'> & { version: 13; stamp: Omit<Plan['stamp'], 'timeStart' | 'timeEnd'> };
 /** Формат версии 12 (этап 12): без фототаблицы — у снимков нет подписи, шапки нет */
 export type PlanV12 = Omit<PlanV13, 'version' | 'photos' | 'phototable'> & { version: 12; photos: Omit<Plan['photos'][number], 'caption' | 'arrows'>[] };
 /** Формат версии 11 (этап 12): развёртки стен всегда на своих местах (wall.elev нет — так и было) */
@@ -57,6 +59,7 @@ const UPGRADES: Record<number, (o: Record<string, unknown>) => Record<string, un
   11: o => v11to12(o as unknown as PlanV11) as unknown as Record<string, unknown>,
   12: o => v12to13(o as unknown as PlanV12) as unknown as Record<string, unknown>,
   13: o => v13to14(o as unknown as PlanV13) as unknown as Record<string, unknown>,
+  14: o => v14to15(o as unknown as PlanV14) as unknown as Record<string, unknown>,
 };
 
 /** Распознать сохранённый план и привести к текущей версии формата */
@@ -157,8 +160,13 @@ export function v12to13(p: PlanV12): PlanV13 {
 }
 
 /** 13 → 14: время начала и окончания осмотра не указано — на листе его нет */
-export function v13to14(p: PlanV13): Plan {
+export function v13to14(p: PlanV13): PlanV14 {
   return { ...p, version: 14, stamp: { ...p.stamp, timeStart: '', timeEnd: '' } };
+}
+
+/** 14 → 15: потолка на листе не было — развёртка потолка скрыта, место выберется само */
+export function v14to15(p: PlanV14): Plan {
+  return { ...p, version: 15, ceiling: { show: false, wallId: '' } };
 }
 
 function checkShape(o: Record<string, unknown>): boolean {

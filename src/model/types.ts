@@ -58,6 +58,8 @@ export interface Wall {
   length: Dim;
   /** развёртка стены: скрыта или отнесена в сторону (формат 12, этап 12); нет — на месте */
   elev?: WallElev;
+  /** что за стеной: «коридор», «двор дома» — полоска с подписью между стеной и развёрткой (формат 15); нет — полоски нет */
+  behind?: string;
 }
 
 /** Где развёртка стены на листе: сдвиг от обычного места, мм в координатах пола */
@@ -116,7 +118,9 @@ export type ItemType =
   | 'bed' | 'sofa' | 'fridge' | 'stove' | 'bath' | 'sink' | 'toilet' | 'column'
   // больше мебели и контур тела (формат 8)
   | 'armchair' | 'nightstand' | 'dresser' | 'shelf' | 'wardrobe' | 'writingDesk' | 'tv' | 'computer'
-  | 'carpet' | 'mirror' | 'washer' | 'shower' | 'safe' | 'body';
+  | 'carpet' | 'mirror' | 'washer' | 'shower' | 'safe' | 'body'
+  // светильник — на развёртке потолка (формат 15)
+  | 'lamp';
 
 /** Предмет на полу */
 export interface Item {
@@ -134,7 +138,10 @@ export interface Item {
   origin: Origin;
 }
 
-export type MarkerPlace = 'floor' | 'wall' | 'outside';
+export type MarkerPlace = 'floor' | 'wall' | 'outside' | 'ceiling';
+
+/** Метка в координатах пола: на полу или на потолке над этой точкой (формат 15) */
+export const atXY = (m: { place: MarkerPlace }): boolean => m.place === 'floor' || m.place === 'ceiling';
 
 export interface Marker {
   id: string;
@@ -142,7 +149,7 @@ export interface Marker {
   n: string;
   desc: string;
   place: MarkerPlace;
-  /** на полу */
+  /** на полу; на потолке — точка пола под ней */
   x: Dim;
   y: Dim;
   /** на стене и снаружи */
@@ -279,7 +286,8 @@ export const FORMAT_ID = 'plan-editor';
  * 11 — этап 12: лист цветной, как образец, или чёрно-белый (sheet.bw);
  * 12 — этап 12: развёртку стены можно скрыть или отнести в сторону (wall.elev);
  * 13 — фототаблица: подпись снимка (photo.caption), стрелки на снимке (photo.arrows) и шапка (phototable);
- * 14 — время начала и окончания осмотра (stamp.timeStart, stamp.timeEnd).
+ * 14 — время начала и окончания осмотра (stamp.timeStart, stamp.timeEnd);
+ * 15 — развёртка потолка (ceiling), метки на потолке (place: 'ceiling'), светильник (item lamp), что за стеной (wall.behind).
  */
 /** Точка на снимке, в долях ширины и высоты (0…1) */
 export interface PhotoPt {
@@ -307,7 +315,20 @@ export interface WallPhoto {
   opacity: number;
 }
 
-export const FORMAT_VERSION = 14;
+export const FORMAT_VERSION = 15;
+
+/**
+ * Развёртка потолка (формат 15): потолок откинут за развёртку одной стены наружу, как в учебниках
+ * криминалистики. Точка потолка хранится как точка пола под ней (x, y).
+ */
+export interface Ceiling {
+  show: boolean;
+  /** у какой стены; пусто — где больше места */
+  wallId: string;
+  /** отнесена в сторону, мм в координатах пола */
+  dx?: Mm;
+  dy?: Mm;
+}
 
 export interface Plan {
   format: typeof FORMAT_ID;
@@ -322,6 +343,7 @@ export interface Plan {
   wallPhotos: WallPhoto[];
   /** соседние помещения — на плане пола, без развёрток (этап 12) */
   annexes: Annex[];
+  ceiling: Ceiling;
   stamp: Stamp;
   /** шапка фототаблицы (формат 13) */
   phototable: PhotoTableHead;

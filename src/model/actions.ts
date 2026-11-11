@@ -2,8 +2,9 @@
 // так старые состояния можно хранить для отмены и повтора.
 // Неизменённые части переиспользуются (подложка-картинка не копируется).
 import type {
-  Callout, Dim, FrameEdge, Item, ItemType, Marker, MeasureMethod, Mm, Origin, Photo, PhotoTableHead, Plan, Point, SheetOptions, Stamp, Underlay, Wall, WallElev, WallItem, WallItemType, WallPhoto,
+  Callout, Ceiling, Dim, FrameEdge, Item, ItemType, Marker, MarkerPlace, MeasureMethod, Mm, Origin, Photo, PhotoTableHead, Plan, Point, SheetOptions, Stamp, Underlay, Wall, WallElev, WallItem, WallItemType, WallPhoto,
 } from './types';
+import { atXY } from './types';
 import { IT_SIZE } from './labels';
 import { LETTERS, createRectRoom, findWall, isRect, polygonWalls, rectSize, rectWalls, roomCorners, roomExtent, signedArea2, wallLength } from './room';
 import { unionOrtho } from '../geometry/union';
@@ -67,6 +68,21 @@ export function setRoomDimStatus(p: Plan, which: 'L' | 'W' | 'h', isMeasured: bo
 
 export function setWallName(p: Plan, wallId: string, name: string): Plan {
   return { ...p, room: { ...p.room, walls: p.room.walls.map(w => (w.id === wallId ? { ...w, name } : w)) } };
+}
+
+/** Что за стеной (формат 15); пусто — поле убирается, полоски на листе нет */
+export function setWallBehind(p: Plan, wallId: string, behind: string): Plan {
+  return {
+    ...p,
+    room: {
+      ...p.room,
+      walls: p.room.walls.map(w => {
+        if (w.id !== wallId) return w;
+        const { behind: _, ...rest } = w;
+        return behind.trim() ? { ...rest, behind } : rest;
+      }),
+    },
+  };
 }
 
 export const setSheet = (p: Plan, o: Partial<SheetOptions>): Plan => ({ ...p, sheet: { ...p.sheet, ...o } });
@@ -160,7 +176,9 @@ export function addItem(p: Plan, id: string, type: ItemType = 'table'): Plan {
     id, type, label: '', x: cond(Math.round(c.x - w / 2)), y: cond(Math.round(c.y - d / 2)), w: cond(w), d: cond(d),
     angle: 0, origin: { kind: 'manual' },
   };
-  return { ...p, items: [...p.items, o] };
+  // светильник рисуется на потолке — развёртка потолка появляется сама
+  const q = type === 'lamp' ? setCeiling(p, { show: true }) : p;
+  return { ...q, items: [...q.items, o] };
 }
 
 /** Угол поворота предмета: приводится к 0…360, до десятых долей градуса */
@@ -195,9 +213,9 @@ export function addMarker(p: Plan, id: string, wallId: string): Plan {
   return { ...p, markers: [...p.markers, o] };
 }
 
-/** Место новой метки на плане: пол или развёртка стены, мм */
+/** Место новой метки на плане: пол, потолок или развёртка стены, мм */
 export type MarkerAt =
-  | { place: 'floor'; x: Mm; y: Mm }
+  | { place: 'floor' | 'ceiling'; x: Mm; y: Mm }
   | { place: 'wall'; wallId: string; off: Mm; z: Mm };
 
 /** Новая метка там, куда коснулись на плане («На месте», этап 8); положение — «условно» */
@@ -205,7 +223,20 @@ export function addMarkerAt(p: Plan, id: string, at: MarkerAt): Plan {
   const q = addMarker(p, id, at.place === 'wall' ? at.wallId : 'A');
   return at.place === 'wall'
     ? patch(q, 'markers', id, { place: 'wall', off: cond(at.off), z: cond(at.z) })
-    : patch(q, 'markers', id, { x: cond(at.x), y: cond(at.y) });
+    : patch(q, 'markers', id, { place: at.place, x: cond(at.x), y: cond(at.y) });
+}
+
+/** Где метка; на потолок — развёртка потолка появляется на листе (формат 15) */
+export function setMarkerPlace(p: Plan, id: string, place: MarkerPlace): Plan {
+  const q = patch(p, 'markers', id, { place });
+  return place === 'ceiling' ? setCeiling(q, { show: true }) : q;
+}
+
+/** Развёртка потолка: показать, у какой стены, сдвиг; нулевой сдвиг не хранится */
+export function setCeiling(p: Plan, o: Partial<Ceiling>): Plan {
+  const c = { ...p.ceiling, ...o };
+  const { dx, dy, ...rest } = c;
+  return { ...p, ceiling: { ...rest, ...(dx ? { dx: Math.round(dx) } : {}), ...(dy ? { dy: Math.round(dy) } : {}) } };
 }
 
 export interface RowsParams {
@@ -270,7 +301,7 @@ function dropOrphans(p: Plan): Plan {
   return {
     ...p,
     wallItems: p.wallItems.filter(it => ok(it.wallId)),
-    markers: p.markers.filter(m => m.place === 'floor' || ok(m.wallId)),
+    markers: p.markers.filter(m => atXY(m) || ok(m.wallId)),
     wallPhotos: p.wallPhotos.filter(wp => ok(wp.wallId)),
   };
 }
@@ -315,7 +346,7 @@ export function setWallLength(p: Plan, wallId: string, mm: Mm): Plan {
   let q = shiftAnnexes(withCorners(p, st.pts), beyond, sx, sy);
   const mv = <T extends { x: Dim; y: Dim }>(o: T): T => (beyond(o.x.mm, o.y.mm) && o.x.status === 'conditional' && o.y.status === 'conditional'
     ? { ...o, x: withMm(o.x, o.x.mm + sx), y: withMm(o.y, o.y.mm + sy) } : o);
-  q = { ...q, items: q.items.map(mv), markers: q.markers.map(m => (m.place === 'floor' ? mv(m) : m)) };
+  q = { ...q, items: q.items.map(mv), markers: q.markers.map(m => (atXY(m) ? mv(m) : m)) };
   // сама стена — новая длина со статусом, который был
   return { ...q, room: { ...q.room, walls: q.room.walls.map(k => (k.id === wallId ? { ...k, length: withMm(w.length, mm) } : k)) } };
 }
@@ -414,7 +445,7 @@ export const renameAnnex = (p: Plan, id: string, name: string): Plan =>
 /** Убрать соседнее помещение: окна и двери на его стенах уходят вместе с ним */
 export function removeAnnex(p: Plan, id: string): Plan {
   const gone = new Set(p.annexes.find(a => a.id === id)?.walls.map(w => w.id) ?? []);
-  return { ...p, annexes: p.annexes.filter(a => a.id !== id), wallItems: p.wallItems.filter(it => !gone.has(it.wallId)), markers: p.markers.filter(m => m.place === 'floor' || !gone.has(m.wallId)) };
+  return { ...p, annexes: p.annexes.filter(a => a.id !== id), wallItems: p.wallItems.filter(it => !gone.has(it.wallId)), markers: p.markers.filter(m => atXY(m) || !gone.has(m.wallId)) };
 }
 
 /**
@@ -535,8 +566,8 @@ export function setWallElev(p: Plan, wallId: string, o: Partial<WallElev>): Plan
   };
 }
 
-/** Все развёртки — на свои места (скрытые остаются скрытыми) */
-export const resetElevs = (p: Plan): Plan => p.room.walls.reduce((q, w) => setWallElev(q, w.id, { dx: 0, dy: 0 }), p);
+/** Все развёртки и потолок — на свои места (скрытые остаются скрытыми) */
+export const resetElevs = (p: Plan): Plan => p.room.walls.reduce((q, w) => setWallElev(q, w.id, { dx: 0, dy: 0 }), setCeiling(p, { dx: 0, dy: 0 }));
 
 /* ——— мебель ровными рядами (этап 12, замечание проверки: «шанс случайно сдвинуть») ——— */
 

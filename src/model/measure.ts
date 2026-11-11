@@ -1,6 +1,7 @@
 // Замеры (этап 6, облегчённый вариант): какой размер замерен и чем, ввод замера,
 // чек-лист незамеренного, строка «Замеры произведены…» для примечаний.
 import type { Dim, DimStatus, Marker, MeasureMethod, Mm, Plan } from './types';
+import { atXY } from './types';
 import { IT_TYPES, WI_TYPES } from './labels';
 import { findWall, isRect, noRoom, rectSize } from './room';
 import { allWalls, patch, setAnnexWallLength, setRoomDimStatus, setRoomSize, setWallLength, setWallStatus } from './actions';
@@ -155,7 +156,7 @@ export function measureList(p: Plan): MeasureRow[] {
   }
   for (const m of p.markers) {
     const sel = { kind: 'mk', id: m.id } as const;
-    if (m.place === 'floor') { add({ t: 'tie', id: m.id, axis: 'x' }, 'Метки', sel); add({ t: 'tie', id: m.id, axis: 'y' }, 'Метки', sel); }
+    if (atXY(m)) { add({ t: 'tie', id: m.id, axis: 'x' }, 'Метки', sel); add({ t: 'tie', id: m.id, axis: 'y' }, 'Метки', sel); }
     else {
       add({ t: 'obj', col: 'markers', id: m.id, key: 'off' }, 'Метки', sel);
       if (m.place === 'wall') add({ t: 'obj', col: 'markers', id: m.id, key: 'z' }, 'Метки', sel);
@@ -170,7 +171,7 @@ function allDims(p: Plan): Dim[] {
     ...p.room.walls.map(w => w.length), p.room.height,
     ...p.wallItems.flatMap(i => [i.off, i.z, i.w, i.h]),
     ...p.items.flatMap(i => [i.x, i.y, i.w, i.d]),
-    ...p.markers.flatMap(m => (m.place === 'floor' ? [m.x, m.y] : m.place === 'wall' ? [m.off, m.z] : [m.off])),
+    ...p.markers.flatMap(m => (atXY(m) ? [m.x, m.y] : m.place === 'wall' ? [m.off, m.z] : [m.off])),
   ];
 }
 

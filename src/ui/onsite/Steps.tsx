@@ -15,7 +15,7 @@ import { dispatch, dirtySince, fileSavedAt, plan, protect, sel, toast } from '..
 import { Check, Hint, Len, Text } from '../common/fields';
 import { StatusChip } from '../common/MeasureDialog';
 import { openFile, saveToFile, setProtect } from '../project';
-import { AnnexList, MarkerCard, MeasurePanel, RoomShape, WallItemCard, WallLengths, newPlan, wallOpts } from '../editor/Side';
+import { AnnexList, BehindFields, MarkerCard, MeasurePanel, RoomShape, WallItemCard, WallLengths, newPlan, wallOpts } from '../editor/Side';
 import { PhotosPanel } from '../editor/PhotosPanel';
 import { exportPhototable } from '../photos';
 import { schematicView } from '../editor/Sheet';
@@ -73,6 +73,7 @@ export function RoomStep() {
       )}
       {!size && !noRoom(st.room) && <WallLengths />}
       <AnnexList />
+      <BehindFields />
       <Hint style="margin-top:8px" text="Не замерили — впишите на глаз: на схеме будет пустая строка «____ м».">Это только пропорции. Замер — нажмите «условно» над полем. «125 см» тоже можно.</Hint>
       <NorthField />
       <h3>Режим</h3>
@@ -176,7 +177,7 @@ export function MarkersStep() {
         </button>
       </div>
       {placing.value
-        ? <p class="warn">Коснитесь плана там, где обнаружен предмет: на полу или на развёртке стены. Метка встанет туда «условно» — точное место потом по замеру.</p>
+        ? <p class="warn">Коснитесь плана там, где обнаружен предмет: на полу, на развёртке стены или потолка. Метка встанет туда «условно» — точное место потом по замеру.</p>
         : <p class="hint">Номера — как в протоколе и на бирках; приложение их само не меняет. Метку на плане можно передвинуть пальцем.</p>}
       {st.markers.length > 0 && (
         <div class="os-pick" role="group" aria-label="Метки">

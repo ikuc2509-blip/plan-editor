@@ -272,3 +272,63 @@ test('фототаблица: снимок, стрелка на метку, по
   await page.getByRole('menu').getByRole('menuitem', { name: /Фототаблица/ }).click();
   expect((await pdf).suggestedFilename()).toMatch(/^fototablica.*\.pdf$/);
 });
+
+test('потолок: развёртка у стены В, метка на потолке тянется зеркально, потолок относится в сторону', async ({ page }) => {
+  page.on('dialog', d => void d.accept());
+  await page.setViewportSize({ width: 1400, height: 1100 });
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Помещение', exact: true }).click();
+  await page.getByRole('button', { name: 'Пустой план' }).click();
+  await page.getByRole('button', { name: 'Взять заготовку (прямоугольник)' }).first().click();
+  const sheet = page.getByTestId('sheet');
+  // что за стеной — полоска с подписью между стеной и развёрткой
+  await page.getByRole('textbox', { name: 'За стеной Б' }).fill('Коридор');
+  await expect(sheet).toContainText('Коридор');
+  await page.getByRole('checkbox', { name: 'развёртка потолка' }).check();
+  await expect(sheet).toContainText('ПОТОЛОК (развёртка у стены А)');
+  await page.getByRole('combobox', { name: 'Где на листе' }).selectOption({ label: 'у стены В' });
+  await expect(sheet).toContainText('ПОТОЛОК (развёртка у стены В)');
+
+  // метка — на потолок
+  await page.getByRole('tab', { name: 'Метки' }).click();
+  await page.getByRole('button', { name: '+ Метка' }).click();
+  await page.getByRole('combobox', { name: 'Где', exact: true }).selectOption({ label: 'на потолке' });
+  const x = page.getByRole('textbox', { name: /^X, м/ }), y = page.getByRole('textbox', { name: /^Y, м/ });
+  const x0 = parseFloat((await x.inputValue()).replace(',', '.')), y0 = await y.inputValue();
+
+  // вправо по потолку у стены В — ближе к стене В: X на полу меньше, Y тот же
+  const mk = (await sheet.locator('[data-kind="mk"] circle').last().boundingBox())!;
+  const mm = (await sheet.boundingBox())!.height / 297;
+  await page.mouse.move(mk.x + mk.width / 2, mk.y + mk.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(mk.x + mk.width / 2 + 5 * mm, mk.y + mk.height / 2, { steps: 5 });
+  await page.mouse.move(mk.x + mk.width / 2 + 10 * mm, mk.y + mk.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(async () => parseFloat((await x.inputValue()).replace(',', '.'))).toBeLessThan(x0);
+  await expect(y).toHaveValue(y0);
+
+  // пустое место потолка — отнести в сторону; «вернуть на место»
+  const pt = await page.evaluate(() => {
+    const r = document.querySelector('[data-ceil]')!.getBoundingClientRect();
+    for (let fy = 0.9; fy > 0.1; fy -= 0.1) for (let fx = 0.1; fx < 0.9; fx += 0.1) {
+      const px = r.left + r.width * fx, py = r.top + r.height * fy;
+      if (document.elementFromPoint(px, py)?.closest('[data-ceil]')) return { x: px, y: py };
+    }
+    return null;
+  });
+  expect(pt).not.toBeNull();
+  await page.mouse.move(pt!.x, pt!.y);
+  await page.mouse.down();
+  await page.mouse.move(pt!.x, pt!.y + 15 * mm, { steps: 5 });
+  await page.mouse.move(pt!.x, pt!.y + 30 * mm, { steps: 5 });
+  await page.mouse.up();
+  await expect(sheet.locator('line[stroke-dasharray="1.5 1"]')).toHaveCount(1);
+  await page.getByRole('tab', { name: 'Помещение', exact: true }).click();
+  await page.getByRole('button', { name: 'Вернуть развёртки на место' }).click();
+  await expect(sheet.locator('line[stroke-dasharray="1.5 1"]')).toHaveCount(0);
+
+  // потолок скрыт — метка в примечаниях
+  await page.getByRole('checkbox', { name: 'развёртка потолка' }).uncheck();
+  await expect(sheet).not.toContainText('ПОТОЛОК');
+  await expect(sheet).toContainText('Метка № 1 находится на потолке.');
+});
